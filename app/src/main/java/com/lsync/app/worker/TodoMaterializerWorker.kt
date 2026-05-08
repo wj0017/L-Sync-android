@@ -20,10 +20,10 @@ class TodoMaterializerWorker @AssistedInject constructor(
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
-        val templates = todoDao.observeActiveTemplates()
         // TODO: RRULE 파서 라이브러리(예: dmfs/lib-recur) 추가 후 구현
-        // 각 템플릿의 rrule을 파싱 → 오늘~+14일 발생 날짜 목록 생성
-        // → 결정론적 ID "${templateId}_${dueDate}"로 upsert (중복 방지)
+        // todoDao.observeActiveTemplates().first()
+        //   → rrule 파싱 → 오늘~+14일 발생 날짜 목록 생성
+        //   → 결정론적 ID "${templateId}_${dueDate}"로 upsert (중복 방지)
         return Result.success()
     }
 

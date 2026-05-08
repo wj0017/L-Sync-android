@@ -18,7 +18,7 @@ import com.lsync.app.data.local.entity.TodoTemplateEntity
         FinanceEntity::class,
     ],
     version = 1,
-    exportSchema = true,
+    exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun eventDao(): EventDao

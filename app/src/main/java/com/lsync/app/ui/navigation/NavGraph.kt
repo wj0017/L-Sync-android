@@ -1,6 +1,8 @@
 package com.lsync.app.ui.navigation
 
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.ui.Modifier
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.*
@@ -51,7 +53,7 @@ fun NavGraph() {
         NavHost(
             navController = navController,
             startDestination = Screen.Calendar.route,
-            contentPadding = innerPadding,
+            modifier = Modifier.padding(innerPadding),
         ) {
             composable(Screen.Calendar.route) { CalendarScreen() }
             composable(Screen.Todo.route) { TodoScreen() }
