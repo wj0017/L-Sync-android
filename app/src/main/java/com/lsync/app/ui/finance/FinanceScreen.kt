@@ -44,7 +44,7 @@ fun FinanceScreen(viewModel: FinanceViewModel = hiltViewModel()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 22.dp, end = 14.dp, top = 24.dp, bottom = 12.dp),
+                .padding(start = 22.dp, end = 14.dp, top = 24.dp, bottom = 20.dp),
             verticalAlignment = Alignment.Bottom,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {

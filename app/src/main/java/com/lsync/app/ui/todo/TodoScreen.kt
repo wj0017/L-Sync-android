@@ -48,18 +48,29 @@ fun TodoScreen(viewModel: TodoViewModel = hiltViewModel()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 22.dp, end = 14.dp, top = 24.dp, bottom = 12.dp),
+                .padding(start = 22.dp, end = 14.dp, top = 24.dp, bottom = 20.dp),
             verticalAlignment = Alignment.Bottom,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Text(
-                text = "할 일",
-                fontFamily = Pretendard,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 30.sp,
-                letterSpacing = (-0.035).em,
-                color = FgPrimary,
-            )
+            Column {
+                Text(
+                    text = uiState.selectedDate.year.toString(),
+                    fontFamily = Pretendard,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 11.sp,
+                    letterSpacing = 0.12.em,
+                    color = FgTertiary,
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = "할 일",
+                    fontFamily = Pretendard,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 30.sp,
+                    letterSpacing = (-0.035).em,
+                    color = FgPrimary,
+                )
+            }
             IconButton(
                 onClick = { showCreateDialog = true },
                 modifier = Modifier
