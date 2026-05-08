@@ -1,8 +1,14 @@
 package com.lsync.app.ui.todo
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -11,53 +17,63 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.compose.runtime.collectAsState
 import com.lsync.app.data.local.entity.TodoEntity
+import com.lsync.app.ui.theme.*
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 @Composable
 fun TodoScreen(viewModel: TodoViewModel = hiltViewModel()) {
     val uiState by viewModel.uiState.collectAsState()
     var showCreateDialog by remember { mutableStateOf(false) }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(title = { Text("할 일") })
-        },
-        floatingActionButton = {
-            FloatingActionButton(onClick = { showCreateDialog = true }) {
-                Icon(Icons.Default.Add, contentDescription = "할 일 추가")
-            }
-        }
-    ) { padding ->
-        Column(modifier = Modifier.padding(padding)) {
+    Box(modifier = Modifier.fillMaxSize().background(BgPrimary)) {
+        Column {
+            // 헤더
+            TodoHeader(onAddClick = { showCreateDialog = true })
+
+            // 날짜 칩 스트립
+            DateChipRow(
+                selectedDate = uiState.selectedDate,
+                onDateSelect = viewModel::onDateSelect,
+            )
+
+            Spacer(Modifier.height(4.dp))
+
+            // 투두 목록
             if (uiState.todos.isEmpty()) {
                 Box(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 64.dp),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text("할 일이 없습니다", color = MaterialTheme.colorScheme.outline)
+                    Text("할 일 없음", style = MaterialTheme.typography.bodyMedium, color = TextDisabled)
                 }
             } else {
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                LazyColumn(
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
                     items(uiState.todos, key = { it.id }) { todo ->
                         TodoItem(
                             todo = todo,
                             onToggle = { viewModel.toggleComplete(todo) },
                             onDelete = { viewModel.deleteTodo(todo) },
                         )
-                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                     }
                 }
             }
         }
     }
 
-    // 금액 미정 팝업 (PRD 2.1 정책: 금액 미정 시 UI 팝업 강제)
+    // 금액 미정 팝업
     uiState.pendingFinanceTodo?.let { todo ->
         FinanceAmountDialog(
             todoTitle = todo.title,
@@ -87,49 +103,147 @@ fun TodoScreen(viewModel: TodoViewModel = hiltViewModel()) {
 }
 
 @Composable
+private fun TodoHeader(onAddClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 20.dp, end = 12.dp, top = 20.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(
+            text = "할 일",
+            style = MaterialTheme.typography.displaySmall,
+            color = TextPrimary,
+        )
+        IconButton(
+            onClick = onAddClick,
+            modifier = Modifier.size(40.dp).clip(CircleShape).background(BgCard),
+        ) {
+            Icon(Icons.Default.Add, contentDescription = "추가", tint = TextPrimary)
+        }
+    }
+}
+
+@Composable
+private fun DateChipRow(selectedDate: LocalDate, onDateSelect: (LocalDate) -> Unit) {
+    val today = LocalDate.now()
+    val dates = remember { (-1..5).map { today.plusDays(it.toLong()) } }
+
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        items(dates) { date ->
+            val isSelected = date == selectedDate
+            val isToday = date == today
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(if (isSelected) TextPrimary else BgCard)
+                    .clickable { onDateSelect(date) }
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+            ) {
+                Text(
+                    text = date.format(DateTimeFormatter.ofPattern("E", Locale.KOREAN)),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = when {
+                        isSelected -> BgPrimary
+                        isToday    -> AccentBlue
+                        else       -> TextSecondary
+                    },
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = date.dayOfMonth.toString(),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = if (isSelected) BgPrimary else TextPrimary,
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun TodoItem(todo: TodoEntity, onToggle: () -> Unit, onDelete: () -> Unit) {
     var showConfirm by remember { mutableStateOf(false) }
 
-    ListItem(
-        leadingContent = {
-            Checkbox(checked = todo.isCompleted, onCheckedChange = { onToggle() })
-        },
-        headlineContent = {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(BgCard)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // 커스텀 체크박스
+        Box(
+            modifier = Modifier
+                .size(22.dp)
+                .clip(CircleShape)
+                .then(
+                    if (todo.isCompleted)
+                        Modifier.background(AccentBlue)
+                    else
+                        Modifier.border(1.5.dp, TextDisabled, CircleShape)
+                )
+                .clickable { onToggle() },
+            contentAlignment = Alignment.Center,
+        ) {
+            if (todo.isCompleted) {
+                Text("✓", style = MaterialTheme.typography.labelSmall, color = Color.White)
+            }
+        }
+
+        Spacer(Modifier.width(14.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = todo.title,
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (todo.isCompleted) TextDisabled else TextPrimary,
+                textDecoration = if (todo.isCompleted) TextDecoration.LineThrough else null,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                textDecoration = if (todo.isCompleted) TextDecoration.LineThrough else null,
-                color = if (todo.isCompleted) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.onSurface,
             )
-        },
-        supportingContent = {
-            val labels = buildList {
+            val meta = buildList {
                 todo.dueDate?.let { add(it) }
                 if (todo.financeIsLinked) {
-                    val amount = todo.financeAmount?.let { "₩${"%,d".format(it)}" } ?: "금액 미정"
-                    add("${todo.financeType ?: "지출"} · $amount")
+                    val amount = todo.financeAmount?.let { "₩%,d".format(it) } ?: "금액 미정"
+                    add("${if (todo.financeType == "INCOME") "수입" else "지출"} · $amount")
                 }
+            }.joinToString("  ·  ")
+            if (meta.isNotEmpty()) {
+                Spacer(Modifier.height(3.dp))
+                Text(
+                    text = meta,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (todo.financeIsLinked && todo.financeAmount == null) AccentRed.copy(alpha = 0.8f) else TextSecondary,
+                )
             }
-            if (labels.isNotEmpty()) Text(labels.joinToString(" · "), style = MaterialTheme.typography.labelSmall)
-        },
-        trailingContent = {
-            IconButton(onClick = { showConfirm = true }) {
-                Icon(Icons.Default.Delete, contentDescription = "삭제", tint = MaterialTheme.colorScheme.error)
-            }
-        },
-    )
+        }
+
+        IconButton(onClick = { showConfirm = true }, modifier = Modifier.size(32.dp)) {
+            Icon(Icons.Default.Delete, contentDescription = "삭제", tint = TextDisabled, modifier = Modifier.size(16.dp))
+        }
+    }
 
     if (showConfirm) {
         AlertDialog(
             onDismissRequest = { showConfirm = false },
-            title = { Text("할 일 삭제") },
-            text = { Text("'${todo.title}'을(를) 삭제할까요?\n연결된 가계부 기록은 유지됩니다.") },
+            containerColor = BgCard,
+            title = { Text("할 일 삭제", color = TextPrimary) },
+            text = { Text("'${todo.title}'을(를) 삭제할까요?\n연결된 가계부는 유지됩니다.", color = TextSecondary) },
             confirmButton = {
-                TextButton(onClick = { onDelete(); showConfirm = false }) { Text("삭제") }
+                TextButton(onClick = { onDelete(); showConfirm = false }) {
+                    Text("삭제", color = AccentRed)
+                }
             },
             dismissButton = {
-                TextButton(onClick = { showConfirm = false }) { Text("취소") }
+                TextButton(onClick = { showConfirm = false }) {
+                    Text("취소", color = TextSecondary)
+                }
             },
         )
     }
@@ -146,18 +260,26 @@ private fun FinanceAmountDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("금액 입력") },
+        containerColor = BgCard,
+        title = { Text("금액 입력", color = TextPrimary) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("'$todoTitle' 완료 시 가계부에 기록됩니다.")
-                Text("카테고리: $category", style = MaterialTheme.typography.labelSmall)
+                Text("'$todoTitle'", style = MaterialTheme.typography.bodyMedium, color = TextPrimary)
+                Text("카테고리: $category", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
                 OutlinedTextField(
                     value = amountText,
-                    onValueChange = { amountText = it.filter { c -> c.isDigit() } },
+                    onValueChange = { amountText = it.filter(Char::isDigit) },
                     label = { Text("금액 (원)") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = AccentBlue,
+                        focusedLabelColor = AccentBlue,
+                        cursorColor = AccentBlue,
+                        unfocusedBorderColor = Divider,
+                        unfocusedLabelColor = TextSecondary,
+                    ),
                 )
             }
         },
@@ -165,10 +287,10 @@ private fun FinanceAmountDialog(
             TextButton(
                 onClick = { amountText.toLongOrNull()?.let { onConfirm(it) } },
                 enabled = amountText.isNotBlank(),
-            ) { Text("확인") }
+            ) { Text("확인", color = AccentBlue) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("나중에") }
+            TextButton(onClick = onDismiss) { Text("나중에", color = TextSecondary) }
         },
     )
 }
@@ -186,24 +308,36 @@ private fun CreateTodoDialog(
     var financeCategory by remember { mutableStateOf("") }
     var financeAmount by remember { mutableStateOf("") }
 
+    val textFieldColors = OutlinedTextFieldDefaults.colors(
+        focusedBorderColor = AccentBlue,
+        focusedLabelColor = AccentBlue,
+        cursorColor = AccentBlue,
+        unfocusedBorderColor = Divider,
+        unfocusedLabelColor = TextSecondary,
+    )
+
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("새 할 일") },
+        containerColor = BgCard,
+        title = { Text("새 할 일", color = TextPrimary) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedTextField(
                     value = title, onValueChange = { title = it },
                     label = { Text("제목") }, singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth(), colors = textFieldColors,
                 )
                 OutlinedTextField(
                     value = dueDate, onValueChange = { dueDate = it },
                     label = { Text("마감일 (YYYY-MM-DD)") }, singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth(), colors = textFieldColors,
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(checked = financeLinked, onCheckedChange = { financeLinked = it })
-                    Text("가계부 연동")
+                    Checkbox(
+                        checked = financeLinked, onCheckedChange = { financeLinked = it },
+                        colors = CheckboxDefaults.colors(checkedColor = AccentBlue, uncheckedColor = TextSecondary),
+                    )
+                    Text("가계부 연동", color = TextPrimary, style = MaterialTheme.typography.bodyMedium)
                 }
                 if (financeLinked) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -212,20 +346,26 @@ private fun CreateTodoDialog(
                                 selected = financeType == type,
                                 onClick = { financeType = type },
                                 label = { Text(label) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = AccentBlue,
+                                    selectedLabelColor = Color.White,
+                                    containerColor = BgElevated,
+                                    labelColor = TextSecondary,
+                                ),
                             )
                         }
                     }
                     OutlinedTextField(
                         value = financeCategory, onValueChange = { financeCategory = it },
                         label = { Text("카테고리") }, singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth(), colors = textFieldColors,
                     )
                     OutlinedTextField(
                         value = financeAmount,
-                        onValueChange = { financeAmount = it.filter { c -> c.isDigit() } },
+                        onValueChange = { financeAmount = it.filter(Char::isDigit) },
                         label = { Text("금액 (미정이면 비워두세요)") }, singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth(), colors = textFieldColors,
                     )
                 }
             }
@@ -244,8 +384,8 @@ private fun CreateTodoDialog(
                         )
                     }
                 }
-            ) { Text("추가") }
+            ) { Text("추가", color = AccentBlue) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("취소") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("취소", color = TextSecondary) } },
     )
 }

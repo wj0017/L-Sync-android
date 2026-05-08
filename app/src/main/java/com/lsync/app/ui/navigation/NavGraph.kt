@@ -2,12 +2,17 @@ package com.lsync.app.ui.navigation
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.ui.Modifier
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
+import com.lsync.app.ui.theme.AccentBlue
+import com.lsync.app.ui.theme.BgPrimary
+import com.lsync.app.ui.theme.BgSecondary
+import com.lsync.app.ui.theme.TextDisabled
+import com.lsync.app.ui.theme.TextPrimary
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -31,13 +36,15 @@ fun NavGraph() {
     val currentDestination = navBackStackEntry?.destination
 
     Scaffold(
+        containerColor = BgPrimary,
         bottomBar = {
-            NavigationBar {
+            NavigationBar(containerColor = BgSecondary) {
                 bottomNavItems.forEach { screen ->
+                    val selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true
                     NavigationBarItem(
                         icon = { Icon(screen.icon, contentDescription = screen.label) },
-                        label = { Text(screen.label) },
-                        selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
+                        label = { Text(screen.label, style = MaterialTheme.typography.labelSmall) },
+                        selected = selected,
                         onClick = {
                             navController.navigate(screen.route) {
                                 popUpTo(navController.graph.findStartDestination().id) { saveState = true }
@@ -45,6 +52,13 @@ fun NavGraph() {
                                 restoreState = true
                             }
                         },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = TextPrimary,
+                            selectedTextColor = TextPrimary,
+                            indicatorColor = AccentBlue.copy(alpha = 0.2f),
+                            unselectedIconColor = TextDisabled,
+                            unselectedTextColor = TextDisabled,
+                        ),
                     )
                 }
             }
