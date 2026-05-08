@@ -9,6 +9,7 @@ import com.lsync.app.data.local.dao.FinanceDao
 import com.lsync.app.data.local.dao.TodoDao
 import com.lsync.app.data.remote.FirestoreDataSource
 import com.lsync.app.data.repository.EventRepository
+import com.lsync.app.data.repository.FinanceRepository
 import com.lsync.app.data.repository.TodoRepository
 import dagger.Module
 import dagger.Provides
@@ -49,4 +50,8 @@ object AppModule {
     @Singleton
     fun provideTodoRepository(todoDao: TodoDao, financeDao: FinanceDao, remote: FirestoreDataSource) =
         TodoRepository(todoDao, financeDao, remote)
+
+    @Provides
+    @Singleton
+    fun provideFinanceRepository(dao: FinanceDao) = FinanceRepository(dao)
 }
