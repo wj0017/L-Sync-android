@@ -20,3 +20,6 @@ Thumbs.db
 # Keystore
 *.jks
 *.keystore
+
+# Harness outputs
+phases/**/*-output.json

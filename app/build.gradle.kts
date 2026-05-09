@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.ksp)
     alias(libs.plugins.google.services)
     alias(libs.plugins.firebase.crashlytics)
+    alias(libs.plugins.firebase.appdistribution)
 }
 
 android {
@@ -23,8 +24,20 @@ android {
         release {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            firebaseAppDistribution {
+                appId = "1:743564596680:android:ca44f3c7cb5d3ee65edcfd"
+                testers = "excel6627@gmail.com"
+                releaseNotes = "최신 빌드"
+                artifactType = "APK"
+            }
         }
         debug {
+            firebaseAppDistribution {
+                appId = "1:743564596680:android:ca44f3c7cb5d3ee65edcfd"
+                testers = "excel6627@gmail.com"
+                releaseNotes = "최신 빌드 (디버그)"
+                artifactType = "APK"
+            }
         }
     }
 

@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -c \"import os,sys; c=os.environ.get('CLAUDE_TOOL_INPUT',''); bad=any(x in c for x in ['rm -rf','git push','git reset --hard','DROP TABLE']); sys.stderr.write('BLOCKED: 위험한 명령어가 감지되었습니다.\\n') if bad else None; sys.exit(1 if bad else 0)\""
+          }
+        ]
+      }
+    ]
+  }
+}
