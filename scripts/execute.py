@@ -55,7 +55,6 @@ class StepExecutor:
 
     MAX_RETRIES = 3
     FEAT_MSG = "feat({phase}): step {num} — {name}"
-    CHORE_MSG = "chore({phase}): step {num} output"
     TZ = timezone(timedelta(hours=9))
 
     def __init__(self, phase_dir_name: str, *, auto_push: bool = False):
@@ -142,11 +141,9 @@ class StepExecutor:
 
     def _commit_step(self, step_num: int, step_name: str):
         output_rel = f"phases/{self._phase_dir_name}/step{step_num}-output.json"
-        index_rel = f"phases/{self._phase_dir_name}/index.json"
 
         self._run_git("add", "-A")
         self._run_git("reset", "HEAD", "--", output_rel)
-        self._run_git("reset", "HEAD", "--", index_rel)
 
         if self._run_git("diff", "--cached", "--quiet").returncode != 0:
             msg = self.FEAT_MSG.format(phase=self._phase_name, num=step_num, name=step_name)
@@ -154,14 +151,7 @@ class StepExecutor:
             if r.returncode == 0:
                 print(f"  Commit: {msg}")
             else:
-                print(f"  WARN: 코드 커밋 실패: {r.stderr.strip()}")
-
-        self._run_git("add", "-A")
-        if self._run_git("diff", "--cached", "--quiet").returncode != 0:
-            msg = self.CHORE_MSG.format(phase=self._phase_name, num=step_num)
-            r = self._run_git("commit", "-m", msg)
-            if r.returncode != 0:
-                print(f"  WARN: housekeeping 커밋 실패: {r.stderr.strip()}")
+                print(f"  WARN: 커밋 실패: {r.stderr.strip()}")
 
     # --- top-level index ---
 

@@ -1,23 +1,26 @@
 package com.lsync.app.ui.finance
 
+import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.ChevronLeft
 import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -27,6 +30,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.lsync.app.data.local.entity.FinanceEntity
 import androidx.compose.ui.text.font.FontStyle
 import com.lsync.app.ui.theme.*
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -34,148 +38,207 @@ import java.util.Locale
 @Composable
 fun FinanceScreen(viewModel: FinanceViewModel = hiltViewModel()) {
     val uiState by viewModel.uiState.collectAsState()
+    val formState by viewModel.formState.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(BgPrimary)
-    ) {
-        // Header
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 22.dp, end = 14.dp, top = 24.dp, bottom = 20.dp),
-            verticalAlignment = Alignment.Bottom,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Column {
-                Text(
-                    text = uiState.yearMonth.year.toString(),
-                    fontFamily = Pretendard,
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 11.sp,
-                    letterSpacing = 0.12.em,
-                    color = FgTertiary,
-                )
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    text = "${uiState.yearMonth.monthValue}월 가계부",
-                    fontFamily = Pretendard,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 30.sp,
-                    letterSpacing = (-0.035).em,
-                    color = FgPrimary,
-                )
+    LaunchedEffect(Unit) {
+        viewModel.exportedCsv.collect { csv ->
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, csv)
+                putExtra(Intent.EXTRA_SUBJECT, "L-Sync 가계부 ${uiState.yearMonth}")
             }
-            IconButton(
-                onClick = { /* TODO: 거래 추가 */ },
-                modifier = Modifier
-                    .size(38.dp)
-                    .clip(CircleShape)
-                    .background(BgCard)
-                    .border(1.dp, HairlineWhite, CircleShape),
-            ) {
-                Icon(Icons.Outlined.Add, contentDescription = "추가", tint = FgPrimary, modifier = Modifier.size(20.dp))
-            }
+            context.startActivity(Intent.createChooser(intent, "내보내기"))
         }
+    }
 
-        LazyColumn(
-            contentPadding = PaddingValues(bottom = 16.dp),
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(BgPrimary)
         ) {
-            // Month switcher
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    IconButton(onClick = { viewModel.shiftMonth(-1) }, modifier = Modifier.size(32.dp)) {
-                        Icon(Icons.Outlined.ChevronLeft, contentDescription = "이전 달", tint = FgSecondary, modifier = Modifier.size(20.dp))
-                    }
-                    Spacer(Modifier.width(14.dp))
+            // Header
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 22.dp, end = 14.dp, top = 24.dp, bottom = 20.dp),
+                verticalAlignment = Alignment.Bottom,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Column {
                     Text(
-                        text = "${uiState.yearMonth.year}년 ${uiState.yearMonth.monthValue}월",
+                        text = uiState.yearMonth.year.toString(),
                         fontFamily = Pretendard,
                         fontWeight = FontWeight.Medium,
-                        fontSize = 12.sp,
-                        letterSpacing = 0.5.sp,
-                        color = FgSecondary,
+                        fontSize = 11.sp,
+                        letterSpacing = 0.12.em,
+                        color = FgTertiary,
                     )
-                    Spacer(Modifier.width(14.dp))
-                    IconButton(onClick = { viewModel.shiftMonth(1) }, modifier = Modifier.size(32.dp)) {
-                        Icon(Icons.Outlined.ChevronRight, contentDescription = "다음 달", tint = FgSecondary, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        text = "${uiState.yearMonth.monthValue}월 가계부",
+                        fontFamily = Pretendard,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 30.sp,
+                        letterSpacing = (-0.035).em,
+                        color = FgPrimary,
+                    )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // CSV export button
+                    IconButton(
+                        onClick = { viewModel.triggerExport() },
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(BgCard)
+                            .border(1.dp, HairlineWhite, CircleShape),
+                    ) {
+                        Icon(Icons.Outlined.Share, contentDescription = "내보내기", tint = FgPrimary, modifier = Modifier.size(18.dp))
+                    }
+                    // Add transaction button
+                    IconButton(
+                        onClick = { viewModel.openCreateForm(LocalDate.now().toString()) },
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(BgCard)
+                            .border(1.dp, HairlineWhite, CircleShape),
+                    ) {
+                        Icon(Icons.Outlined.Add, contentDescription = "추가", tint = FgPrimary, modifier = Modifier.size(20.dp))
                     }
                 }
             }
 
-            // Summary card
-            item {
-                SummaryCard(
-                    net = uiState.net,
-                    income = uiState.income,
-                    expense = uiState.expense,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
-                )
-            }
+            LazyColumn(
+                contentPadding = PaddingValues(bottom = 16.dp),
+            ) {
+                // Month switcher
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        IconButton(onClick = { viewModel.shiftMonth(-1) }, modifier = Modifier.size(32.dp)) {
+                            Icon(Icons.Outlined.ChevronLeft, contentDescription = "이전 달", tint = FgSecondary, modifier = Modifier.size(20.dp))
+                        }
+                        Spacer(Modifier.width(14.dp))
+                        Text(
+                            text = "${uiState.yearMonth.year}년 ${uiState.yearMonth.monthValue}월",
+                            fontFamily = Pretendard,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 12.sp,
+                            letterSpacing = 0.5.sp,
+                            color = FgSecondary,
+                        )
+                        Spacer(Modifier.width(14.dp))
+                        IconButton(onClick = { viewModel.shiftMonth(1) }, modifier = Modifier.size(32.dp)) {
+                            Icon(Icons.Outlined.ChevronRight, contentDescription = "다음 달", tint = FgSecondary, modifier = Modifier.size(20.dp))
+                        }
+                    }
+                }
 
-            // Filter chips
-            item {
-                Row(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    listOf(
-                        FinanceFilter.ALL to "전체",
-                        FinanceFilter.EXPENSE to "지출",
-                        FinanceFilter.INCOME to "수입",
-                    ).forEach { (filter, label) ->
-                        val sel = uiState.filter == filter
+                // Summary card
+                item {
+                    SummaryCard(
+                        net = uiState.net,
+                        income = uiState.income,
+                        expense = uiState.expense,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                    )
+                }
+
+                // Filter chips
+                item {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        listOf(
+                            FinanceFilter.ALL to "전체",
+                            FinanceFilter.EXPENSE to "지출",
+                            FinanceFilter.INCOME to "수입",
+                        ).forEach { (filter, label) ->
+                            val sel = uiState.filter == filter
+                            Box(
+                                modifier = Modifier
+                                    .clip(CircleShape)
+                                    .background(if (sel) FgPrimary else Color.Transparent)
+                                    .border(1.dp, if (sel) FgPrimary else Divider, CircleShape)
+                                    .clickable { viewModel.setFilter(filter) }
+                                    .padding(horizontal = 14.dp, vertical = 7.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    label,
+                                    fontFamily = Pretendard,
+                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 12.sp,
+                                    color = if (sel) BgPrimary else FgSecondary,
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Empty state
+                if (uiState.byDate.isEmpty()) {
+                    item {
                         Box(
-                            modifier = Modifier
-                                .clip(CircleShape)
-                                .background(if (sel) FgPrimary else Color.Transparent)
-                                .border(1.dp, if (sel) FgPrimary else Divider, CircleShape)
-                                .clickable { viewModel.setFilter(filter) }
-                                .padding(horizontal = 14.dp, vertical = 7.dp),
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp),
                             contentAlignment = Alignment.Center,
                         ) {
-                            Text(
-                                label,
-                                fontFamily = Pretendard,
-                                fontWeight = FontWeight.Medium,
-                                fontSize = 12.sp,
-                                color = if (sel) BgPrimary else FgSecondary,
+                            Text("거래 없음", fontSize = 14.sp, color = FgDisabled, fontFamily = Pretendard)
+                        }
+                    }
+                } else {
+                    // Day-grouped list
+                    uiState.byDate.forEach { (date, txList) ->
+                        item(key = "header_$date") {
+                            DateGroupHeader(date = date, transactions = txList)
+                        }
+                        item(key = "card_$date") {
+                            TransactionGroupCard(
+                                transactions = txList,
+                                onTap = { finance ->
+                                    if (finance.sourceTodoId != null) {
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar("Todo 연동 항목은 수정할 수 없습니다")
+                                        }
+                                    } else {
+                                        viewModel.openEditForm(finance)
+                                    }
+                                },
+                                onDelete = { id -> viewModel.deleteTransaction(id) },
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                             )
                         }
                     }
                 }
             }
-
-            // Empty state
-            if (uiState.byDate.isEmpty()) {
-                item {
-                    Box(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text("거래 없음", fontSize = 14.sp, color = FgDisabled, fontFamily = Pretendard)
-                    }
-                }
-            } else {
-                // Day-grouped list
-                uiState.byDate.forEach { (date, txList) ->
-                    item(key = "header_$date") {
-                        DateGroupHeader(date = date, transactions = txList)
-                    }
-                    item(key = "card_$date") {
-                        TransactionGroupCard(
-                            transactions = txList,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                        )
-                    }
-                }
-            }
         }
+
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter),
+        )
+    }
+
+    if (formState.isVisible) {
+        TransactionFormSheet(
+            formState = formState,
+            onTypeChange = { viewModel.updateFormField(type = it) },
+            onAmountChange = { viewModel.updateFormField(amount = it) },
+            onCategoryChange = { viewModel.updateFormField(category = it) },
+            onDateChange = { viewModel.updateFormField(date = it) },
+            onNoteChange = { viewModel.updateFormField(note = it) },
+            onSave = viewModel::saveTransaction,
+            onDismiss = viewModel::closeForm,
+        )
     }
 }
 
@@ -293,7 +356,12 @@ private fun DateGroupHeader(date: String, transactions: List<FinanceEntity>) {
 }
 
 @Composable
-private fun TransactionGroupCard(transactions: List<FinanceEntity>, modifier: Modifier = Modifier) {
+private fun TransactionGroupCard(
+    transactions: List<FinanceEntity>,
+    onTap: (FinanceEntity) -> Unit,
+    onDelete: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -303,16 +371,27 @@ private fun TransactionGroupCard(transactions: List<FinanceEntity>, modifier: Mo
     ) {
         transactions.forEachIndexed { i, tx ->
             if (i > 0) Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp).height(1.dp).background(Divider))
-            TransactionRow(tx = tx)
+            TransactionRow(
+                tx = tx,
+                onTap = { onTap(tx) },
+                onDelete = if (tx.sourceTodoId == null) { { onDelete(tx.id) } } else null,
+            )
         }
     }
 }
 
 @Composable
-private fun TransactionRow(tx: FinanceEntity) {
+private fun TransactionRow(
+    tx: FinanceEntity,
+    onTap: () -> Unit,
+    onDelete: (() -> Unit)?,
+) {
     val isIncome = tx.type == "INCOME"
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onTap)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
@@ -370,5 +449,20 @@ private fun TransactionRow(tx: FinanceEntity) {
             letterSpacing = (-0.01).em,
             color = if (isIncome) AccentGreen else FgPrimary,
         )
+
+        // Delete icon — Todo-linked items excluded
+        if (onDelete != null) {
+            IconButton(
+                onClick = onDelete,
+                modifier = Modifier.size(32.dp),
+            ) {
+                Icon(
+                    Icons.Outlined.Delete,
+                    contentDescription = "삭제",
+                    tint = AccentRed,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        }
     }
 }

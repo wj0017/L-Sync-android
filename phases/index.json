@@ -4,6 +4,11 @@
       "dir": "1-phase1-completion",
       "status": "completed",
       "completed_at": "2026-05-10T00:58:08+0900"
+    },
+    {
+      "dir": "2-finance-automation",
+      "status": "completed",
+      "completed_at": "2026-05-11T21:49:01+0900"
     }
   ]
 }

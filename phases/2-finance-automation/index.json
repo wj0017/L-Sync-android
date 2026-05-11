@@ -1,0 +1,40 @@
+{
+  "project": "L-Sync",
+  "phase": "2-finance-automation",
+  "steps": [
+    {
+      "step": 0,
+      "name": "finance-dao",
+      "status": "completed",
+      "started_at": "2026-05-11T21:38:02+0900",
+      "summary": "FinanceCategory(7개 고정 카테고리) 신규 생성 및 FinanceDao에 deleteById·getAllByDateRange 메서드 추가",
+      "completed_at": "2026-05-11T21:39:30+0900"
+    },
+    {
+      "step": 1,
+      "name": "finance-repository",
+      "status": "completed",
+      "started_at": "2026-05-11T21:39:30+0900",
+      "summary": "FinanceRepository에 create/update/delete/exportCsv 추가 및 FirestoreDataSource에 upsertFinance/deleteFinance 추가, AppModule 업데이트",
+      "completed_at": "2026-05-11T21:41:17+0900"
+    },
+    {
+      "step": 2,
+      "name": "finance-viewmodel",
+      "status": "completed",
+      "started_at": "2026-05-11T21:41:18+0900",
+      "summary": "FormUiState 추가 및 FinanceViewModel에 formState/exportedCsv StateFlow·SharedFlow와 openCreateForm/openEditForm/closeForm/updateFormField/saveTransaction/deleteTransaction/triggerExport 메서드 구현",
+      "completed_at": "2026-05-11T21:42:45+0900"
+    },
+    {
+      "step": 3,
+      "name": "finance-screen",
+      "status": "completed",
+      "started_at": "2026-05-11T21:42:45+0900",
+      "summary": "TransactionFormSheet(AlertDialog, Ghost chip 유형 선택, 가로 스크롤 카테고리, AccentBlue 저장 버튼) 신규 생성 및 FinanceScreen에 폼 연결·추가 버튼·편집/삭제 콜백·Todo 연동 항목 Snackbar·CSV Share Intent 구현",
+      "completed_at": "2026-05-11T21:49:01+0900"
+    }
+  ],
+  "created_at": "2026-05-11T21:38:02+0900",
+  "completed_at": "2026-05-11T21:49:01+0900"
+}

@@ -62,6 +62,14 @@ class FirestoreDataSource @Inject constructor(
         }.await()
     }
 
+    suspend fun upsertFinance(entity: FinanceEntity) {
+        finance().document(entity.id).set(entity.toMap(), SetOptions.merge()).await()
+    }
+
+    suspend fun deleteFinance(id: String) {
+        finance().document(id).delete().await()
+    }
+
     private fun EventEntity.toMap() = mapOf(
         "id" to id, "userId" to userId, "title" to title, "isAllDay" to isAllDay,
         "startDate" to startDate, "endDate" to endDate, "timezone" to timezone,

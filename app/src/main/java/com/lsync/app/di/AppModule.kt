@@ -59,5 +59,6 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideFinanceRepository(dao: FinanceDao) = FinanceRepository(dao)
+    fun provideFinanceRepository(dao: FinanceDao, remote: FirestoreDataSource) =
+        FinanceRepository(dao, remote)
 }
