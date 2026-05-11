@@ -35,13 +35,13 @@ class PaymentNotificationService : NotificationListenerService() {
 
         serviceScope.launch {
             financeRepository.create(
-                type = "EXPENSE",
+                type = parsed.type,
                 amount = parsed.amount,
                 category = parsed.category,
                 date = LocalDate.now().toString(),
                 note = parsed.note,
             )
-            postConfirmationNotification(parsed.amount)
+            postConfirmationNotification(parsed.amount, parsed.type)
         }
     }
 
@@ -54,12 +54,13 @@ class PaymentNotificationService : NotificationListenerService() {
         serviceScope.cancel()
     }
 
-    private fun postConfirmationNotification(amount: Long) {
+    private fun postConfirmationNotification(amount: Long, type: String) {
         ensurePaymentChannel()
         val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+        val label = if (type == "INCOME") "입금" else "결제"
         val notification = NotificationCompat.Builder(this, PAYMENT_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("결제 자동 등록됨")
+            .setContentTitle("$label 자동 등록됨")
             .setContentText("%,d원 가계부에 추가되었습니다".format(amount))
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setAutoCancel(true)
