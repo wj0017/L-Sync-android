@@ -12,6 +12,11 @@ data class BibleBook(
     val testament: String,
 )
 
+data class BookChapterCount(
+    val book: Int,
+    @ColumnInfo(name = "chapter_count") val chapterCount: Int,
+)
+
 @Dao
 interface BibleDao {
     @Query("SELECT DISTINCT book, book_name, book_short, testament FROM bible_verses ORDER BY book ASC")
@@ -19,6 +24,9 @@ interface BibleDao {
 
     @Query("SELECT MAX(chapter) FROM bible_verses WHERE book = :book")
     suspend fun getChapterCount(book: Int): Int?
+
+    @Query("SELECT book, MAX(chapter) AS chapter_count FROM bible_verses GROUP BY book ORDER BY book ASC")
+    suspend fun getChapterCounts(): List<BookChapterCount>
 
     @Query("SELECT * FROM bible_verses WHERE book = :book AND chapter = :chapter ORDER BY verse ASC")
     suspend fun getVerses(book: Int, chapter: Int): List<BibleVerseEntity>

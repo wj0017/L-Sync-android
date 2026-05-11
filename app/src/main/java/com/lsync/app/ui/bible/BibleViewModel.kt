@@ -1,11 +1,15 @@
 package com.lsync.app.ui.bible
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.lsync.app.data.local.dao.BibleBook
 import com.lsync.app.data.local.dao.BibleDao
+import com.lsync.app.data.local.dao.EsvDao
 import com.lsync.app.data.local.entity.BibleVerseEntity
+import com.lsync.app.data.local.entity.EsvVerseEntity
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,10 +20,13 @@ import javax.inject.Inject
 
 data class BibleUiState(
     val books: List<BibleBook> = emptyList(),
+    val chapterCounts: Map<Int, Int> = emptyMap(),  // book → max chapter
     val currentBook: Int = 1,
     val currentChapter: Int = 1,
     val chapterCount: Int = 1,
     val verses: List<BibleVerseEntity> = emptyList(),
+    val esvVerses: List<EsvVerseEntity> = emptyList(),
+    val showEsv: Boolean = false,
     val isTableOfContentsOpen: Boolean = false,
     val isSearchActive: Boolean = false,
     val searchQuery: String = "",
@@ -30,7 +37,11 @@ data class BibleUiState(
 @HiltViewModel
 class BibleViewModel @Inject constructor(
     private val bibleDao: BibleDao,
+    private val esvDao: EsvDao,
+    @ApplicationContext context: Context,
 ) : ViewModel() {
+
+    private val prefs = context.getSharedPreferences("bible_position", Context.MODE_PRIVATE)
 
     private val _state = MutableStateFlow(BibleUiState())
     val state: StateFlow<BibleUiState> = _state.asStateFlow()
@@ -40,10 +51,13 @@ class BibleViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             runCatching {
-                val books = bibleDao.getBooks()
+                val books         = bibleDao.getBooks()
                 if (books.isEmpty()) return@launch
-                _state.value = _state.value.copy(books = books)
-                fetchAndApply(books.first().book, 1)
+                val chapterCounts = bibleDao.getChapterCounts().associate { it.book to it.chapterCount }
+                _state.value = _state.value.copy(books = books, chapterCounts = chapterCounts)
+                val savedBook    = prefs.getInt("book", books.first().book)
+                val savedChapter = prefs.getInt("chapter", 1)
+                fetchAndApply(savedBook, savedChapter)
             }.onFailure { e ->
                 _state.value = _state.value.copy(error = e.message)
             }
@@ -60,6 +74,21 @@ class BibleViewModel @Inject constructor(
             )
             searchJob?.cancel()
             runCatching { fetchAndApply(book, chapter) }
+        }
+    }
+
+    fun toggleEsv() {
+        val show = !_state.value.showEsv
+        _state.value = _state.value.copy(showEsv = show)
+        if (show) {
+            viewModelScope.launch {
+                runCatching {
+                    val esv = esvDao.getVerses(_state.value.currentBook, _state.value.currentChapter)
+                    _state.value = _state.value.copy(esvVerses = esv)
+                }
+            }
+        } else {
+            _state.value = _state.value.copy(esvVerses = emptyList())
         }
     }
 
@@ -109,15 +138,25 @@ class BibleViewModel @Inject constructor(
                 viewModelScope.launch {
                     runCatching {
                         val lastChapter = bibleDao.getChapterCount(prevBook) ?: 1
+                        val verses = bibleDao.getVerses(prevBook, lastChapter)
+                        val esv = if (_state.value.showEsv) esvDao.getVerses(prevBook, lastChapter) else emptyList()
                         _state.value = _state.value.copy(
                             currentBook = prevBook,
                             currentChapter = lastChapter,
                             chapterCount = lastChapter,
-                            verses = bibleDao.getVerses(prevBook, lastChapter),
+                            verses = verses,
+                            esvVerses = esv,
                         )
+                        savePosition(prevBook, lastChapter)
                     }
                 }
             }
+        }
+    }
+
+    fun goToChapter(chapter: Int) {
+        viewModelScope.launch {
+            runCatching { fetchAndApply(_state.value.currentBook, chapter) }
         }
     }
 
@@ -128,11 +167,18 @@ class BibleViewModel @Inject constructor(
     private suspend fun fetchAndApply(book: Int, chapter: Int) {
         val chapterCount = bibleDao.getChapterCount(book) ?: 1
         val verses = bibleDao.getVerses(book, chapter)
+        val esv = if (_state.value.showEsv) esvDao.getVerses(book, chapter) else emptyList()
         _state.value = _state.value.copy(
             currentBook = book,
             currentChapter = chapter,
             chapterCount = chapterCount,
             verses = verses,
+            esvVerses = esv,
         )
+        savePosition(book, chapter)
+    }
+
+    private fun savePosition(book: Int, chapter: Int) {
+        prefs.edit().putInt("book", book).putInt("chapter", chapter).apply()
     }
 }

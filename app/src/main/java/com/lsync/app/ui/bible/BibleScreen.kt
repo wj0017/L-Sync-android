@@ -17,6 +17,8 @@ import androidx.compose.material.icons.outlined.MenuBook
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -61,11 +63,13 @@ fun BibleScreen(viewModel: BibleViewModel = hiltViewModel()) {
     val tocSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     if (state.isTableOfContentsOpen) {
         TableOfContentsSheet(
-            books       = state.books,
-            currentBook = state.currentBook,
-            sheetState  = tocSheetState,
-            onNavigate  = { book -> viewModel.navigateTo(book, 1) },
-            onDismiss   = { viewModel.toggleTableOfContents() },
+            books         = state.books,
+            chapterCounts = state.chapterCounts,
+            currentBook   = state.currentBook,
+            currentChapter = state.currentChapter,
+            sheetState    = tocSheetState,
+            onNavigate    = { book, chapter -> viewModel.navigateTo(book, chapter) },
+            onDismiss     = { viewModel.toggleTableOfContents() },
         )
     }
 
@@ -144,6 +148,25 @@ fun BibleScreen(viewModel: BibleViewModel = hiltViewModel()) {
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    // ESV 토글
+                    Box(
+                        modifier = Modifier
+                            .height(38.dp)
+                            .clip(RoundedCornerShape(19.dp))
+                            .background(if (state.showEsv) AccentBlue else BgCard)
+                            .border(1.dp, if (state.showEsv) Color.Transparent else HairlineWhite, RoundedCornerShape(19.dp))
+                            .clickable { viewModel.toggleEsv() }
+                            .padding(horizontal = 12.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = "ESV",
+                            fontFamily = Pretendard,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 12.sp,
+                            color = if (state.showEsv) Color.White else FgSecondary,
+                        )
+                    }
                     IconButton(
                         onClick = { viewModel.toggleSearch() },
                         modifier = Modifier
@@ -176,42 +199,66 @@ fun BibleScreen(viewModel: BibleViewModel = hiltViewModel()) {
             )
         } else {
 
-        LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
-            // Chapter nav
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    IconButton(
-                        onClick = { viewModel.prevChapter() },
-                        modifier = Modifier.size(32.dp),
-                    ) {
-                        Icon(Icons.Outlined.ChevronLeft, contentDescription = "이전 장", tint = FgSecondary, modifier = Modifier.size(20.dp))
-                    }
-                    Spacer(Modifier.width(14.dp))
-                    Text(
-                        text = "${state.currentChapter} / ${state.chapterCount}",
-                        fontFamily = Pretendard,
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 12.sp,
-                        letterSpacing = 0.5.sp,
-                        color = FgSecondary,
-                    )
-                    Spacer(Modifier.width(14.dp))
-                    IconButton(
-                        onClick = { viewModel.nextChapter() },
-                        modifier = Modifier.size(32.dp),
-                    ) {
-                        Icon(Icons.Outlined.ChevronRight, contentDescription = "다음 장", tint = FgSecondary, modifier = Modifier.size(20.dp))
-                    }
-                }
+        val pagerState = rememberPagerState(
+            initialPage = maxOf(0, state.currentChapter - 1),
+            pageCount   = { maxOf(1, state.chapterCount) },
+        )
+
+        // 페이저 이동 → ViewModel: 스와이프 시작 즉시 로드
+        LaunchedEffect(pagerState.targetPage) {
+            val ch = pagerState.targetPage + 1
+            if (ch != state.currentChapter) viewModel.goToChapter(ch)
+        }
+        // ViewModel → 페이저: 목차·검색 등 외부 이동 시 점프
+        LaunchedEffect(state.currentBook, state.currentChapter) {
+            val page = state.currentChapter - 1
+            if (pagerState.currentPage != page && !pagerState.isScrollInProgress) {
+                pagerState.scrollToPage(page)
             }
+        }
+
+        // 장 네비 (페이저 실시간 반영)
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(
+                onClick = { viewModel.prevChapter() },
+                modifier = Modifier.size(32.dp),
+            ) {
+                Icon(Icons.Outlined.ChevronLeft, contentDescription = "이전 장", tint = FgSecondary, modifier = Modifier.size(20.dp))
+            }
+            Spacer(Modifier.width(14.dp))
+            Text(
+                text = "${pagerState.currentPage + 1} / ${state.chapterCount}",
+                fontFamily = Pretendard,
+                fontWeight = FontWeight.Medium,
+                fontSize = 12.sp,
+                letterSpacing = 0.5.sp,
+                color = FgSecondary,
+            )
+            Spacer(Modifier.width(14.dp))
+            IconButton(
+                onClick = { viewModel.nextChapter() },
+                modifier = Modifier.size(32.dp),
+            ) {
+                Icon(Icons.Outlined.ChevronRight, contentDescription = "다음 장", tint = FgSecondary, modifier = Modifier.size(20.dp))
+            }
+        }
+
+        HorizontalPager(
+            state    = pagerState,
+            modifier = Modifier.fillMaxSize(),
+        ) { page ->
+        val isCurrentPage = page == state.currentChapter - 1
+
+        LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
 
             // Verses
-            items(state.verses, key = { it.idx }) { verse ->
+            items(if (isCurrentPage) state.verses else emptyList(), key = { it.idx }) { verse ->
                 val isAnchored = anchored == verse.verse
+                val esvVerse = state.esvVerses.find { it.verse == verse.verse }
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -229,24 +276,38 @@ fun BibleScreen(viewModel: BibleViewModel = hiltViewModel()) {
                         fontSize = 14.sp,
                         letterSpacing = 0.02.em,
                         color = if (isAnchored) AccentBlue else FgTertiary,
-                        modifier = Modifier.width(20.dp),
+                        modifier = Modifier.width(20.dp).padding(top = 2.dp),
                         textAlign = TextAlign.End,
                     )
-                    Text(
-                        text = verse.text,
-                        fontFamily = Pretendard,
-                        fontWeight = FontWeight.Normal,
-                        fontSize = 16.sp,
-                        lineHeight = 29.6.sp,
-                        letterSpacing = (-0.005).em,
-                        color = FgPrimary,
-                        modifier = Modifier.weight(1f),
-                    )
+                    Column(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                        Text(
+                            text = verse.text,
+                            fontFamily = Pretendard,
+                            fontWeight = FontWeight.Normal,
+                            fontSize = 16.sp,
+                            lineHeight = 29.6.sp,
+                            letterSpacing = (-0.005).em,
+                            color = FgPrimary,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        if (state.showEsv && esvVerse != null) {
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = esvVerse.text,
+                                fontFamily = Pretendard,
+                                fontWeight = FontWeight.Normal,
+                                fontSize = 13.sp,
+                                lineHeight = 20.sp,
+                                letterSpacing = 0.em,
+                                color = FgSecondary,
+                            )
+                        }
+                    }
                 }
             }
 
-            // Saved memo card
-            savedMemo?.let { memo ->
+            // Saved memo card (현재 장만)
+            if (isCurrentPage) savedMemo?.let { memo ->
                 item {
                     Column(
                         modifier = Modifier
@@ -277,8 +338,8 @@ fun BibleScreen(viewModel: BibleViewModel = hiltViewModel()) {
                 }
             }
 
-            // Memo composer (절 선택 시 표시)
-            if (anchored != null) {
+            // Memo composer (현재 장, 절 선택 시)
+            if (isCurrentPage && anchored != null) {
                 item {
                     Column(
                         modifier = Modifier
@@ -369,7 +430,8 @@ fun BibleScreen(viewModel: BibleViewModel = hiltViewModel()) {
                 }
             }
         }
-        } // end else (not search)
+        } // end LazyColumn
+        } // end HorizontalPager + else
     }
 }
 
@@ -447,13 +509,17 @@ private fun SearchResults(
 @Composable
 private fun TableOfContentsSheet(
     books: List<BibleBook>,
+    chapterCounts: Map<Int, Int>,
     currentBook: Int,
+    currentChapter: Int,
     sheetState: SheetState,
-    onNavigate: (Int) -> Unit,
+    onNavigate: (Int, Int) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val otBooks = books.filter { it.testament == "구약" }
-    val ntBooks = books.filter { it.testament == "신약" }
+    var selectedBook by remember { mutableStateOf<BibleBook?>(null) }
+
+    val otBooks = books.filter { it.testament.startsWith("구") }
+    val ntBooks = books.filter { it.testament.startsWith("신") }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -470,48 +536,116 @@ private fun TableOfContentsSheet(
             )
         },
     ) {
-        Text(
-            text = "목차",
-            fontFamily = Pretendard,
-            fontWeight = FontWeight.SemiBold,
-            fontSize = 20.sp,
-            letterSpacing = (-0.02).em,
-            color = FgPrimary,
-            modifier = Modifier.padding(start = 22.dp, end = 22.dp, bottom = 16.dp),
-        )
+        if (selectedBook == null) {
+            // ── 1단계: 책 목록 ───────────────────────────────────────────
+            Text(
+                text = "목차",
+                fontFamily = Pretendard,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 20.sp,
+                letterSpacing = (-0.02).em,
+                color = FgPrimary,
+                modifier = Modifier.padding(start = 22.dp, end = 22.dp, bottom = 16.dp),
+            )
+            LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 40.dp)) {
+                item {
+                    Text(
+                        text = "구약 · ${otBooks.size}권".uppercase(),
+                        fontFamily = Pretendard,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 10.sp,
+                        letterSpacing = 0.12.em,
+                        color = FgTertiary,
+                        modifier = Modifier.padding(start = 6.dp, bottom = 8.dp),
+                    )
+                }
+                items(otBooks.chunked(3)) { row ->
+                    BookChipRow(
+                        row = row, currentBook = currentBook,
+                        onNavigate = { book -> selectedBook = books.find { it.book == book } },
+                    )
+                    Spacer(Modifier.height(8.dp))
+                }
+                item {
+                    Spacer(Modifier.height(16.dp))
+                    Text(
+                        text = "신약 · ${ntBooks.size}권".uppercase(),
+                        fontFamily = Pretendard,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 10.sp,
+                        letterSpacing = 0.12.em,
+                        color = FgTertiary,
+                        modifier = Modifier.padding(start = 6.dp, bottom = 8.dp),
+                    )
+                }
+                items(ntBooks.chunked(3)) { row ->
+                    BookChipRow(
+                        row = row, currentBook = currentBook,
+                        onNavigate = { book -> selectedBook = books.find { it.book == book } },
+                    )
+                    Spacer(Modifier.height(8.dp))
+                }
+            }
+        } else {
+            // ── 2단계: 장 선택 ───────────────────────────────────────────
+            val book = selectedBook!!
+            val maxChapter = chapterCounts[book.book] ?: 1
 
-        LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 40.dp)) {
-            item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 6.dp, end = 22.dp, bottom = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(onClick = { selectedBook = null }) {
+                    Icon(
+                        Icons.AutoMirrored.Outlined.ArrowBack,
+                        contentDescription = "뒤로",
+                        tint = FgSecondary,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
                 Text(
-                    text = "구약 · ${otBooks.size}권".uppercase(),
+                    text = book.bookName,
                     fontFamily = Pretendard,
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 10.sp,
-                    letterSpacing = 0.12.em,
-                    color = FgTertiary,
-                    modifier = Modifier.padding(start = 6.dp, bottom = 8.dp),
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 20.sp,
+                    letterSpacing = (-0.02).em,
+                    color = FgPrimary,
                 )
             }
-            items(otBooks.chunked(3)) { row ->
-                BookChipRow(row = row, currentBook = currentBook, onNavigate = onNavigate)
-                Spacer(Modifier.height(8.dp))
-            }
 
-            item {
-                Spacer(Modifier.height(16.dp))
-                Text(
-                    text = "신약 · ${ntBooks.size}권".uppercase(),
-                    fontFamily = Pretendard,
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 10.sp,
-                    letterSpacing = 0.12.em,
-                    color = FgTertiary,
-                    modifier = Modifier.padding(start = 6.dp, bottom = 8.dp),
-                )
-            }
-            items(ntBooks.chunked(3)) { row ->
-                BookChipRow(row = row, currentBook = currentBook, onNavigate = onNavigate)
-                Spacer(Modifier.height(8.dp))
+            LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 40.dp)) {
+                items((1..maxChapter).toList().chunked(6)) { row ->
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        row.forEach { chapter ->
+                            val isSelected = book.book == currentBook && chapter == currentChapter
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(40.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(if (isSelected) FgPrimary else Color.Transparent)
+                                    .border(1.dp, if (isSelected) Color.Transparent else HairlineWhite, RoundedCornerShape(10.dp))
+                                    .clickable { onNavigate(book.book, chapter) },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    text = chapter.toString(),
+                                    fontFamily = Pretendard,
+                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 13.sp,
+                                    color = if (isSelected) BgPrimary else FgPrimary,
+                                )
+                            }
+                        }
+                        repeat(6 - row.size) { Spacer(modifier = Modifier.weight(1f)) }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                }
             }
         }
     }
