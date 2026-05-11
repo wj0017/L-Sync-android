@@ -1,0 +1,32 @@
+{
+  "project": "L-Sync",
+  "phase": "3-payment-notification",
+  "steps": [
+    {
+      "step": 0,
+      "name": "payment-parser",
+      "status": "completed",
+      "started_at": "2026-05-11T22:12:37+0900",
+      "summary": "PaymentNotificationParser.kt 생성 — 5개 결제 앱 패키지 감지, 금액 추출, 카테고리 추론, 노트 추출 순수 Kotlin 파싱 로직 구현",
+      "completed_at": "2026-05-11T22:13:19+0900"
+    },
+    {
+      "step": 1,
+      "name": "notification-service",
+      "status": "completed",
+      "started_at": "2026-05-11T22:13:19+0900",
+      "summary": "PaymentNotificationService.kt 생성 — @AndroidEntryPoint NotificationListenerService, FinanceRepository 주입, serviceScope(SupervisorJob+IO), 결제 감지 시 Room 저장 + IMPORTANCE_DEFAULT 확인 알림 발송, AndroidManifest에 BIND_NOTIFICATION_LISTENER_SERVICE 서비스 선언 추가",
+      "completed_at": "2026-05-11T22:14:24+0900"
+    },
+    {
+      "step": 2,
+      "name": "notification-permission",
+      "status": "completed",
+      "started_at": "2026-05-11T22:14:24+0900",
+      "summary": "PermissionHelper에 needsNotificationListenerPermission/openNotificationListenerSettings 추가, MainActivity에 showNotificationListenerDialog 상태·LaunchedEffect 조건·AlertDialog(BgCard/FgPrimary/AccentBlue) 추가",
+      "completed_at": "2026-05-11T22:15:39+0900"
+    }
+  ],
+  "created_at": "2026-05-11T22:12:37+0900",
+  "completed_at": "2026-05-11T22:15:39+0900"
+}
