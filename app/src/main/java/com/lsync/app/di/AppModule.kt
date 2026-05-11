@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.room.Room
 import com.google.firebase.firestore.FirebaseFirestore
 import com.lsync.app.data.local.AppDatabase
+import com.lsync.app.data.local.BibleDatabase
+import com.lsync.app.data.local.dao.BibleDao
 import com.lsync.app.data.local.dao.EventDao
 import com.lsync.app.data.local.dao.FinanceDao
 import com.lsync.app.data.local.dao.TodoDao
@@ -61,4 +63,16 @@ object AppModule {
     @Singleton
     fun provideFinanceRepository(dao: FinanceDao, remote: FirestoreDataSource) =
         FinanceRepository(dao, remote)
+
+    @Provides
+    @Singleton
+    fun provideBibleDatabase(@ApplicationContext context: Context): BibleDatabase =
+        Room.databaseBuilder(context, BibleDatabase::class.java, "bible.db")
+            .createFromAsset("bible.db")
+            .fallbackToDestructiveMigration()
+            .build()
+
+    @Provides
+    @Singleton
+    fun provideBibleDao(db: BibleDatabase): BibleDao = db.bibleDao()
 }
