@@ -1,4 +1,4 @@
-# L-Sync Technical Spec (v0.2)
+# L-Sync Technical Spec (v0.3)
 
 **목적:** 실제 데이터베이스 구조, 보안 규칙, 안드로이드 권한 및 알림, 백그라운드 엔진 등 구현에 직접적으로 필요한 기술적 명세 제공.
 
@@ -63,20 +63,34 @@
 }
 ```
 
-### 1.4. `bible` & `memos` (Phase 3)
+### 1.4. 성경 데이터 (로컬 SQLite — Firestore 미사용)
 
-```json
-// bible (읽기 전용 공용 데이터)
-{
-  "book": "창세기", "chapter": 1, "verse": 1,
-  "text": "태초에...", "translation": "개역개정"
-}
-// memos (묵상 메모)
-{
-  "bibleRef": { "book": "창세기", "chapter": 1, "verse": 1 },
-  "content": "나의 묵상...", "linkedDate": "2024-05-15"
-}
-```
+#### bible_verses (개역개정 4판)
+- DB 파일: `assets/bible.db` → 내부 `bible_v3.db`
+- 31,024절, 66권
+
+| 컬럼 | 타입 | 설명 |
+|------|------|------|
+| idx | INTEGER PK | 고유 ID |
+| book | INTEGER | 책 번호 (1=창세기 … 66=요한계시록) |
+| chapter | INTEGER | 장 번호 |
+| verse | INTEGER | 절 번호 |
+| text | TEXT | 본문 |
+| testament | TEXT | "구" (구약) / "신" (신약) |
+| book_name | TEXT | 한국어 책 이름 (창세기 등) |
+| book_short | TEXT | 약자 (창 등) |
+
+#### esv_verses (English Standard Version)
+- DB 파일: `assets/esv.db`
+- 31,086절, 출처: bolls.life
+
+| 컬럼 | 타입 | 설명 |
+|------|------|------|
+| idx | INTEGER PK | 고유 ID |
+| book | INTEGER | 책 번호 (bible_verses와 동일 체계) |
+| chapter | INTEGER | 장 번호 |
+| verse | INTEGER | 절 번호 |
+| text | TEXT | 영어 본문 |
 
 ---
 
@@ -86,10 +100,6 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /bible/{docId} {
-      allow read: if true;
-      allow write: if false;
-    }
     match /{collection}/{docId} {
       allow read, delete: if request.auth != null
                        && request.auth.uid == resource.data.userId;
@@ -115,10 +125,30 @@ service cloud.firestore {
 
 ## 4. 안드로이드 알림 & 권한
 
+### 4.1 일정/할 일 알람
 - **재부팅 시 알람 복구:** `RECEIVE_BOOT_COMPLETED` → `BootReceiver` → 로컬 DB 조회 → AlarmManager 재등록.
 - **권한 요청 흐름 (Android 13+):**
   1. 첫 실행 시 `POST_NOTIFICATIONS` 요청.
   2. 알림 기능 첫 활성화 시 `SCHEDULE_EXACT_ALARM` 체크. 거부 시 시스템 설정 화면 딥링크.
+
+### 4.2 결제 알림 자동 가계부
+- **서비스:** `PaymentNotificationService` (NotificationListenerService, `@AndroidEntryPoint`)
+- **알림 채널:** `lsync_payment_auto` (IMPORTANCE_DEFAULT)
+- **지원 앱:**
+
+| 패키지 | 앱 |
+|--------|-----|
+| `viva.republica.toss` | 토스 |
+| `com.viva.finance` | 토스뱅크 |
+| `com.shinhan.smartsalary` | 신한 SOL |
+| `com.kbcard.kbcardclient` | KB Pay |
+| `com.kakaobank.channel` | 카카오뱅크 |
+
+- **파싱 규칙 (`PaymentNotificationParser`):**
+  1. title에서 `{금액}원 결제/승인/출금/입금` 패턴으로 금액 우선 추출
+  2. 없으면 text에서 추출하되 `잔액` 포함 줄 제외
+  3. 입금 키워드(`입금, 환급, 반환, 수신`) → `INCOME`, 나머지 → `EXPENSE`
+  4. `|` 뒤 가맹점명 추출 → 카테고리 자동 추론
 
 ---
 
@@ -129,11 +159,13 @@ service cloud.firestore {
 
 ---
 
-## 6. Room Entity 현황 (Phase 1 기준)
+## 6. Room Entity 현황
 
-| Entity | 필드 |
-|--------|------|
-| EventEntity | id, userId, title, isAllDay, startDate, endDate, timezone, rrule, exdatesJson, overridesJson, hasAlarm, createdAt, updatedAt, deletedAt? |
-| TodoEntity | id, userId, templateId?, title, isCompleted, dueDate?, completedAt?, financeIsLinked, financeType?, financeCategory?, financeAmount?, linkedFinanceId?, createdAt, updatedAt, deletedAt? |
-| FinanceEntity | id, userId, type, amount, category, date, note?, sourceTodoId?, isExcluded, createdAt, updatedAt |
-| TodoTemplateEntity | id, userId, title, rrule, financeIsLinked, financeType?, financeCategory?, financeAmount?, isActive, createdAt, updatedAt |
+| Entity | DB | 주요 필드 |
+|--------|-----|-----------|
+| EventEntity | AppDatabase | id, userId, title, isAllDay, startDate, endDate, timezone, rrule, exdatesJson, overridesJson, hasAlarm, createdAt, updatedAt, deletedAt? |
+| TodoEntity | AppDatabase | id, userId, templateId?, title, isCompleted, dueDate?, completedAt?, financeIsLinked, financeType?, financeCategory?, financeAmount?, linkedFinanceId?, createdAt, updatedAt, deletedAt? |
+| FinanceEntity | AppDatabase | id, userId, type, amount, category, date, note?, sourceTodoId?, isExcluded, createdAt, updatedAt |
+| TodoTemplateEntity | AppDatabase | id, userId, title, rrule, financeIsLinked, financeType?, financeCategory?, financeAmount?, isActive, createdAt, updatedAt |
+| BibleVerseEntity | BibleDatabase | idx, book, chapter, verse, text, testament, book_name, book_short |
+| EsvVerseEntity | EsvDatabase | idx, book, chapter, verse, text |
