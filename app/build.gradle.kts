@@ -53,6 +53,11 @@ android {
         )
     }
 
+    // bible.db를 APK에서 압축하지 않음 — createFromAsset이 압축된 대용량 asset을 열지 못하는 문제 방지
+    aaptOptions {
+        noCompress("db")
+    }
+
     buildFeatures {
         compose = true
     }

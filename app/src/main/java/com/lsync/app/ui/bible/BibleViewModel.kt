@@ -24,6 +24,7 @@ data class BibleUiState(
     val isSearchActive: Boolean = false,
     val searchQuery: String = "",
     val searchResults: List<BibleVerseEntity> = emptyList(),
+    val error: String? = null,
 )
 
 @HiltViewModel
@@ -38,10 +39,14 @@ class BibleViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            val books = bibleDao.getBooks()
-            if (books.isEmpty()) return@launch
-            _state.value = _state.value.copy(books = books)
-            fetchAndApply(books.first().book, 1)
+            runCatching {
+                val books = bibleDao.getBooks()
+                if (books.isEmpty()) return@launch
+                _state.value = _state.value.copy(books = books)
+                fetchAndApply(books.first().book, 1)
+            }.onFailure { e ->
+                _state.value = _state.value.copy(error = e.message)
+            }
         }
     }
 
@@ -54,7 +59,7 @@ class BibleViewModel @Inject constructor(
                 searchResults = emptyList(),
             )
             searchJob?.cancel()
-            fetchAndApply(book, chapter)
+            runCatching { fetchAndApply(book, chapter) }
         }
     }
 
@@ -74,19 +79,21 @@ class BibleViewModel @Inject constructor(
         if (query.length < 2) return
         searchJob = viewModelScope.launch {
             delay(300)
-            val results = bibleDao.search(query)
-            _state.value = _state.value.copy(searchResults = results)
+            runCatching {
+                val results = bibleDao.search(query)
+                _state.value = _state.value.copy(searchResults = results)
+            }
         }
     }
 
     fun nextChapter() {
         val s = _state.value
         if (s.currentChapter < s.chapterCount) {
-            viewModelScope.launch { fetchAndApply(s.currentBook, s.currentChapter + 1) }
+            viewModelScope.launch { runCatching { fetchAndApply(s.currentBook, s.currentChapter + 1) } }
         } else {
             val idx = s.books.indexOfFirst { it.book == s.currentBook }
             if (idx < s.books.lastIndex) {
-                viewModelScope.launch { fetchAndApply(s.books[idx + 1].book, 1) }
+                viewModelScope.launch { runCatching { fetchAndApply(s.books[idx + 1].book, 1) } }
             }
         }
     }
@@ -94,19 +101,21 @@ class BibleViewModel @Inject constructor(
     fun prevChapter() {
         val s = _state.value
         if (s.currentChapter > 1) {
-            viewModelScope.launch { fetchAndApply(s.currentBook, s.currentChapter - 1) }
+            viewModelScope.launch { runCatching { fetchAndApply(s.currentBook, s.currentChapter - 1) } }
         } else {
             val idx = s.books.indexOfFirst { it.book == s.currentBook }
             if (idx > 0) {
                 val prevBook = s.books[idx - 1].book
                 viewModelScope.launch {
-                    val lastChapter = bibleDao.getChapterCount(prevBook) ?: 1
-                    _state.value = _state.value.copy(
-                        currentBook = prevBook,
-                        currentChapter = lastChapter,
-                        chapterCount = lastChapter,
-                        verses = bibleDao.getVerses(prevBook, lastChapter),
-                    )
+                    runCatching {
+                        val lastChapter = bibleDao.getChapterCount(prevBook) ?: 1
+                        _state.value = _state.value.copy(
+                            currentBook = prevBook,
+                            currentChapter = lastChapter,
+                            chapterCount = lastChapter,
+                            verses = bibleDao.getVerses(prevBook, lastChapter),
+                        )
+                    }
                 }
             }
         }
