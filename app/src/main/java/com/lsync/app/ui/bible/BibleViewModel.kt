@@ -6,6 +6,8 @@ import com.lsync.app.data.local.dao.BibleBook
 import com.lsync.app.data.local.dao.BibleDao
 import com.lsync.app.data.local.entity.BibleVerseEntity
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -19,6 +21,9 @@ data class BibleUiState(
     val chapterCount: Int = 1,
     val verses: List<BibleVerseEntity> = emptyList(),
     val isTableOfContentsOpen: Boolean = false,
+    val isSearchActive: Boolean = false,
+    val searchQuery: String = "",
+    val searchResults: List<BibleVerseEntity> = emptyList(),
 )
 
 @HiltViewModel
@@ -28,6 +33,8 @@ class BibleViewModel @Inject constructor(
 
     private val _state = MutableStateFlow(BibleUiState())
     val state: StateFlow<BibleUiState> = _state.asStateFlow()
+
+    private var searchJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -40,8 +47,35 @@ class BibleViewModel @Inject constructor(
 
     fun navigateTo(book: Int, chapter: Int) {
         viewModelScope.launch {
-            _state.value = _state.value.copy(isTableOfContentsOpen = false)
+            _state.value = _state.value.copy(
+                isTableOfContentsOpen = false,
+                isSearchActive = false,
+                searchQuery = "",
+                searchResults = emptyList(),
+            )
+            searchJob?.cancel()
             fetchAndApply(book, chapter)
+        }
+    }
+
+    fun toggleSearch() {
+        val active = !_state.value.isSearchActive
+        searchJob?.cancel()
+        _state.value = _state.value.copy(
+            isSearchActive = active,
+            searchQuery = "",
+            searchResults = emptyList(),
+        )
+    }
+
+    fun setSearchQuery(query: String) {
+        _state.value = _state.value.copy(searchQuery = query, searchResults = emptyList())
+        searchJob?.cancel()
+        if (query.length < 2) return
+        searchJob = viewModelScope.launch {
+            delay(300)
+            val results = bibleDao.search(query)
+            _state.value = _state.value.copy(searchResults = results)
         }
     }
 

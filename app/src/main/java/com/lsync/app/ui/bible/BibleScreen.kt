@@ -9,9 +9,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.ChevronLeft
 import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.MenuBook
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -27,6 +30,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.font.FontStyle
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.lsync.app.data.local.dao.BibleBook
+import com.lsync.app.data.local.entity.BibleVerseEntity
 import com.lsync.app.ui.theme.*
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -66,44 +70,111 @@ fun BibleScreen(viewModel: BibleViewModel = hiltViewModel()) {
     }
 
     Column(modifier = Modifier.fillMaxSize().background(BgPrimary)) {
-        // Header
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 22.dp, end = 14.dp, top = 24.dp, bottom = 20.dp),
-            verticalAlignment = Alignment.Bottom,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Column {
-                Text(
-                    text = "개역개정",
-                    fontFamily = Pretendard,
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 11.sp,
-                    letterSpacing = 0.12.em,
-                    color = FgTertiary,
-                )
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    text = if (bookName.isEmpty()) "" else "$bookName ${state.currentChapter}장",
-                    fontFamily = Pretendard,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 30.sp,
-                    letterSpacing = (-0.035).em,
-                    color = FgPrimary,
-                )
-            }
-            IconButton(
-                onClick = { viewModel.toggleTableOfContents() },
+        if (state.isSearchActive) {
+            // Search header
+            Row(
                 modifier = Modifier
-                    .size(38.dp)
-                    .clip(CircleShape)
-                    .background(BgCard)
-                    .border(1.dp, HairlineWhite, CircleShape),
+                    .fillMaxWidth()
+                    .padding(start = 4.dp, end = 12.dp, top = 24.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(Icons.Outlined.MenuBook, contentDescription = "목차", tint = FgPrimary, modifier = Modifier.size(20.dp))
+                IconButton(onClick = { viewModel.toggleSearch() }) {
+                    Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "뒤로", tint = FgSecondary, modifier = Modifier.size(22.dp))
+                }
+                BasicTextField(
+                    value = state.searchQuery,
+                    onValueChange = { viewModel.setSearchQuery(it) },
+                    modifier = Modifier.weight(1f),
+                    textStyle = LocalTextStyle.current.copy(
+                        fontFamily = Pretendard,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 18.sp,
+                        color = FgPrimary,
+                    ),
+                    decorationBox = { inner ->
+                        Box {
+                            if (state.searchQuery.isEmpty()) {
+                                Text(
+                                    "성경 구절 검색",
+                                    fontFamily = Pretendard,
+                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 18.sp,
+                                    color = FgDisabled,
+                                )
+                            }
+                            inner()
+                        }
+                    },
+                )
+                if (state.searchQuery.isNotEmpty()) {
+                    IconButton(onClick = { viewModel.setSearchQuery("") }) {
+                        Icon(Icons.Outlined.Close, contentDescription = "지우기", tint = FgSecondary, modifier = Modifier.size(18.dp))
+                    }
+                }
+            }
+        } else {
+            // Normal header
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 22.dp, end = 14.dp, top = 24.dp, bottom = 20.dp),
+                verticalAlignment = Alignment.Bottom,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Column {
+                    Text(
+                        text = "개역개정",
+                        fontFamily = Pretendard,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 11.sp,
+                        letterSpacing = 0.12.em,
+                        color = FgTertiary,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        text = if (bookName.isEmpty()) "" else "$bookName ${state.currentChapter}장",
+                        fontFamily = Pretendard,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 30.sp,
+                        letterSpacing = (-0.035).em,
+                        color = FgPrimary,
+                    )
+                }
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconButton(
+                        onClick = { viewModel.toggleSearch() },
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(BgCard)
+                            .border(1.dp, HairlineWhite, CircleShape),
+                    ) {
+                        Icon(Icons.Outlined.Search, contentDescription = "검색", tint = FgPrimary, modifier = Modifier.size(20.dp))
+                    }
+                    IconButton(
+                        onClick = { viewModel.toggleTableOfContents() },
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(BgCard)
+                            .border(1.dp, HairlineWhite, CircleShape),
+                    ) {
+                        Icon(Icons.Outlined.MenuBook, contentDescription = "목차", tint = FgPrimary, modifier = Modifier.size(20.dp))
+                    }
+                }
             }
         }
+
+        if (state.isSearchActive) {
+            SearchResults(
+                query   = state.searchQuery,
+                results = state.searchResults,
+                onResultClick = { verse -> viewModel.navigateTo(verse.book, verse.chapter) },
+            )
+        } else {
 
         LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
             // Chapter nav
@@ -295,6 +366,78 @@ fun BibleScreen(viewModel: BibleViewModel = hiltViewModel()) {
                             }
                         }
                     }
+                }
+            }
+        }
+        } // end else (not search)
+    }
+}
+
+@Composable
+private fun SearchResults(
+    query: String,
+    results: List<BibleVerseEntity>,
+    onResultClick: (BibleVerseEntity) -> Unit,
+) {
+    when {
+        query.length < 2 -> {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(
+                    "2자 이상 입력하세요",
+                    fontFamily = Pretendard,
+                    fontSize = 14.sp,
+                    color = FgTertiary,
+                )
+            }
+        }
+        results.isEmpty() -> {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(
+                    "검색 결과가 없습니다",
+                    fontFamily = Pretendard,
+                    fontSize = 14.sp,
+                    color = FgTertiary,
+                )
+            }
+        }
+        else -> {
+            LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
+                item {
+                    Text(
+                        text = "${results.size}개 결과",
+                        fontFamily = Pretendard,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 11.sp,
+                        letterSpacing = 0.12.em,
+                        color = FgTertiary,
+                        modifier = Modifier.padding(horizontal = 22.dp, vertical = 8.dp),
+                    )
+                }
+                items(results, key = { it.idx }) { verse ->
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onResultClick(verse) }
+                            .padding(horizontal = 22.dp, vertical = 12.dp),
+                    ) {
+                        Text(
+                            text = "${verse.bookName} ${verse.chapter}장 ${verse.verse}절",
+                            fontFamily = Pretendard,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 11.sp,
+                            letterSpacing = 0.12.em,
+                            color = AccentBlue,
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = verse.text,
+                            fontFamily = Pretendard,
+                            fontSize = 15.sp,
+                            lineHeight = (15 * 1.7).sp,
+                            color = FgPrimary,
+                        )
+                    }
+                    HorizontalDivider(color = Divider, thickness = 0.5.dp)
                 }
             }
         }
