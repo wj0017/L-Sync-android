@@ -32,6 +32,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             LSyncTheme {
                 var showExactAlarmDialog by remember { mutableStateOf(false) }
+                var showNotificationListenerDialog by remember { mutableStateOf(false) }
 
                 val notificationLauncher = rememberLauncherForActivityResult(
                     ActivityResultContracts.RequestPermission()
@@ -43,6 +44,9 @@ class MainActivity : ComponentActivity() {
                     }
                     if (PermissionHelper.needsExactAlarmPermission(this@MainActivity)) {
                         showExactAlarmDialog = true
+                    }
+                    if (PermissionHelper.needsNotificationListenerPermission(this@MainActivity)) {
+                        showNotificationListenerDialog = true
                     }
                 }
 
@@ -72,6 +76,35 @@ class MainActivity : ComponentActivity() {
                                 Text(text = "나중에", color = FgPrimary)
                             }
                         }
+                    )
+                }
+
+                if (showNotificationListenerDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showNotificationListenerDialog = false },
+                        containerColor = BgCard,
+                        title = {
+                            Text("결제 알림 자동 등록", color = FgPrimary)
+                        },
+                        text = {
+                            Text(
+                                "카드·뱅킹 앱 결제 알림을 읽어 가계부에 자동으로 추가합니다.\n설정 > 알림 접근에서 L-Sync를 허용해주세요.",
+                                color = FgPrimary,
+                            )
+                        },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                showNotificationListenerDialog = false
+                                PermissionHelper.openNotificationListenerSettings(this@MainActivity)
+                            }) {
+                                Text("설정으로 이동", color = AccentBlue)
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showNotificationListenerDialog = false }) {
+                                Text("나중에", color = FgPrimary)
+                            }
+                        },
                     )
                 }
 

@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 
 object PermissionHelper {
@@ -29,5 +30,18 @@ object PermissionHelper {
             data = Uri.parse("package:${context.packageName}")
         }
         context.startActivity(intent)
+    }
+
+    fun needsNotificationListenerPermission(context: Context): Boolean {
+        return !NotificationManagerCompat
+            .getEnabledListenerPackages(context)
+            .contains(context.packageName)
+    }
+
+    fun openNotificationListenerSettings(context: Context) {
+        context.startActivity(
+            Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS")
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
     }
 }

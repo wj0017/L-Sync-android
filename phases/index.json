@@ -9,6 +9,10 @@
       "dir": "2-finance-automation",
       "status": "completed",
       "completed_at": "2026-05-11T21:49:01+0900"
+    },
+    {
+      "dir": "3-payment-notification",
+      "status": "pending"
     }
   ]
 }
