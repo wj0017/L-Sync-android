@@ -66,6 +66,9 @@ compose-calendar = { group = "com.kizitonwose.calendar", name = "compose", versi
 dmfs-lib-recur = { group = "org.dmfs", name = "lib-recur", version.ref = "lib-recur" }
 dmfs-rfc5545-datetime = { group = "org.dmfs", name = "rfc5545-datetime", version = "0.3" }
 
+# Test
+junit = { group = "junit", name = "junit", version = "4.13.2" }
+
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }

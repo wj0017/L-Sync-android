@@ -115,4 +115,7 @@ dependencies {
     // RRULE
     implementation(libs.dmfs.lib.recur)
     implementation(libs.dmfs.rfc5545.datetime)
+
+    // Test
+    testImplementation(libs.junit)
 }
