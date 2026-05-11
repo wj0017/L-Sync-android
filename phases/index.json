@@ -1,3 +1,9 @@
 {
-  "phases": []
+  "phases": [
+    {
+      "dir": "1-phase1-completion",
+      "status": "completed",
+      "completed_at": "2026-05-10T00:58:08+0900"
+    }
+  ]
 }

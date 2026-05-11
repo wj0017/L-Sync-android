@@ -5,6 +5,7 @@ import androidx.room.RoomDatabase
 import com.lsync.app.data.local.dao.EventDao
 import com.lsync.app.data.local.dao.FinanceDao
 import com.lsync.app.data.local.dao.TodoDao
+import com.lsync.app.data.local.dao.TodoTemplateDao
 import com.lsync.app.data.local.entity.EventEntity
 import com.lsync.app.data.local.entity.FinanceEntity
 import com.lsync.app.data.local.entity.TodoEntity
@@ -23,5 +24,6 @@ import com.lsync.app.data.local.entity.TodoTemplateEntity
 abstract class AppDatabase : RoomDatabase() {
     abstract fun eventDao(): EventDao
     abstract fun todoDao(): TodoDao
+    abstract fun todoTemplateDao(): TodoTemplateDao
     abstract fun financeDao(): FinanceDao
 }

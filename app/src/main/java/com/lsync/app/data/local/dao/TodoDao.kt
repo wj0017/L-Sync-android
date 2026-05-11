@@ -2,7 +2,6 @@ package com.lsync.app.data.local.dao
 
 import androidx.room.*
 import com.lsync.app.data.local.entity.TodoEntity
-import com.lsync.app.data.local.entity.TodoTemplateEntity
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -27,6 +26,15 @@ interface TodoDao {
     """)
     suspend fun getPendingFutureByTemplate(templateId: String, fromDate: String): List<TodoEntity>
 
+    @Query("""
+        SELECT * FROM todos
+        WHERE isCompleted = 0
+          AND deletedAt IS NULL
+          AND dueDate IS NOT NULL
+          AND dueDate >= :fromDate
+    """)
+    suspend fun getFutureAlarmedTodos(fromDate: String): List<TodoEntity>
+
     @Upsert
     suspend fun upsert(todo: TodoEntity)
 
@@ -36,15 +44,4 @@ interface TodoDao {
     // Todo 삭제: Soft delete (deletedAt 기록) + linkedFinanceId 연결 고리 해제는 Repository에서 처리
     @Query("UPDATE todos SET deletedAt = :now, updatedAt = :now WHERE id = :id")
     suspend fun softDelete(id: String, now: Long = System.currentTimeMillis())
-
-    // --- Template ---
-
-    @Query("SELECT * FROM todo_templates WHERE isActive = 1")
-    fun observeActiveTemplates(): Flow<List<TodoTemplateEntity>>
-
-    @Upsert
-    suspend fun upsertTemplate(template: TodoTemplateEntity)
-
-    @Query("UPDATE todo_templates SET isActive = 0, updatedAt = :now WHERE id = :id")
-    suspend fun deactivateTemplate(id: String, now: Long = System.currentTimeMillis())
 }

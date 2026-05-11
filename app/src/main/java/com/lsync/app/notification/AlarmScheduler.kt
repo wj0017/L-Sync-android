@@ -1,5 +1,6 @@
 package com.lsync.app.notification
 
+import android.annotation.SuppressLint
 import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
@@ -14,6 +15,7 @@ class AlarmScheduler @Inject constructor(
 ) {
     private val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
+    @SuppressLint("ScheduleExactAlarm")
     fun scheduleEventAlarm(eventId: String, title: String, triggerAtMillis: Long) {
         val intent = buildIntent(eventId, title, TYPE_EVENT)
         val pendingIntent = PendingIntent.getBroadcast(
@@ -25,6 +27,7 @@ class AlarmScheduler @Inject constructor(
         alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
     }
 
+    @SuppressLint("ScheduleExactAlarm")
     fun scheduleTodoAlarm(todoId: String, title: String, triggerAtMillis: Long) {
         val intent = buildIntent(todoId, title, TYPE_TODO)
         val pendingIntent = PendingIntent.getBroadcast(

@@ -29,6 +29,14 @@ interface EventDao {
     @Upsert
     suspend fun upsertAll(events: List<EventEntity>)
 
+    @Query("""
+        SELECT * FROM events
+        WHERE hasAlarm = 1
+          AND deletedAt IS NULL
+          AND startDate >= :fromDate
+    """)
+    suspend fun getFutureAlarmedEvents(fromDate: String): List<EventEntity>
+
     // Soft delete 대신 실제 삭제 (이벤트는 가계부 연동 없으므로 Hard delete 허용)
     @Query("DELETE FROM events WHERE id = :id")
     suspend fun deleteById(id: String)

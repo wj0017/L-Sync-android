@@ -10,6 +10,7 @@ navigation = "2.7.7"
 coroutines = "1.8.0"
 lifecycle = "2.8.0"
 ksp = "1.9.24-1.0.20"
+lib-recur = "0.15.0"
 
 [libraries]
 # AndroidX Core
@@ -60,6 +61,10 @@ coroutines-play-services = { group = "org.jetbrains.kotlinx", name = "kotlinx-co
 
 # Calendar (Compose)
 compose-calendar = { group = "com.kizitonwose.calendar", name = "compose", version = "2.5.0" }
+
+# RRULE
+dmfs-lib-recur = { group = "org.dmfs", name = "lib-recur", version.ref = "lib-recur" }
+dmfs-rfc5545-datetime = { group = "org.dmfs", name = "rfc5545-datetime", version = "0.3" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

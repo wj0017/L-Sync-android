@@ -111,4 +111,8 @@ dependencies {
 
     // Calendar UI
     implementation(libs.compose.calendar)
+
+    // RRULE
+    implementation(libs.dmfs.lib.recur)
+    implementation(libs.dmfs.rfc5545.datetime)
 }

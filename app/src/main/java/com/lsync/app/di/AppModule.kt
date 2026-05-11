@@ -7,6 +7,7 @@ import com.lsync.app.data.local.AppDatabase
 import com.lsync.app.data.local.dao.EventDao
 import com.lsync.app.data.local.dao.FinanceDao
 import com.lsync.app.data.local.dao.TodoDao
+import com.lsync.app.data.local.dao.TodoTemplateDao
 import com.lsync.app.data.remote.FirestoreDataSource
 import com.lsync.app.data.repository.EventRepository
 import com.lsync.app.data.repository.FinanceRepository
@@ -30,6 +31,7 @@ object AppModule {
 
     @Provides fun provideEventDao(db: AppDatabase): EventDao = db.eventDao()
     @Provides fun provideTodoDao(db: AppDatabase): TodoDao = db.todoDao()
+    @Provides @Singleton fun provideTodoTemplateDao(db: AppDatabase): TodoTemplateDao = db.todoTemplateDao()
     @Provides fun provideFinanceDao(db: AppDatabase): FinanceDao = db.financeDao()
 
     @Provides
@@ -48,8 +50,12 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideTodoRepository(todoDao: TodoDao, financeDao: FinanceDao, remote: FirestoreDataSource) =
-        TodoRepository(todoDao, financeDao, remote)
+    fun provideTodoRepository(
+        todoDao: TodoDao,
+        todoTemplateDao: TodoTemplateDao,
+        financeDao: FinanceDao,
+        remote: FirestoreDataSource,
+    ) = TodoRepository(todoDao, todoTemplateDao, financeDao, remote)
 
     @Provides
     @Singleton

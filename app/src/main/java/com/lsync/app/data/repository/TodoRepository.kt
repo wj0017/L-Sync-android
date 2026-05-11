@@ -3,6 +3,8 @@ package com.lsync.app.data.repository
 import com.google.firebase.crashlytics.FirebaseCrashlytics
 import com.lsync.app.data.local.dao.FinanceDao
 import com.lsync.app.data.local.dao.TodoDao
+import com.lsync.app.data.local.dao.TodoTemplateDao
+import com.lsync.app.data.local.entity.TodoTemplateEntity
 import com.lsync.app.data.local.entity.FinanceEntity
 import com.lsync.app.data.local.entity.TodoEntity
 import com.lsync.app.data.remote.FirestoreDataSource
@@ -14,10 +16,20 @@ import javax.inject.Singleton
 @Singleton
 class TodoRepository @Inject constructor(
     private val todoDao: TodoDao,
+    private val todoTemplateDao: TodoTemplateDao,
     private val financeDao: FinanceDao,
     private val remote: FirestoreDataSource,
 ) {
     fun observeAll(): Flow<List<TodoEntity>> = todoDao.observeAll()
+
+    fun observeActiveTemplates(userId: String) = todoTemplateDao.observeActiveTemplates(userId)
+
+    suspend fun getActiveTemplates(userId: String): List<TodoTemplateEntity> =
+        todoTemplateDao.getActiveTemplates(userId)
+
+    suspend fun upsertTemplate(template: TodoTemplateEntity) = todoTemplateDao.upsert(template)
+
+    suspend fun deactivateTemplate(id: String) = todoTemplateDao.deactivate(id, System.currentTimeMillis())
 
     fun observeByDate(date: String): Flow<List<TodoEntity>> = todoDao.observeByDate(date)
 
