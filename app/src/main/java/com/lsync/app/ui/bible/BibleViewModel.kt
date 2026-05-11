@@ -100,7 +100,7 @@ class BibleViewModel @Inject constructor(
             if (idx > 0) {
                 val prevBook = s.books[idx - 1].book
                 viewModelScope.launch {
-                    val lastChapter = bibleDao.getChapterCount(prevBook)
+                    val lastChapter = bibleDao.getChapterCount(prevBook) ?: 1
                     _state.value = _state.value.copy(
                         currentBook = prevBook,
                         currentChapter = lastChapter,
@@ -117,7 +117,7 @@ class BibleViewModel @Inject constructor(
     }
 
     private suspend fun fetchAndApply(book: Int, chapter: Int) {
-        val chapterCount = bibleDao.getChapterCount(book)
+        val chapterCount = bibleDao.getChapterCount(book) ?: 1
         val verses = bibleDao.getVerses(book, chapter)
         _state.value = _state.value.copy(
             currentBook = book,

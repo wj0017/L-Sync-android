@@ -18,7 +18,7 @@ interface BibleDao {
     suspend fun getBooks(): List<BibleBook>
 
     @Query("SELECT MAX(chapter) FROM bible_verses WHERE book = :book")
-    suspend fun getChapterCount(book: Int): Int
+    suspend fun getChapterCount(book: Int): Int?
 
     @Query("SELECT * FROM bible_verses WHERE book = :book AND chapter = :chapter ORDER BY verse ASC")
     suspend fun getVerses(book: Int, chapter: Int): List<BibleVerseEntity>
