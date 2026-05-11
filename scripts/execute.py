@@ -54,7 +54,7 @@ class StepExecutor:
     """Phase 디렉토리 안의 step들을 순차 실행하는 하네스."""
 
     MAX_RETRIES = 3
-    FEAT_MSG = "feat({phase}): step {num} — {name}"
+    FEAT_MSG = "feat({phase}): {phase}"
     TZ = timezone(timedelta(hours=9))
 
     def __init__(self, phase_dir_name: str, *, auto_push: bool = False):
@@ -139,20 +139,6 @@ class StepExecutor:
 
         print(f"  Branch: {branch}")
 
-    def _commit_step(self, step_num: int, step_name: str):
-        output_rel = f"phases/{self._phase_dir_name}/step{step_num}-output.json"
-
-        self._run_git("add", "-A")
-        self._run_git("reset", "HEAD", "--", output_rel)
-
-        if self._run_git("diff", "--cached", "--quiet").returncode != 0:
-            msg = self.FEAT_MSG.format(phase=self._phase_name, num=step_num, name=step_name)
-            r = self._run_git("commit", "-m", msg)
-            if r.returncode == 0:
-                print(f"  Commit: {msg}")
-            else:
-                print(f"  WARN: 커밋 실패: {r.stderr.strip()}")
-
     # --- top-level index ---
 
     def _update_top_index(self, status: str):
@@ -195,9 +181,6 @@ class StepExecutor:
 
     def _build_preamble(self, guardrails: str, step_context: str,
                         prev_error: Optional[str] = None) -> str:
-        commit_example = self.FEAT_MSG.format(
-            phase=self._phase_name, num="N", name="<step-name>"
-        )
         retry_section = ""
         if prev_error:
             retry_section = (
@@ -217,8 +200,7 @@ class StepExecutor:
             f"   - AC 통과 → \"completed\" + \"summary\" 필드에 이 step의 산출물을 한 줄로 요약\n"
             f"   - {self.MAX_RETRIES}회 수정 시도 후에도 실패 → \"error\" + \"error_message\" 기록\n"
             f"   - 사용자 개입이 필요한 경우 (API 키, 인증, 수동 설정 등) → \"blocked\" + \"blocked_reason\" 기록 후 즉시 중단\n"
-            f"6. 모든 변경사항을 커밋하라 (Co-Authored-By 줄 절대 포함 금지):\n"
-            f"   {commit_example}\n\n---\n\n"
+            f"6. git commit을 직접 실행하지 마라. 커밋은 harness가 자동으로 처리한다.\n\n---\n\n"
         )
 
     # --- Claude 호출 ---
@@ -325,7 +307,6 @@ class StepExecutor:
                     if s["step"] == step_num:
                         s["completed_at"] = ts
                 self._write_json(self._index_file, index)
-                self._commit_step(step_num, step_name)
                 print(f"  ✓ Step {step_num}: {step_name} [{elapsed}s]")
                 return True
 
@@ -360,7 +341,6 @@ class StepExecutor:
                         s["error_message"] = f"[{self.MAX_RETRIES}회 시도 후 실패] {err_msg}"
                         s["failed_at"] = ts
                 self._write_json(self._index_file, index)
-                self._commit_step(step_num, step_name)
                 print(f"  ✗ Step {step_num}: {step_name} failed after {self.MAX_RETRIES} attempts [{elapsed}s]")
                 print(f"    Error: {err_msg}")
                 self._update_top_index("error")
@@ -391,9 +371,16 @@ class StepExecutor:
         self._write_json(self._index_file, index)
         self._update_top_index("completed")
 
+        output_globs = [
+            str(self._phase_dir / f"step{s['step']}-output.json")
+            for s in index["steps"]
+        ]
         self._run_git("add", "-A")
+        for out in output_globs:
+            self._run_git("reset", "HEAD", "--", out)
+
         if self._run_git("diff", "--cached", "--quiet").returncode != 0:
-            msg = f"chore({self._phase_name}): mark phase completed"
+            msg = self.FEAT_MSG.format(phase=self._phase_name)
             r = self._run_git("commit", "-m", msg)
             if r.returncode == 0:
                 print(f"  ✓ {msg}")
