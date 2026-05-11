@@ -12,7 +12,12 @@
     },
     {
       "dir": "3-payment-notification",
-      "status": "pending"
+      "status": "completed"
+    },
+    {
+      "dir": "4-bible-database",
+      "status": "completed",
+      "completed_at": "2026-05-11T22:36:03+0900"
     }
   ]
 }
