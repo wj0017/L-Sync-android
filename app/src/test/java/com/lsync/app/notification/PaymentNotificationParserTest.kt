@@ -59,13 +59,30 @@ class PaymentNotificationParserTest {
         assertNull(PaymentNotificationParser.extractAmountFromTitle("결제 완료"))
     }
 
-    // ── extractAmountExcludingBalance ─────────────────────────────────────────
-    @Test fun `잔액 줄 건너뛰고 금액 추출`() {
-        val text = "5,000원 출금\n잔액 100,000원"
-        assertEquals(5_000L, PaymentNotificationParser.extractAmountExcludingBalance(text))
+    // ── 알림성 메시지 false positive 방지 ─────────────────────────────────────
+    @Test fun `예상 환급액 안내 - null 반환`() {
+        val result = PaymentNotificationParser.parse(
+            packageName = toss,
+            title       = "납세자 이우진님",
+            text        = "저장된 예상 환급액 137,280원이 있어요.",
+        )
+        assertNull(result)
     }
-    @Test fun `잔액만 있는 텍스트 - null`() {
-        assertNull(PaymentNotificationParser.extractAmountExcludingBalance("잔액 1,865,204원"))
+    @Test fun `통신비 도착 안내 - null 반환`() {
+        val result = PaymentNotificationParser.parse(
+            packageName = toss,
+            title       = "통신비 도착",
+            text        = "KT 56,070원 지금 낼 수 있어요.",
+        )
+        assertNull(result)
+    }
+    @Test fun `출금 안내 - null 반환`() {
+        val result = PaymentNotificationParser.parse(
+            packageName = toss,
+            title       = "출금 안내",
+            text        = "내일은 쿠팡 이용료 나가는 날이에요.",
+        )
+        assertNull(result)
     }
 
     // ── extractMerchant ───────────────────────────────────────────────────────

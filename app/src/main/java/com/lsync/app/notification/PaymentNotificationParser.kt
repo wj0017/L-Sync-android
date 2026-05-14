@@ -19,7 +19,6 @@ object PaymentNotificationParser {
         "com.kakaobank.channel",
     )
 
-    private val AMOUNT_REGEX = Regex("""(\d{1,3}(?:,\d{3})*)원""")
     private val TITLE_TRANSACTION_REGEX = Regex("""(\d{1,3}(?:,\d{3})*)원\s*(?:결제|승인|출금|이체|입금|환급|반환)""")
     private val PIPE_MERCHANT_REGEX = Regex("""\|\s*(.+)""")
 
@@ -29,16 +28,11 @@ object PaymentNotificationParser {
     fun parse(packageName: String, title: String, text: String): ParsedPayment? {
         if (packageName !in PAYMENT_PACKAGES) return null
 
+        // 타이틀에 "금액+거래 키워드"가 없으면 알림성 메시지로 간주 (예상 환급액 안내, 통신비 도착 등)
+        val amount = extractAmountFromTitle(title) ?: return null
+
         val combined = "$title $text"
-        val allKeywords = INCOME_KEYWORDS + EXPENSE_KEYWORDS
-        if (allKeywords.none { it in combined }) return null
-
         val type = if (INCOME_KEYWORDS.any { it in combined }) "INCOME" else "EXPENSE"
-
-        // 제목에서 결제/입금 금액 우선 추출 — 잔액과 혼동 방지
-        val amount = extractAmountFromTitle(title)
-            ?: extractAmountExcludingBalance(text)
-            ?: return null
 
         val merchant = extractMerchant(text)
         val category = if (type == "INCOME") FinanceCategory.ETC
@@ -54,16 +48,6 @@ object PaymentNotificationParser {
     internal fun extractAmountFromTitle(title: String): Long? {
         val match = TITLE_TRANSACTION_REGEX.find(title) ?: return null
         return runCatching { match.groupValues[1].replace(",", "").toLong() }.getOrNull()
-    }
-
-    // 잔액 줄을 건너뛰고 첫 번째 금액 추출
-    internal fun extractAmountExcludingBalance(text: String): Long? {
-        for (line in text.lines()) {
-            if ("잔액" in line) continue
-            val match = AMOUNT_REGEX.find(line) ?: continue
-            return runCatching { match.groupValues[1].replace(",", "").toLong() }.getOrNull()
-        }
-        return null
     }
 
     // "토스뱅크 체크카드 | 토스페이_게임_TOSS" → "토스페이_게임_TOSS"
