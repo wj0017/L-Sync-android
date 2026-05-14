@@ -5,80 +5,170 @@
 - 정보 밀도를 높이되 여백을 충분히 확보.
 - 색상은 의미를 담는다. 장식용 색 사용 금지.
 
+---
+
 ## 색상 시스템
 
 ```kotlin
 // 배경
-BgPrimary   = Color(0xFF0A0A0A)   // 앱 배경
-BgSecondary = Color(0xFF141414)
-BgCard      = Color(0xFF161616)   // 카드 배경
-BgElevated  = Color(0xFF202020)
+BgPrimary   = #0A0A0A   // 앱 배경, 스플래시 배경
+BgSecondary = #141414   // 하단 네비게이션 바
+BgCard      = #161616   // 카드 배경
+BgElevated  = #202020
 
-// 텍스트
-FgPrimary   = Color(0xFFF5F5F5)   // 주요 텍스트
-FgSecondary = Color(0xFF8A8A8A)   // 보조 텍스트
-FgTertiary  = Color(0xFF5C5C5C)   // 레이블, 메타
-FgDisabled  = Color(0xFF3A3A3A)   // 비활성
+// 텍스트 (4단계 계층)
+FgPrimary   = #F5F5F5   // 제목, 주요 텍스트
+FgSecondary = #8A8A8A   // 보조 텍스트
+FgTertiary  = #5C5C5C   // 레이블, 메타 (섹션 헤더, 연도 등)
+FgDisabled  = #3A3A3A   // 비활성, 플레이스홀더
 
 // 구분선
-Divider       = Color(0xFF1F1F1F)
-HairlineWhite = Color(0x09FFFFFF) // 카드 테두리 (rgba 255,255,255,0.035)
+Divider       = #1F1F1F
+HairlineWhite = rgba(255,255,255,0.035)  // 카드 테두리
 
 // 강조
-AccentBlue  = Color(0xFF4F7EFF)   // 선택됨, 링크, 오늘 날짜
-AccentBlue20= Color(0x334F7EFF)   // 네비게이션 인디케이터
-AccentGreen = Color(0xFF43A047)   // 수입, 완료
-AccentRed   = Color(0xFFE53935)   // 위험 (삭제 버튼)
-AccentRed80 = Color(0xCCE53935)   // 일요일, 경고
+AccentBlue  = #4F7EFF   // 선택됨, 오늘 날짜, CTA 버튼
+AccentBlue20= #334F7EFF // 네비게이션 인디케이터
+AccentGreen = #43A047   // 수입, 완료 체크
+AccentRed   = #E53935   // 삭제 버튼 (위험)
+AccentRed80 = #CCE53935 // 일요일, 경고 텍스트
 ```
+
+---
 
 ## 타이포그래피
 
-```kotlin
-Pretendard         // 모든 UI 텍스트
-InstrumentSerif    // Italic만 사용: 금액 기호(+/₩/−), 성경 절 번호
+```
+Pretendard      — 모든 UI 텍스트 기본 폰트
+InstrumentSerif — Italic만 사용: 금액 기호(+/₩/−), 성경 절 번호
 ```
 
-- 헤더 년도 레이블: 11sp / Medium / 0.12em / FgTertiary
-- 화면 제목: 30sp / SemiBold / -0.035em / FgPrimary
-- 본문: 14sp / Medium / -0.005em
-- 메타 레이블: 10sp / Medium / 0.12em / FgTertiary (항상 uppercase)
+### 공통 텍스트 스타일
+| 용도 | Size | Weight | Tracking | Color |
+|------|------|--------|----------|-------|
+| 화면 제목 | 30sp | SemiBold | -0.035em | FgPrimary |
+| 섹션 헤더 | 11sp | Medium | 0.12em | FgTertiary |
+| 앱 이름 (홈) | 20sp | SemiBold | 0.06em | FgPrimary |
+| 날짜 (홈) | 14sp | Medium | -0.01em | FgSecondary |
+| 카드 본문 | 14sp | Medium | -0.005em | FgPrimary |
+| 메타 레이블 | 10sp | Medium | 0.12em | FgTertiary (항상 uppercase) |
+
+---
+
+## 레이아웃 규칙
+
+- **수평 패딩:** 전 화면 `20dp` 통일 (카드, 헤더, 섹션 레이블 모두 동일)
+- **화면 상단:** `top = 24~32dp` (화면별 상이)
+- **카드 간격:** `8dp`
+- **아이템 간격 (리스트):** `6dp`
+
+---
 
 ## 컴포넌트 패턴
 
 ### 카드
 ```
 배경: BgCard
-테두리: 1dp HairlineWhite, RoundedCornerShape(14.dp)
-패딩: 16dp horizontal, 14dp vertical
+테두리: 1dp HairlineWhite, RoundedCornerShape(14dp)
+패딩: horizontal 16dp, vertical 14dp
+```
+
+### 섹션 헤더
+```
+Text: 11sp / Medium / 0.12em / FgTertiary
+padding: horizontal 20dp, bottom 10dp
+```
+
+### 섹션 구분선 (홈 화면)
+```
+HorizontalDivider: 0.5dp, Divider 색
+padding: horizontal 20dp, top 24dp, bottom 20dp
 ```
 
 ### Ghost Chip (필터, 타입 선택)
 ```
-비활성: Transparent 배경 + 1dp Divider 테두리
-활성: FgPrimary 배경 + FgPrimary 테두리 + BgPrimary 텍스트
+비활성: Transparent 배경 + 1dp HairlineWhite 테두리 + FgSecondary 텍스트
+활성:   AccentBlue 배경 + Transparent 테두리 + White 텍스트
 ```
 
-### 헤더 구조 (모든 화면 동일)
+### 원형 아이콘 버튼 (헤더)
 ```
-padding: start=22dp, end=14dp, top=24dp, bottom=20dp
-Column {
-    Text(서브레이블)   // 11sp, FgTertiary (예: 연도, "개역개정")
-    Spacer(6dp)
-    Text(화면 제목)    // 30sp, SemiBold
-}
-+ 우측 IconButton (38dp circle, BgCard, HairlineWhite border)
+크기: 38dp
+배경: BgCard
+테두리: 1dp HairlineWhite, CircleShape
+아이콘: 20dp, FgPrimary
 ```
 
-### Date Chip (TodoScreen)
+### 원형 체크박스 (할 일)
 ```
-선택됨: FgPrimary 배경, BgPrimary 텍스트
-오늘: AccentBlue DOW 텍스트
-비선택: BgCard + HairlineWhite border
+크기: 22dp, CircleShape
+미완료: Transparent 배경 + 1.5dp FgDisabled 테두리
+완료:   AccentBlue 배경 + "✓" White 11sp
 ```
+
+---
+
+## 화면별 헤더 구조
+
+### 홈 화면
+```
+Row (좌우 정렬, vertical = Bottom)
+├── "L·SYNC"          20sp SemiBold FgPrimary
+└── Column (우측)
+    ├── 연도            10sp Medium FgTertiary
+    └── "MMM d, EEEE"  14sp Medium FgSecondary  (예: May 14, Wednesday)
+```
+
+### 그 외 화면 (일정, 가계부, 성경)
+```
+Row (SpaceBetween, vertical = Bottom)
+├── Column
+│   ├── 서브레이블   11sp Medium FgTertiary (연도, 버전 등)
+│   └── 화면 제목   30sp SemiBold FgPrimary
+└── 우측 아이콘 버튼 (38dp circle)
+```
+
+---
+
+## 홈 화면 섹션 구조
+
+```
+[L·SYNC 헤더]
+───────────────────────────────
+성경 통독                         ← 섹션 헤더
+[ReadingPlanCard]
+─── divider ───
+오늘 · 일정 & 할 일 · N           ← 섹션 헤더
+[ScheduleItem × 최대 5]
+[더 보기 →]
+─── divider ───
+M월 가계부                        ← 섹션 헤더
+[FinanceSummaryCard]
+```
+
+### FinanceSummaryCard (홈 축소 버전)
+```
+Row { "잔액"(FgTertiary)   +₩X,XXX(FgPrimary 22sp) }
+Row { 수입 ₩X(AccentGreen)   지출 ₩X(FgSecondary) }
+```
+잔액 부호(+/−)는 InstrumentSerif Italic 17sp. 지출 금액은 FgSecondary (빨간색 금지).
+
+---
+
+## 성경 뷰어 상태
+
+| 상태 | 헤더 레이블 | 토글 버튼 | 교차 버튼 |
+|------|------------|----------|----------|
+| esvOnTop=true | "ESV" | "개역개정" | SwapVert (BgCard) |
+| esvOnTop=false | "개역개정" | "ESV" | SwapVert (AccentBlue) |
+
+교차 버튼 및 토글 버튼 상시 노출. 책명·섹션 헤더·검색 결과·목차 모두 esvOnTop에 연동.
+
+---
 
 ## 금지사항
 - 라이트 모드 구현 금지 (다크 전용)
-- 빨간색(AccentRed)을 지출 금액 색상으로 사용 금지 — 지출은 FgPrimary, 수입만 AccentGreen
+- 지출 금액에 AccentRed 사용 금지 — 지출은 FgSecondary, 수입만 AccentGreen
 - 그림자(elevation) 사용 금지 — 카드 구분은 HairlineWhite 테두리로만
-- collectAsStateWithLifecycle 사용 금지
+- `collectAsStateWithLifecycle` 사용 금지 — `collectAsState()` 만 사용
+- 수평 패딩 16dp/22dp 혼용 금지 — 20dp 통일
