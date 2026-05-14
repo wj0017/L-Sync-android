@@ -15,6 +15,7 @@ import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.MenuBook
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.SwapVert
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.foundation.pager.HorizontalPager
@@ -40,6 +41,25 @@ import java.util.Locale
 
 private data class SavedMemo(val ref: String, val text: String, val date: String)
 
+private val BOOK_NAMES_EN = mapOf(
+    1 to "Genesis", 2 to "Exodus", 3 to "Leviticus", 4 to "Numbers", 5 to "Deuteronomy",
+    6 to "Joshua", 7 to "Judges", 8 to "Ruth", 9 to "1 Samuel", 10 to "2 Samuel",
+    11 to "1 Kings", 12 to "2 Kings", 13 to "1 Chronicles", 14 to "2 Chronicles",
+    15 to "Ezra", 16 to "Nehemiah", 17 to "Esther", 18 to "Job", 19 to "Psalms",
+    20 to "Proverbs", 21 to "Ecclesiastes", 22 to "Song of Solomon", 23 to "Isaiah",
+    24 to "Jeremiah", 25 to "Lamentations", 26 to "Ezekiel", 27 to "Daniel",
+    28 to "Hosea", 29 to "Joel", 30 to "Amos", 31 to "Obadiah", 32 to "Jonah",
+    33 to "Micah", 34 to "Nahum", 35 to "Habakkuk", 36 to "Zephaniah",
+    37 to "Haggai", 38 to "Zechariah", 39 to "Malachi",
+    40 to "Matthew", 41 to "Mark", 42 to "Luke", 43 to "John", 44 to "Acts",
+    45 to "Romans", 46 to "1 Corinthians", 47 to "2 Corinthians", 48 to "Galatians",
+    49 to "Ephesians", 50 to "Philippians", 51 to "Colossians",
+    52 to "1 Thessalonians", 53 to "2 Thessalonians",
+    54 to "1 Timothy", 55 to "2 Timothy", 56 to "Titus", 57 to "Philemon",
+    58 to "Hebrews", 59 to "James", 60 to "1 Peter", 61 to "2 Peter",
+    62 to "1 John", 63 to "2 John", 64 to "3 John", 65 to "Jude", 66 to "Revelation",
+)
+
 @Composable
 fun BibleScreen(viewModel: BibleViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsState()
@@ -56,9 +76,15 @@ fun BibleScreen(viewModel: BibleViewModel = hiltViewModel()) {
 
     val today      = remember { LocalDate.now() }
     val todayLabel = today.format(DateTimeFormatter.ofPattern("yyyy년 M월 d일", Locale.KOREAN))
-    val bookName   = state.books.find { it.book == state.currentBook }?.bookName ?: ""
-    val anchoredRef = if (anchored != null) "$bookName ${state.currentChapter}장 ${anchored}절"
-                      else "$bookName ${state.currentChapter}장"
+    val bookKo     = state.books.find { it.book == state.currentBook }?.bookName ?: ""
+    val bookEn     = BOOK_NAMES_EN[state.currentBook] ?: bookKo
+    val bookName   = if (state.esvOnTop) bookEn else bookKo
+    val chapterLabel = if (state.esvOnTop) "$bookEn ${state.currentChapter}"
+                       else "$bookKo ${state.currentChapter}장"
+    val anchoredRef = if (anchored != null) {
+        if (state.esvOnTop) "$bookEn ${state.currentChapter}:${anchored}"
+        else "$bookKo ${state.currentChapter}장 ${anchored}절"
+    } else chapterLabel
 
     val tocSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     if (state.isTableOfContentsOpen) {
@@ -67,6 +93,7 @@ fun BibleScreen(viewModel: BibleViewModel = hiltViewModel()) {
             chapterCounts = state.chapterCounts,
             currentBook   = state.currentBook,
             currentChapter = state.currentChapter,
+            esvOnTop      = state.esvOnTop,
             sheetState    = tocSheetState,
             onNavigate    = { book, chapter -> viewModel.navigateTo(book, chapter) },
             onDismiss     = { viewModel.toggleTableOfContents() },
@@ -127,7 +154,7 @@ fun BibleScreen(viewModel: BibleViewModel = hiltViewModel()) {
             ) {
                 Column {
                     Text(
-                        text = "개역개정",
+                        text = if (state.esvOnTop) "ESV" else "개역개정",
                         fontFamily = Pretendard,
                         fontWeight = FontWeight.Medium,
                         fontSize = 11.sp,
@@ -136,7 +163,7 @@ fun BibleScreen(viewModel: BibleViewModel = hiltViewModel()) {
                     )
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        text = if (bookName.isEmpty()) "" else "$bookName ${state.currentChapter}장",
+                        text = if (bookName.isEmpty()) "" else chapterLabel,
                         fontFamily = Pretendard,
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 30.sp,
@@ -148,24 +175,35 @@ fun BibleScreen(viewModel: BibleViewModel = hiltViewModel()) {
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    // ESV 토글
+                    // 개역개정 토글
                     Box(
                         modifier = Modifier
                             .height(38.dp)
                             .clip(RoundedCornerShape(19.dp))
-                            .background(if (state.showEsv) AccentBlue else BgCard)
-                            .border(1.dp, if (state.showEsv) Color.Transparent else HairlineWhite, RoundedCornerShape(19.dp))
-                            .clickable { viewModel.toggleEsv() }
+                            .background(if (state.showKorean) AccentBlue else BgCard)
+                            .border(1.dp, if (state.showKorean) Color.Transparent else HairlineWhite, RoundedCornerShape(19.dp))
+                            .clickable { viewModel.toggleKorean() }
                             .padding(horizontal = 12.dp),
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
-                            text = "ESV",
+                            text = if (state.esvOnTop) "개역개정" else "ESV",
                             fontFamily = Pretendard,
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 12.sp,
-                            color = if (state.showEsv) Color.White else FgSecondary,
+                            color = if (state.showKorean) Color.White else FgSecondary,
                         )
+                    }
+                    // 교차 버튼
+                    IconButton(
+                        onClick = { viewModel.toggleOrder() },
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(if (!state.esvOnTop) AccentBlue else BgCard)
+                            .border(1.dp, if (!state.esvOnTop) Color.Transparent else HairlineWhite, CircleShape),
+                    ) {
+                        Icon(Icons.Outlined.SwapVert, contentDescription = "교차", tint = if (!state.esvOnTop) Color.White else FgPrimary, modifier = Modifier.size(18.dp))
                     }
                     IconButton(
                         onClick = { viewModel.toggleSearch() },
@@ -193,8 +231,9 @@ fun BibleScreen(viewModel: BibleViewModel = hiltViewModel()) {
 
         if (state.isSearchActive) {
             SearchResults(
-                query   = state.searchQuery,
-                results = state.searchResults,
+                query      = state.searchQuery,
+                results    = state.searchResults,
+                esvOnTop   = state.esvOnTop,
                 onResultClick = { verse -> viewModel.navigateTo(verse.book, verse.chapter) },
             )
         } else {
@@ -280,8 +319,10 @@ fun BibleScreen(viewModel: BibleViewModel = hiltViewModel()) {
                         textAlign = TextAlign.End,
                     )
                     Column(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                        val primaryText   = if (state.esvOnTop) esvVerse?.text ?: verse.text else verse.text
+                        val secondaryText = if (state.esvOnTop) verse.text else esvVerse?.text
                         Text(
-                            text = verse.text,
+                            text = primaryText,
                             fontFamily = Pretendard,
                             fontWeight = FontWeight.Normal,
                             fontSize = 16.sp,
@@ -290,16 +331,17 @@ fun BibleScreen(viewModel: BibleViewModel = hiltViewModel()) {
                             color = FgPrimary,
                             modifier = Modifier.fillMaxWidth(),
                         )
-                        if (state.showEsv && esvVerse != null) {
+                        if (state.showKorean && secondaryText != null) {
                             Spacer(Modifier.height(4.dp))
                             Text(
-                                text = esvVerse.text,
+                                text = secondaryText,
                                 fontFamily = Pretendard,
                                 fontWeight = FontWeight.Normal,
                                 fontSize = 13.sp,
                                 lineHeight = 20.sp,
                                 letterSpacing = 0.em,
                                 color = FgSecondary,
+                                modifier = Modifier.fillMaxWidth(),
                             )
                         }
                     }
@@ -439,6 +481,7 @@ fun BibleScreen(viewModel: BibleViewModel = hiltViewModel()) {
 private fun SearchResults(
     query: String,
     results: List<BibleVerseEntity>,
+    esvOnTop: Boolean,
     onResultClick: (BibleVerseEntity) -> Unit,
 ) {
     when {
@@ -483,7 +526,11 @@ private fun SearchResults(
                             .padding(horizontal = 22.dp, vertical = 12.dp),
                     ) {
                         Text(
-                            text = "${verse.bookName} ${verse.chapter}장 ${verse.verse}절",
+                            text = if (esvOnTop) {
+                                "${BOOK_NAMES_EN[verse.book] ?: verse.bookName} ${verse.chapter}:${verse.verse}"
+                            } else {
+                                "${verse.bookName} ${verse.chapter}장 ${verse.verse}절"
+                            },
                             fontFamily = Pretendard,
                             fontWeight = FontWeight.Medium,
                             fontSize = 11.sp,
@@ -512,6 +559,7 @@ private fun TableOfContentsSheet(
     chapterCounts: Map<Int, Int>,
     currentBook: Int,
     currentChapter: Int,
+    esvOnTop: Boolean,
     sheetState: SheetState,
     onNavigate: (Int, Int) -> Unit,
     onDismiss: () -> Unit,
@@ -550,7 +598,7 @@ private fun TableOfContentsSheet(
             LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 40.dp)) {
                 item {
                     Text(
-                        text = "구약 · ${otBooks.size}권".uppercase(),
+                        text = if (esvOnTop) "OLD TESTAMENT · ${otBooks.size}" else "구약 · ${otBooks.size}권".uppercase(),
                         fontFamily = Pretendard,
                         fontWeight = FontWeight.Medium,
                         fontSize = 10.sp,
@@ -561,7 +609,7 @@ private fun TableOfContentsSheet(
                 }
                 items(otBooks.chunked(3)) { row ->
                     BookChipRow(
-                        row = row, currentBook = currentBook,
+                        row = row, currentBook = currentBook, esvOnTop = esvOnTop,
                         onNavigate = { book -> selectedBook = books.find { it.book == book } },
                     )
                     Spacer(Modifier.height(8.dp))
@@ -569,7 +617,7 @@ private fun TableOfContentsSheet(
                 item {
                     Spacer(Modifier.height(16.dp))
                     Text(
-                        text = "신약 · ${ntBooks.size}권".uppercase(),
+                        text = if (esvOnTop) "NEW TESTAMENT · ${ntBooks.size}" else "신약 · ${ntBooks.size}권".uppercase(),
                         fontFamily = Pretendard,
                         fontWeight = FontWeight.Medium,
                         fontSize = 10.sp,
@@ -580,7 +628,7 @@ private fun TableOfContentsSheet(
                 }
                 items(ntBooks.chunked(3)) { row ->
                     BookChipRow(
-                        row = row, currentBook = currentBook,
+                        row = row, currentBook = currentBook, esvOnTop = esvOnTop,
                         onNavigate = { book -> selectedBook = books.find { it.book == book } },
                     )
                     Spacer(Modifier.height(8.dp))
@@ -606,7 +654,7 @@ private fun TableOfContentsSheet(
                     )
                 }
                 Text(
-                    text = book.bookName,
+                    text = if (esvOnTop) BOOK_NAMES_EN[book.book] ?: book.bookName else book.bookName,
                     fontFamily = Pretendard,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 20.sp,
@@ -655,6 +703,7 @@ private fun TableOfContentsSheet(
 private fun BookChipRow(
     row: List<BibleBook>,
     currentBook: Int,
+    esvOnTop: Boolean,
     onNavigate: (Int) -> Unit,
 ) {
     Row(
@@ -663,6 +712,7 @@ private fun BookChipRow(
     ) {
         row.forEach { book ->
             val selected = book.book == currentBook
+            val displayName = if (esvOnTop) BOOK_NAMES_EN[book.book] ?: book.bookName else book.bookName
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -674,7 +724,7 @@ private fun BookChipRow(
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = book.bookName,
+                    text = displayName,
                     fontFamily = Pretendard,
                     fontWeight = FontWeight.Medium,
                     fontSize = 12.sp,

@@ -26,7 +26,8 @@ data class BibleUiState(
     val chapterCount: Int = 1,
     val verses: List<BibleVerseEntity> = emptyList(),
     val esvVerses: List<EsvVerseEntity> = emptyList(),
-    val showEsv: Boolean = false,
+    val showKorean: Boolean = false,  // 개역개정 보조 텍스트 표시 여부
+    val esvOnTop: Boolean = true,     // true=ESV 위·개역개정 아래, false=반전
     val isTableOfContentsOpen: Boolean = false,
     val isSearchActive: Boolean = false,
     val searchQuery: String = "",
@@ -77,19 +78,12 @@ class BibleViewModel @Inject constructor(
         }
     }
 
-    fun toggleEsv() {
-        val show = !_state.value.showEsv
-        _state.value = _state.value.copy(showEsv = show)
-        if (show) {
-            viewModelScope.launch {
-                runCatching {
-                    val esv = esvDao.getVerses(_state.value.currentBook, _state.value.currentChapter)
-                    _state.value = _state.value.copy(esvVerses = esv)
-                }
-            }
-        } else {
-            _state.value = _state.value.copy(esvVerses = emptyList())
-        }
+    fun toggleKorean() {
+        _state.value = _state.value.copy(showKorean = !_state.value.showKorean)
+    }
+
+    fun toggleOrder() {
+        _state.value = _state.value.copy(esvOnTop = !_state.value.esvOnTop)
     }
 
     fun toggleSearch() {
@@ -139,7 +133,7 @@ class BibleViewModel @Inject constructor(
                     runCatching {
                         val lastChapter = bibleDao.getChapterCount(prevBook) ?: 1
                         val verses = bibleDao.getVerses(prevBook, lastChapter)
-                        val esv = if (_state.value.showEsv) esvDao.getVerses(prevBook, lastChapter) else emptyList()
+                        val esv = esvDao.getVerses(prevBook, lastChapter)
                         _state.value = _state.value.copy(
                             currentBook = prevBook,
                             currentChapter = lastChapter,
@@ -167,7 +161,7 @@ class BibleViewModel @Inject constructor(
     private suspend fun fetchAndApply(book: Int, chapter: Int) {
         val chapterCount = bibleDao.getChapterCount(book) ?: 1
         val verses = bibleDao.getVerses(book, chapter)
-        val esv = if (_state.value.showEsv) esvDao.getVerses(book, chapter) else emptyList()
+        val esv = esvDao.getVerses(book, chapter)
         _state.value = _state.value.copy(
             currentBook = book,
             currentChapter = chapter,

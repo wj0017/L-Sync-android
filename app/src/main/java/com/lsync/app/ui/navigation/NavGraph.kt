@@ -35,7 +35,7 @@ sealed class Screen(val route: String, val label: String, val icon: ImageVector)
     data object Bible    : Screen("bible",    "성경",   Icons.Outlined.MenuBook)
 }
 
-private val bottomNavItems = listOf(Screen.Calendar, Screen.Todo, Screen.Finance, Screen.Bible)
+private val bottomNavItems = listOf(Screen.Bible, Screen.Calendar, Screen.Todo, Screen.Finance)
 
 @Composable
 fun NavGraph() {
@@ -88,7 +88,7 @@ fun NavGraph() {
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = Screen.Calendar.route,
+            startDestination = Screen.Bible.route,
             modifier = Modifier.padding(innerPadding),
         ) {
             composable(Screen.Calendar.route) { CalendarScreen() }
