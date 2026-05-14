@@ -6,6 +6,7 @@ import com.lsync.app.data.local.entity.ReadingPlanEntity
 import com.lsync.app.data.repository.EventRepository
 import com.lsync.app.data.repository.FinanceRepository
 import com.lsync.app.data.repository.ReadingPlanRepository
+import com.lsync.app.data.repository.ReadingPlanSettings
 import com.lsync.app.data.repository.TodoRepository
 import com.lsync.app.ui.schedule.ScheduleItem
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -18,6 +19,8 @@ data class ReadingPlanSectionState(
     val entries: List<ReadingPlanEntity> = emptyList(),
     val totalRead: Int = 0,
     val startDate: LocalDate? = null,
+    val settings: ReadingPlanSettings = ReadingPlanSettings(),
+    val estimatedTotalDays: Int = 365,
 ) {
     val hasStarted: Boolean get() = startDate != null
     val todayDoneCount: Int get() = entries.count { it.isRead }
@@ -25,6 +28,10 @@ data class ReadingPlanSectionState(
     val overallProgress: Float
         get() = if (ReadingPlanRepository.TOTAL_CHAPTERS == 0) 0f
                 else totalRead.toFloat() / ReadingPlanRepository.TOTAL_CHAPTERS
+    val dayNumber: Int
+        get() = startDate?.let {
+            java.time.temporal.ChronoUnit.DAYS.between(it, LocalDate.now()).toInt() + 1
+        } ?: 0
 }
 
 data class HomeUiState(
@@ -33,6 +40,8 @@ data class HomeUiState(
     val monthIncome: Long = 0L,
     val monthExpense: Long = 0L,
     val readingPlan: ReadingPlanSectionState = ReadingPlanSectionState(),
+    val showSetupSheet: Boolean = false,
+    val pendingSettings: ReadingPlanSettings = ReadingPlanSettings(),
     val error: String? = null,
 ) {
     val monthNet: Long get() = monthIncome - monthExpense
@@ -102,13 +111,17 @@ class HomeViewModel @Inject constructor(
             readingPlanRepository.observeForDate(today.toString())
                 .catch { e -> _uiState.update { it.copy(error = e.message) } }
                 .collect { entries ->
-                    val totalRead = readingPlanRepository.getTotalRead()
+                    val totalRead      = readingPlanRepository.getTotalRead()
+                    val settings       = readingPlanRepository.getSettings()
+                    val estimatedDays  = readingPlanRepository.estimatedTotalDays()
                     _uiState.update {
                         it.copy(
                             readingPlan = it.readingPlan.copy(
-                                entries   = entries,
-                                totalRead = totalRead,
-                                startDate = readingPlanRepository.getStartDate(),
+                                entries           = entries,
+                                totalRead         = totalRead,
+                                startDate         = readingPlanRepository.getStartDate(),
+                                settings          = settings,
+                                estimatedTotalDays = estimatedDays,
                             )
                         )
                     }
@@ -116,18 +129,37 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    // ── 통독 설정 시트 ────────────────────────────────────────────────────────
+
+    fun openSetupSheet() {
+        val current = readingPlanRepository.getSettings()
+        _uiState.update { it.copy(showSetupSheet = true, pendingSettings = current) }
+    }
+
+    fun closeSetupSheet() = _uiState.update { it.copy(showSetupSheet = false) }
+
+    fun updatePendingSettings(settings: ReadingPlanSettings) =
+        _uiState.update { it.copy(pendingSettings = settings) }
+
+    fun applySettings() {
+        val settings = _uiState.value.pendingSettings
+        val today = LocalDate.now()
+        readingPlanRepository.saveSettings(settings)
+        if (!_uiState.value.readingPlan.hasStarted) {
+            readingPlanRepository.setStartDate(today)
+        }
+        viewModelScope.launch {
+            readingPlanRepository.resetFromToday()
+            observeReadingPlan(today)
+        }
+        _uiState.update { it.copy(showSetupSheet = false) }
+    }
+
+    // ── 개별 조작 ─────────────────────────────────────────────────────────────
+
     fun markChapterRead(book: Int, chapter: Int, isRead: Boolean) {
         viewModelScope.launch {
             readingPlanRepository.markRead(LocalDate.now().toString(), book, chapter, isRead)
-        }
-    }
-
-    fun startReadingPlan() {
-        val today = LocalDate.now()
-        readingPlanRepository.setStartDate(today)
-        viewModelScope.launch {
-            readingPlanRepository.ensureReadingPlanForDate(today)
-            observeReadingPlan(today)
         }
     }
 

@@ -26,4 +26,7 @@ interface ReadingPlanDao {
 
     @Query("SELECT COUNT(*) FROM reading_plan WHERE date = :date")
     suspend fun getCountForDate(date: String): Int
+
+    @Query("DELETE FROM reading_plan WHERE date >= :fromDate")
+    suspend fun deleteFromDate(fromDate: String)
 }
