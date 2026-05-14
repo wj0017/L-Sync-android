@@ -5,7 +5,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.CalendarMonth
-import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.MenuBook
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -23,19 +23,19 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.lsync.app.ui.bible.BibleScreen
-import com.lsync.app.ui.calendar.CalendarScreen
 import com.lsync.app.ui.finance.FinanceScreen
+import com.lsync.app.ui.home.HomeScreen
+import com.lsync.app.ui.schedule.ScheduleScreen
 import com.lsync.app.ui.theme.*
-import com.lsync.app.ui.todo.TodoScreen
 
 sealed class Screen(val route: String, val label: String, val icon: ImageVector) {
-    data object Calendar : Screen("calendar", "캘린더", Icons.Outlined.CalendarMonth)
-    data object Todo     : Screen("todo",     "할 일",  Icons.Outlined.CheckCircle)
+    data object Home     : Screen("home",     "홈",    Icons.Outlined.Home)
+    data object Schedule : Screen("schedule", "일정",  Icons.Outlined.CalendarMonth)
     data object Finance  : Screen("finance",  "가계부", Icons.Outlined.AccountBalanceWallet)
     data object Bible    : Screen("bible",    "성경",   Icons.Outlined.MenuBook)
 }
 
-private val bottomNavItems = listOf(Screen.Bible, Screen.Calendar, Screen.Todo, Screen.Finance)
+private val bottomNavItems = listOf(Screen.Home, Screen.Schedule, Screen.Finance, Screen.Bible)
 
 @Composable
 fun NavGraph() {
@@ -88,11 +88,28 @@ fun NavGraph() {
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = Screen.Bible.route,
+            startDestination = Screen.Home.route,
             modifier = Modifier.padding(innerPadding),
         ) {
-            composable(Screen.Calendar.route) { CalendarScreen() }
-            composable(Screen.Todo.route)     { TodoScreen() }
+            composable(Screen.Home.route) {
+                HomeScreen(
+                    onNavigateToSchedule = {
+                        navController.navigate(Screen.Schedule.route) {
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                    onNavigateToBible = {
+                        navController.navigate(Screen.Bible.route) {
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                )
+            }
+            composable(Screen.Schedule.route) { ScheduleScreen() }
             composable(Screen.Finance.route)  { FinanceScreen() }
             composable(Screen.Bible.route)    { BibleScreen() }
         }

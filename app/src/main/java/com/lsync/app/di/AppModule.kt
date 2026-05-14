@@ -10,11 +10,13 @@ import com.lsync.app.data.local.dao.BibleDao
 import com.lsync.app.data.local.dao.EsvDao
 import com.lsync.app.data.local.dao.EventDao
 import com.lsync.app.data.local.dao.FinanceDao
+import com.lsync.app.data.local.dao.ReadingPlanDao
 import com.lsync.app.data.local.dao.TodoDao
 import com.lsync.app.data.local.dao.TodoTemplateDao
 import com.lsync.app.data.remote.FirestoreDataSource
 import com.lsync.app.data.repository.EventRepository
 import com.lsync.app.data.repository.FinanceRepository
+import com.lsync.app.data.repository.ReadingPlanRepository
 import com.lsync.app.data.repository.TodoRepository
 import dagger.Module
 import dagger.Provides
@@ -31,12 +33,21 @@ object AppModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase =
         Room.databaseBuilder(context, AppDatabase::class.java, "lsync.db")
+            .addMigrations(AppDatabase.MIGRATION_1_2)
             .build()
 
     @Provides fun provideEventDao(db: AppDatabase): EventDao = db.eventDao()
     @Provides fun provideTodoDao(db: AppDatabase): TodoDao = db.todoDao()
     @Provides @Singleton fun provideTodoTemplateDao(db: AppDatabase): TodoTemplateDao = db.todoTemplateDao()
     @Provides fun provideFinanceDao(db: AppDatabase): FinanceDao = db.financeDao()
+    @Provides fun provideReadingPlanDao(db: AppDatabase): ReadingPlanDao = db.readingPlanDao()
+
+    @Provides
+    @Singleton
+    fun provideReadingPlanRepository(
+        dao: ReadingPlanDao,
+        @ApplicationContext context: Context,
+    ) = ReadingPlanRepository(dao, context)
 
     @Provides
     @Singleton
