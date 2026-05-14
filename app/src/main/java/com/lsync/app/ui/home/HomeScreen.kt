@@ -92,46 +92,68 @@ fun HomeScreen(
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(BgPrimary),
-        contentPadding = PaddingValues(bottom = 32.dp),
+        contentPadding = PaddingValues(bottom = 40.dp),
     ) {
+        // ── 날짜 헤더 ────────────────────────────────────────────────────────
         item {
-            Column(modifier = Modifier.padding(start = 22.dp, end = 22.dp, top = 24.dp, bottom = 20.dp)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+                    .padding(top = 32.dp, bottom = 24.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Bottom,
+            ) {
+                // 앱 이름
                 Text(
-                    text = uiState.today.year.toString(),
-                    fontFamily = Pretendard, fontWeight = FontWeight.Medium,
-                    fontSize = 11.sp, letterSpacing = 0.12.em, color = FgTertiary,
+                    text = "L·SYNC",
+                    fontFamily = Pretendard,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 20.sp,
+                    letterSpacing = 0.06.em,
+                    color = FgPrimary,
                 )
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    text = uiState.today.format(DateTimeFormatter.ofPattern("M월 d일 EEEE", Locale.KOREAN)),
-                    fontFamily = Pretendard, fontWeight = FontWeight.SemiBold,
-                    fontSize = 30.sp, letterSpacing = (-0.035).em, color = FgPrimary,
-                    lineHeight = (30 * 1.08).sp,
-                )
+                // 날짜 (우측 정렬)
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        text = uiState.today.year.toString(),
+                        fontFamily = Pretendard, fontWeight = FontWeight.Medium,
+                        fontSize = 10.sp, letterSpacing = 0.12.em, color = FgTertiary,
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = uiState.today.format(DateTimeFormatter.ofPattern("MMM d, EEEE", Locale.ENGLISH)),
+                        fontFamily = Pretendard, fontWeight = FontWeight.Medium,
+                        fontSize = 14.sp, letterSpacing = (-0.01).em, color = FgSecondary,
+                    )
+                }
             }
         }
 
+        // ── 섹션: 성경 통독 ──────────────────────────────────────────────────
+        item { HomeSectionHeader(label = "성경 통독") }
         item {
             ReadingPlanCard(
                 state = uiState.readingPlan,
                 onChapterToggle = { book, ch, isRead -> viewModel.markChapterRead(book, ch, isRead) },
                 onSetupClick = { viewModel.openSetupSheet() },
                 onNavigateToBible = onNavigateToBible,
-                modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp),
+                modifier = Modifier.padding(horizontal = 20.dp),
             )
         }
 
-        item {
-            HomeSectionHeader(
-                label = "오늘 · 일정 & 할 일",
-                count = uiState.todayItems.size,
-                modifier = Modifier.padding(horizontal = 22.dp, vertical = 6.dp),
-            )
-        }
+        // ── 구분선 ───────────────────────────────────────────────────────────
+        item { HomeSectionDivider() }
+
+        // ── 섹션: 오늘 일정 & 할 일 ─────────────────────────────────────────
+        item { HomeSectionHeader(label = "오늘 · 일정 & 할 일", count = uiState.todayItems.size) }
 
         if (uiState.todayItems.isEmpty()) {
             item {
-                Box(modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp), contentAlignment = Alignment.Center) {
+                Box(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(vertical = 20.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
                     Text("오늘 일정·할 일이 없어요", fontSize = 14.sp, color = FgDisabled, fontFamily = Pretendard)
                 }
             }
@@ -142,11 +164,14 @@ fun HomeScreen(
                     is ScheduleItem.Todo  -> "t_${it.entity.id}"
                 }
             }) { item ->
-                HomeScheduleRow(item = item, modifier = Modifier.padding(horizontal = 16.dp, vertical = 3.dp))
+                HomeScheduleRow(item = item, modifier = Modifier.padding(horizontal = 20.dp).padding(bottom = 6.dp))
             }
             if (uiState.todayItems.size > 5) {
                 item {
-                    TextButton(onClick = onNavigateToSchedule, modifier = Modifier.padding(horizontal = 16.dp)) {
+                    TextButton(
+                        onClick = onNavigateToSchedule,
+                        modifier = Modifier.padding(horizontal = 12.dp),
+                    ) {
                         Text(
                             "더 보기 (${uiState.todayItems.size - 5}개) →",
                             fontFamily = Pretendard, fontWeight = FontWeight.Medium,
@@ -157,18 +182,17 @@ fun HomeScreen(
             }
         }
 
-        item {
-            HomeSectionHeader(
-                label = "${uiState.today.monthValue}월 가계부",
-                modifier = Modifier.padding(horizontal = 22.dp).padding(top = 20.dp, bottom = 6.dp),
-            )
-        }
+        // ── 구분선 ───────────────────────────────────────────────────────────
+        item { HomeSectionDivider() }
+
+        // ── 섹션: 가계부 ─────────────────────────────────────────────────────
+        item { HomeSectionHeader(label = "${uiState.today.monthValue}월 가계부") }
         item {
             FinanceSummaryCard(
                 income = uiState.monthIncome,
                 expense = uiState.monthExpense,
                 net = uiState.monthNet,
-                modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 4.dp),
+                modifier = Modifier.padding(horizontal = 20.dp),
             )
         }
     }
@@ -552,12 +576,26 @@ private fun ChapterCheckRow(entry: ReadingPlanEntity, onToggle: () -> Unit, onNa
 // ── 공통 컴포넌트 ─────────────────────────────────────────────────────────────
 
 @Composable
-private fun HomeSectionHeader(label: String, count: Int = -1, modifier: Modifier = Modifier) {
+private fun HomeSectionHeader(label: String, count: Int = -1) {
     Text(
         text = if (count >= 0) "$label · $count" else label,
         fontFamily = Pretendard, fontWeight = FontWeight.Medium,
         fontSize = 11.sp, letterSpacing = 0.12.em, color = FgTertiary,
-        modifier = modifier,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp)
+            .padding(bottom = 10.dp),
+    )
+}
+
+@Composable
+private fun HomeSectionDivider() {
+    HorizontalDivider(
+        color = Divider,
+        thickness = 0.5.dp,
+        modifier = Modifier
+            .padding(horizontal = 20.dp)
+            .padding(top = 24.dp, bottom = 20.dp),
     )
 }
 
@@ -620,48 +658,60 @@ private fun HomeScheduleRow(item: ScheduleItem, modifier: Modifier = Modifier) {
 @Composable
 private fun FinanceSummaryCard(income: Long, expense: Long, net: Long, modifier: Modifier = Modifier) {
     Column(
-        modifier = modifier.fillMaxWidth()
+        modifier = modifier
+            .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .background(BgCard)
             .border(1.dp, HairlineWhite, RoundedCornerShape(14.dp))
-            .padding(horizontal = 16.dp, vertical = 16.dp),
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text("이번 달 잔액", fontFamily = Pretendard, fontWeight = FontWeight.Medium, fontSize = 11.sp, letterSpacing = 0.12.em, color = FgTertiary)
-        Spacer(Modifier.height(6.dp))
-        Row(verticalAlignment = Alignment.Bottom) {
+        // 잔액 행
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Text(
-                text = if (net >= 0) "+" else "−",
-                fontFamily = InstrumentSerif, fontStyle = FontStyle.Italic, fontSize = 28.sp,
-                color = if (net >= 0) AccentGreen else AccentRed,
-                modifier = Modifier.padding(bottom = 3.dp, end = 2.dp),
+                "잔액",
+                fontFamily = Pretendard, fontWeight = FontWeight.Medium,
+                fontSize = 11.sp, letterSpacing = 0.12.em, color = FgTertiary,
             )
-            Text(
-                text = "₩%,d".format(Math.abs(net)),
-                fontFamily = Pretendard, fontWeight = FontWeight.SemiBold,
-                fontSize = 34.sp, letterSpacing = (-0.03).em, color = FgPrimary,
-            )
+            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = if (net >= 0) "+" else "−",
+                    fontFamily = InstrumentSerif, fontStyle = FontStyle.Italic, fontSize = 17.sp,
+                    color = if (net >= 0) AccentGreen else AccentRed,
+                )
+                Text(
+                    text = "₩%,d".format(Math.abs(net)),
+                    fontFamily = Pretendard, fontWeight = FontWeight.SemiBold,
+                    fontSize = 22.sp, letterSpacing = (-0.025).em, color = FgPrimary,
+                )
+            }
         }
-        Spacer(Modifier.height(14.dp))
-        HorizontalDivider(color = Divider, thickness = 0.5.dp)
-        Spacer(Modifier.height(14.dp))
-        Row(modifier = Modifier.fillMaxWidth()) {
-            FinanceAmountLine(label = "수입", amount = income, positive = true, modifier = Modifier.weight(1f))
-            Box(modifier = Modifier.width(1.dp).height(32.dp).background(Divider).align(Alignment.CenterVertically))
-            FinanceAmountLine(label = "지출", amount = expense, positive = false, modifier = Modifier.weight(1f), alignEnd = true)
-        }
-    }
-}
 
-@Composable
-private fun FinanceAmountLine(label: String, amount: Long, positive: Boolean, modifier: Modifier = Modifier, alignEnd: Boolean = false) {
-    Column(modifier = modifier.padding(horizontal = 12.dp), horizontalAlignment = if (alignEnd) Alignment.End else Alignment.Start) {
-        Text(label, fontFamily = Pretendard, fontWeight = FontWeight.Medium, fontSize = 10.sp, letterSpacing = 0.1.em, color = FgTertiary)
-        Spacer(Modifier.height(4.dp))
-        Text(
-            text = "₩%,d".format(amount),
-            fontFamily = Pretendard, fontWeight = FontWeight.SemiBold,
-            fontSize = 16.sp, letterSpacing = (-0.015).em,
-            color = if (positive) AccentGreen else FgSecondary,
-        )
+        // 수입 / 지출 행
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("수입", fontFamily = Pretendard, fontSize = 10.sp, letterSpacing = 0.08.em, color = FgTertiary)
+                Text(
+                    "₩%,d".format(income),
+                    fontFamily = Pretendard, fontWeight = FontWeight.Medium,
+                    fontSize = 13.sp, letterSpacing = (-0.01).em, color = AccentGreen,
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("지출", fontFamily = Pretendard, fontSize = 10.sp, letterSpacing = 0.08.em, color = FgTertiary)
+                Text(
+                    "₩%,d".format(expense),
+                    fontFamily = Pretendard, fontWeight = FontWeight.Medium,
+                    fontSize = 13.sp, letterSpacing = (-0.01).em, color = FgSecondary,
+                )
+            }
+        }
     }
 }
