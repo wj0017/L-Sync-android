@@ -9,6 +9,9 @@ local.properties
 # Firebase (절대 커밋 금지)
 google-services.json
 
+# Firebase Hosting 배포 캐시
+.firebase/
+
 # IDE
 .idea/
 *.iml
