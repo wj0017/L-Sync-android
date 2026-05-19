@@ -9,7 +9,12 @@ export function useEvents(uid: string) {
 
   useEffect(() => {
     const unsub = onSnapshot(eventsQuery(uid), (snap) => {
-      setEvents(snap.docs.map((d) => ({ id: d.id, ...d.data() } as LSyncEvent)));
+      const all = snap.docs.map((d) => ({ id: d.id, ...d.data() } as LSyncEvent));
+      // 삭제된 항목 제외, startDate 오름차순
+      const active = all
+        .filter(e => !e.deletedAt)
+        .sort((a, b) => (a.startDate ?? '').localeCompare(b.startDate ?? ''));
+      setEvents(active);
     });
     return unsub;
   }, [uid]);

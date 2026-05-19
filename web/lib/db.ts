@@ -2,46 +2,27 @@ import {
   collection,
   query,
   where,
-  orderBy,
   addDoc,
   updateDoc,
   deleteDoc,
   doc,
   serverTimestamp,
-  Timestamp,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { LSyncEvent, LSyncFinance, LSyncTodo } from '@/types/models';
 
-// ── Queries ──────────────────────────────────────────────────────────────────
+// ── Queries (복합 인덱스 불필요 — 필터링은 클라이언트에서) ───────────────────────
 
 export function eventsQuery(uid: string) {
-  return query(
-    collection(db, 'events'),
-    where('userId', '==', uid),
-    where('deletedAt', '==', null),
-    orderBy('startDate', 'asc'),
-  );
+  return query(collection(db, 'events'), where('userId', '==', uid));
 }
 
 export function todosQuery(uid: string) {
-  return query(
-    collection(db, 'todos'),
-    where('userId', '==', uid),
-    where('deletedAt', '==', null),
-    orderBy('dueDate', 'asc'),
-  );
+  return query(collection(db, 'todos'), where('userId', '==', uid));
 }
 
-export function financeMonthQuery(uid: string, monthStart: string, monthEnd: string) {
-  return query(
-    collection(db, 'finance'),
-    where('userId', '==', uid),
-    where('date', '>=', monthStart),
-    where('date', '<=', monthEnd),
-    where('isExcluded', '==', false),
-    orderBy('date', 'desc'),
-  );
+export function financeQuery(uid: string) {
+  return query(collection(db, 'finance'), where('userId', '==', uid));
 }
 
 // ── Mutations ─────────────────────────────────────────────────────────────────

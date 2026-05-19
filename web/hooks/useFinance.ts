@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { onSnapshot } from 'firebase/firestore';
-import { financeMonthQuery } from '@/lib/db';
+import { financeQuery } from '@/lib/db';
 import { LSyncFinance } from '@/types/models';
 
 export function useFinance(uid: string, year: number, month: number) {
@@ -9,12 +9,14 @@ export function useFinance(uid: string, year: number, month: number) {
 
   useEffect(() => {
     const pad = (n: number) => String(n).padStart(2, '0');
-    const start = `${year}-${pad(month)}-01`;
-    const lastDay = new Date(year, month, 0).getDate();
-    const end   = `${year}-${pad(month)}-${lastDay}`;
+    const prefix = `${year}-${pad(month)}`;
 
-    const unsub = onSnapshot(financeMonthQuery(uid, start, end), (snap) => {
-      setItems(snap.docs.map((d) => ({ id: d.id, ...d.data() } as LSyncFinance)));
+    const unsub = onSnapshot(financeQuery(uid), (snap) => {
+      const filtered = snap.docs
+        .map(d => ({ id: d.id, ...d.data() } as LSyncFinance))
+        .filter(f => !f.isExcluded && f.date?.startsWith(prefix))
+        .sort((a, b) => b.date.localeCompare(a.date));
+      setItems(filtered);
     });
     return unsub;
   }, [uid, year, month]);

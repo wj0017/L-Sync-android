@@ -9,7 +9,12 @@ export function useTodos(uid: string) {
 
   useEffect(() => {
     const unsub = onSnapshot(todosQuery(uid), (snap) => {
-      setTodos(snap.docs.map((d) => ({ id: d.id, ...d.data() } as LSyncTodo)));
+      const all = snap.docs.map((d) => ({ id: d.id, ...d.data() } as LSyncTodo));
+      // 삭제된 항목 제외, dueDate 오름차순
+      const active = all
+        .filter(t => !t.deletedAt)
+        .sort((a, b) => (a.dueDate ?? '').localeCompare(b.dueDate ?? ''));
+      setTodos(active);
     });
     return unsub;
   }, [uid]);
