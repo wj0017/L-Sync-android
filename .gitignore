@@ -12,6 +12,9 @@ google-services.json
 # Firebase Hosting 배포 캐시
 .firebase/
 
+# Claude 로컬 설정 (기기마다 다름, API 키 포함 가능)
+.claude/settings.local.json
+
 # IDE
 .idea/
 *.iml
