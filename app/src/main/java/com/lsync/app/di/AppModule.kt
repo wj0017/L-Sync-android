@@ -10,6 +10,7 @@ import com.lsync.app.data.local.dao.BibleDao
 import com.lsync.app.data.local.dao.EsvDao
 import com.lsync.app.data.local.dao.EventDao
 import com.lsync.app.data.local.dao.FinanceDao
+import com.lsync.app.data.local.dao.MemoDao
 import com.lsync.app.data.local.dao.ReadingPlanDao
 import com.lsync.app.data.local.dao.TodoDao
 import com.lsync.app.data.local.dao.TodoTemplateDao
@@ -33,7 +34,7 @@ object AppModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase =
         Room.databaseBuilder(context, AppDatabase::class.java, "lsync.db")
-            .addMigrations(AppDatabase.MIGRATION_1_2)
+            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3)
             .build()
 
     @Provides fun provideEventDao(db: AppDatabase): EventDao = db.eventDao()
@@ -41,6 +42,10 @@ object AppModule {
     @Provides @Singleton fun provideTodoTemplateDao(db: AppDatabase): TodoTemplateDao = db.todoTemplateDao()
     @Provides fun provideFinanceDao(db: AppDatabase): FinanceDao = db.financeDao()
     @Provides fun provideReadingPlanDao(db: AppDatabase): ReadingPlanDao = db.readingPlanDao()
+
+    @Provides
+    @Singleton
+    fun provideMemoDao(db: AppDatabase): MemoDao = db.memoDao()
 
     @Provides
     @Singleton
