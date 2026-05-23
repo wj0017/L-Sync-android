@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -287,8 +288,16 @@ fun BibleScreen(viewModel: BibleViewModel = hiltViewModel()) {
             modifier = Modifier.fillMaxSize(),
         ) { page ->
         val isCurrentPage = page == state.currentChapter - 1
+        val listState = rememberLazyListState()
 
-        LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
+        LaunchedEffect(anchored) {
+            if (anchored != null && isCurrentPage) {
+                val composerIndex = state.verses.size + state.memos.size
+                listState.animateScrollToItem(composerIndex)
+            }
+        }
+
+        LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 24.dp)) {
 
             // Verses
             items(if (isCurrentPage) state.verses else emptyList(), key = { it.idx }) { verse ->
