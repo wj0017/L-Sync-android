@@ -292,214 +292,203 @@ fun BibleScreen(viewModel: BibleViewModel = hiltViewModel()) {
 
         LaunchedEffect(anchored) {
             if (anchored != null && isCurrentPage) {
-                val composerIndex = state.verses.size + state.memos.size
-                listState.animateScrollToItem(composerIndex)
+                val idx = state.verses.indexOfFirst { it.verse == anchored }
+                if (idx >= 0) listState.animateScrollToItem(idx)
             }
         }
 
         LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 24.dp)) {
-
-            // Verses
             items(if (isCurrentPage) state.verses else emptyList(), key = { it.idx }) { verse ->
                 val isAnchored = anchored == verse.verse
                 val esvVerse = state.esvVerses.find { it.verse == verse.verse }
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(if (isAnchored) AccentBlue.copy(alpha = 0.07f) else Color.Transparent)
-                        .clickable { anchored = if (isAnchored) null else verse.verse }
-                        .padding(horizontal = 22.dp, vertical = 10.dp),
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
-                ) {
-                    Text(
-                        text = verse.verse.toString(),
-                        fontFamily = InstrumentSerif,
-                        fontWeight = FontWeight.Normal,
-                        fontStyle = FontStyle.Italic,
-                        fontSize = 14.sp,
-                        letterSpacing = 0.02.em,
-                        color = if (isAnchored) AccentBlue else FgTertiary,
-                        modifier = Modifier.width(20.dp).padding(top = 2.dp),
-                        textAlign = TextAlign.End,
-                    )
-                    Column(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                        val primaryText   = if (state.esvOnTop) esvVerse?.text ?: verse.text else verse.text
-                        val secondaryText = if (state.esvOnTop) verse.text else esvVerse?.text
+                val verseMemos = if (isCurrentPage) state.memos.filter { it.verse == verse.verse } else emptyList()
+
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    // Verse row
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(if (isAnchored) AccentBlue.copy(alpha = 0.07f) else Color.Transparent)
+                            .clickable { anchored = if (isAnchored) null else verse.verse }
+                            .padding(horizontal = 22.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    ) {
                         Text(
-                            text = primaryText,
-                            fontFamily = Pretendard,
+                            text = verse.verse.toString(),
+                            fontFamily = InstrumentSerif,
                             fontWeight = FontWeight.Normal,
-                            fontSize = 16.sp,
-                            lineHeight = 29.6.sp,
-                            letterSpacing = (-0.005).em,
-                            color = FgPrimary,
-                            modifier = Modifier.fillMaxWidth(),
+                            fontStyle = FontStyle.Italic,
+                            fontSize = 14.sp,
+                            letterSpacing = 0.02.em,
+                            color = if (isAnchored) AccentBlue else FgTertiary,
+                            modifier = Modifier.width(20.dp).padding(top = 2.dp),
+                            textAlign = TextAlign.End,
                         )
-                        if (state.showKorean && secondaryText != null) {
-                            Spacer(Modifier.height(4.dp))
+                        Column(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                            val primaryText   = if (state.esvOnTop) esvVerse?.text ?: verse.text else verse.text
+                            val secondaryText = if (state.esvOnTop) verse.text else esvVerse?.text
                             Text(
-                                text = secondaryText,
+                                text = primaryText,
                                 fontFamily = Pretendard,
                                 fontWeight = FontWeight.Normal,
-                                fontSize = 13.sp,
-                                lineHeight = 20.sp,
-                                letterSpacing = 0.em,
-                                color = FgSecondary,
+                                fontSize = 16.sp,
+                                lineHeight = 29.6.sp,
+                                letterSpacing = (-0.005).em,
+                                color = FgPrimary,
                                 modifier = Modifier.fillMaxWidth(),
                             )
-                        }
-                    }
-                }
-            }
-
-            // Persisted memo cards (현재 장만)
-            if (isCurrentPage) {
-                items(state.memos, key = { it.id }) { memo ->
-                    val memoRef = if (state.esvOnTop) {
-                        "${BOOK_NAMES_EN[memo.book] ?: ""} ${memo.chapter}:${memo.verse}"
-                    } else {
-                        val bookKoName = state.books.find { it.book == memo.book }?.bookName ?: ""
-                        "$bookKoName ${memo.chapter}장 ${memo.verse}절"
-                    }
-                    val memoDateLabel = runCatching {
-                        LocalDate.parse(memo.date)
-                            .format(DateTimeFormatter.ofPattern("yyyy년 M월 d일", Locale.KOREAN))
-                    }.getOrDefault(memo.date)
-
-                    Column(
-                        modifier = Modifier
-                            .padding(horizontal = 16.dp, vertical = 6.dp)
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(BgCard)
-                            .border(1.dp, HairlineWhite, RoundedCornerShape(14.dp))
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                text = "묵상 · $memoRef · $memoDateLabel".uppercase(),
-                                fontFamily = Pretendard,
-                                fontWeight = FontWeight.Medium,
-                                fontSize = 10.sp,
-                                letterSpacing = 0.12.em,
-                                color = FgTertiary,
-                                modifier = Modifier.weight(1f),
-                            )
-                            IconButton(
-                                onClick = { viewModel.deleteMemo(memo.id) },
-                                modifier = Modifier.size(28.dp),
-                            ) {
-                                Icon(
-                                    Icons.Outlined.Close,
-                                    contentDescription = "삭제",
-                                    tint = FgTertiary,
-                                    modifier = Modifier.size(14.dp),
+                            if (state.showKorean && secondaryText != null) {
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    text = secondaryText,
+                                    fontFamily = Pretendard,
+                                    fontWeight = FontWeight.Normal,
+                                    fontSize = 13.sp,
+                                    lineHeight = 20.sp,
+                                    letterSpacing = 0.em,
+                                    color = FgSecondary,
+                                    modifier = Modifier.fillMaxWidth(),
                                 )
                             }
                         }
-                        Spacer(Modifier.height(6.dp))
-                        Text(
-                            text = memo.text,
-                            fontFamily = Pretendard,
-                            fontSize = 14.sp,
-                            lineHeight = (14 * 1.55).sp,
-                            color = FgPrimary,
-                        )
                     }
-                }
-            }
 
-            // Memo composer (현재 장, 절 선택 시)
-            if (isCurrentPage && anchored != null) {
-                item {
-                    Column(
-                        modifier = Modifier
-                            .padding(horizontal = 16.dp, vertical = 6.dp)
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(BgCard)
-                            .border(1.dp, HairlineWhite, RoundedCornerShape(14.dp))
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
+                    // Persisted memos for this verse
+                    verseMemos.forEach { memo ->
+                        val memoRef = if (state.esvOnTop) {
+                            "${BOOK_NAMES_EN[memo.book] ?: ""} ${memo.chapter}:${memo.verse}"
+                        } else {
+                            val bookKoName = state.books.find { it.book == memo.book }?.bookName ?: ""
+                            "$bookKoName ${memo.chapter}장 ${memo.verse}절"
+                        }
+                        val memoDateLabel = runCatching {
+                            LocalDate.parse(memo.date)
+                                .format(DateTimeFormatter.ofPattern("yyyy년 M월 d일", Locale.KOREAN))
+                        }.getOrDefault(memo.date)
+
+                        Column(
+                            modifier = Modifier
+                                .padding(horizontal = 16.dp, vertical = 4.dp)
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(BgCard)
+                                .border(1.dp, HairlineWhite, RoundedCornerShape(14.dp))
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
                         ) {
-                            Text(
-                                text = "묵상 · $anchoredRef".uppercase(),
-                                fontFamily = Pretendard,
-                                fontWeight = FontWeight.Medium,
-                                fontSize = 10.sp,
-                                letterSpacing = 0.12.em,
-                                color = FgTertiary,
-                            )
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Outlined.ChevronRight, contentDescription = null, tint = AccentBlue, modifier = Modifier.size(12.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
                                 Text(
-                                    text = "${todayLabel}에 연결".uppercase(),
+                                    text = "묵상 · $memoRef · $memoDateLabel".uppercase(),
                                     fontFamily = Pretendard,
                                     fontWeight = FontWeight.Medium,
                                     fontSize = 10.sp,
                                     letterSpacing = 0.12.em,
-                                    color = AccentBlue,
+                                    color = FgTertiary,
+                                    modifier = Modifier.weight(1f),
                                 )
+                                IconButton(
+                                    onClick = { viewModel.deleteMemo(memo.id) },
+                                    modifier = Modifier.size(28.dp),
+                                ) {
+                                    Icon(Icons.Outlined.Close, contentDescription = "삭제", tint = FgTertiary, modifier = Modifier.size(14.dp))
+                                }
                             }
-                        }
-
-                        Spacer(Modifier.height(10.dp))
-
-                        BasicTextField(
-                            value = memoText,
-                            onValueChange = { memoText = it },
-                            modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 96.dp),
-                            textStyle = LocalTextStyle.current.copy(
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                text = memo.text,
                                 fontFamily = Pretendard,
                                 fontSize = 14.sp,
                                 lineHeight = (14 * 1.55).sp,
                                 color = FgPrimary,
-                            ),
-                            decorationBox = { inner ->
-                                Box {
-                                    if (memoText.isEmpty()) {
-                                        Text(
-                                            "이 말씀에 대한 묵상을 적어보세요",
-                                            fontFamily = Pretendard,
-                                            fontSize = 14.sp,
-                                            color = FgDisabled,
-                                        )
-                                    }
-                                    inner()
-                                }
-                            },
-                        )
+                            )
+                        }
+                    }
 
-                        Spacer(Modifier.height(6.dp))
-
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                            TextButton(onClick = { memoText = ""; anchored = null }) {
-                                Text("취소", fontFamily = Pretendard, fontWeight = FontWeight.Medium, fontSize = 14.sp, color = FgSecondary)
-                            }
-                            TextButton(
-                                onClick = {
-                                    viewModel.saveMemo(anchored!!, memoText.trim(), LocalDate.now().toString())
-                                    memoText = ""
-                                    anchored = null
-                                },
-                                enabled = memoText.isNotBlank(),
+                    // Memo composer — 절 바로 아래
+                    if (isAnchored) {
+                        Column(
+                            modifier = Modifier
+                                .padding(horizontal = 16.dp, vertical = 4.dp)
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(BgCard)
+                                .border(1.dp, HairlineWhite, RoundedCornerShape(14.dp))
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Text(
-                                    "저장",
+                                    text = "묵상 · $anchoredRef".uppercase(),
                                     fontFamily = Pretendard,
                                     fontWeight = FontWeight.Medium,
-                                    fontSize = 14.sp,
-                                    color = if (memoText.isNotBlank()) AccentBlue else FgDisabled,
+                                    fontSize = 10.sp,
+                                    letterSpacing = 0.12.em,
+                                    color = FgTertiary,
                                 )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Outlined.ChevronRight, contentDescription = null, tint = AccentBlue, modifier = Modifier.size(12.dp))
+                                    Text(
+                                        text = "${todayLabel}에 연결".uppercase(),
+                                        fontFamily = Pretendard,
+                                        fontWeight = FontWeight.Medium,
+                                        fontSize = 10.sp,
+                                        letterSpacing = 0.12.em,
+                                        color = AccentBlue,
+                                    )
+                                }
+                            }
+
+                            Spacer(Modifier.height(10.dp))
+
+                            BasicTextField(
+                                value = memoText,
+                                onValueChange = { memoText = it },
+                                modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 96.dp),
+                                textStyle = LocalTextStyle.current.copy(
+                                    fontFamily = Pretendard,
+                                    fontSize = 14.sp,
+                                    lineHeight = (14 * 1.55).sp,
+                                    color = FgPrimary,
+                                ),
+                                decorationBox = { inner ->
+                                    Box {
+                                        if (memoText.isEmpty()) {
+                                            Text("이 말씀에 대한 묵상을 적어보세요", fontFamily = Pretendard, fontSize = 14.sp, color = FgDisabled)
+                                        }
+                                        inner()
+                                    }
+                                },
+                            )
+
+                            Spacer(Modifier.height(6.dp))
+
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                                TextButton(onClick = { memoText = ""; anchored = null }) {
+                                    Text("취소", fontFamily = Pretendard, fontWeight = FontWeight.Medium, fontSize = 14.sp, color = FgSecondary)
+                                }
+                                TextButton(
+                                    onClick = {
+                                        viewModel.saveMemo(anchored!!, memoText.trim(), LocalDate.now().toString())
+                                        memoText = ""
+                                        anchored = null
+                                    },
+                                    enabled = memoText.isNotBlank(),
+                                ) {
+                                    Text(
+                                        "저장",
+                                        fontFamily = Pretendard,
+                                        fontWeight = FontWeight.Medium,
+                                        fontSize = 14.sp,
+                                        color = if (memoText.isNotBlank()) AccentBlue else FgDisabled,
+                                    )
+                                }
                             }
                         }
                     }
