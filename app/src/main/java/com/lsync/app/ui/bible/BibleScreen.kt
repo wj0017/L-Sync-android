@@ -1,5 +1,6 @@
 package com.lsync.app.ui.bible
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -7,6 +8,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -24,6 +27,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -39,6 +43,7 @@ import com.lsync.app.ui.theme.*
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlinx.coroutines.launch
 
 private val BOOK_NAMES_EN = mapOf(
     1 to "Genesis", 2 to "Exodus", 3 to "Leviticus", 4 to "Numbers", 5 to "Deuteronomy",
@@ -59,6 +64,7 @@ private val BOOK_NAMES_EN = mapOf(
     62 to "1 John", 63 to "2 John", 64 to "3 John", 65 to "Jude", 66 to "Revelation",
 )
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun BibleScreen(viewModel: BibleViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsState()
@@ -297,7 +303,7 @@ fun BibleScreen(viewModel: BibleViewModel = hiltViewModel()) {
             }
         }
 
-        LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 24.dp)) {
+        LazyColumn(state = listState, modifier = Modifier.imePadding(), contentPadding = PaddingValues(bottom = 24.dp)) {
             items(if (isCurrentPage) state.verses else emptyList(), key = { it.idx }) { verse ->
                 val isAnchored = anchored == verse.verse
                 val esvVerse = state.esvVerses.find { it.verse == verse.verse }
@@ -410,6 +416,8 @@ fun BibleScreen(viewModel: BibleViewModel = hiltViewModel()) {
 
                     // Memo composer — 절 바로 아래
                     if (isAnchored) {
+                        val bringIntoViewRequester = remember { BringIntoViewRequester() }
+                        val composerScope = rememberCoroutineScope()
                         Column(
                             modifier = Modifier
                                 .padding(horizontal = 16.dp, vertical = 4.dp)
@@ -417,6 +425,7 @@ fun BibleScreen(viewModel: BibleViewModel = hiltViewModel()) {
                                 .clip(RoundedCornerShape(14.dp))
                                 .background(BgCard)
                                 .border(1.dp, HairlineWhite, RoundedCornerShape(14.dp))
+                                .bringIntoViewRequester(bringIntoViewRequester)
                                 .padding(horizontal = 16.dp, vertical = 14.dp),
                         ) {
                             Row(
@@ -450,7 +459,12 @@ fun BibleScreen(viewModel: BibleViewModel = hiltViewModel()) {
                             BasicTextField(
                                 value = memoText,
                                 onValueChange = { memoText = it },
-                                modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 96.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .defaultMinSize(minHeight = 96.dp)
+                                    .onFocusChanged { fs ->
+                                        if (fs.isFocused) composerScope.launch { bringIntoViewRequester.bringIntoView() }
+                                    },
                                 textStyle = LocalTextStyle.current.copy(
                                     fontFamily = Pretendard,
                                     fontSize = 14.sp,
