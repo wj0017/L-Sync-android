@@ -18,6 +18,11 @@
       "dir": "4-bible-database",
       "status": "completed",
       "completed_at": "2026-05-11T22:36:03+0900"
+    },
+    {
+      "dir": "5-bible-ui",
+      "status": "completed",
+      "completed_at": "2026-05-23T20:05:46+0900"
     }
   ]
 }

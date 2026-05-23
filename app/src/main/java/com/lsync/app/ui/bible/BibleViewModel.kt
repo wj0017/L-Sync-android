@@ -6,8 +6,10 @@ import androidx.lifecycle.viewModelScope
 import com.lsync.app.data.local.dao.BibleBook
 import com.lsync.app.data.local.dao.BibleDao
 import com.lsync.app.data.local.dao.EsvDao
+import com.lsync.app.data.local.dao.MemoDao
 import com.lsync.app.data.local.entity.BibleVerseEntity
 import com.lsync.app.data.local.entity.EsvVerseEntity
+import com.lsync.app.data.local.entity.MemoEntity
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Job
@@ -33,12 +35,14 @@ data class BibleUiState(
     val searchQuery: String = "",
     val searchResults: List<BibleVerseEntity> = emptyList(),
     val error: String? = null,
+    val memos: List<MemoEntity> = emptyList(),
 )
 
 @HiltViewModel
 class BibleViewModel @Inject constructor(
     private val bibleDao: BibleDao,
     private val esvDao: EsvDao,
+    private val memoDao: MemoDao,
     @ApplicationContext context: Context,
 ) : ViewModel() {
 
@@ -48,6 +52,7 @@ class BibleViewModel @Inject constructor(
     val state: StateFlow<BibleUiState> = _state.asStateFlow()
 
     private var searchJob: Job? = null
+    private var memoJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -158,6 +163,26 @@ class BibleViewModel @Inject constructor(
         _state.value = _state.value.copy(isTableOfContentsOpen = !_state.value.isTableOfContentsOpen)
     }
 
+    private fun observeMemos(book: Int, chapter: Int) {
+        memoJob?.cancel()
+        memoJob = viewModelScope.launch {
+            memoDao.observeForChapter(book, chapter).collect { memos ->
+                _state.value = _state.value.copy(memos = memos)
+            }
+        }
+    }
+
+    fun saveMemo(verse: Int, text: String, date: String) {
+        val s = _state.value
+        viewModelScope.launch {
+            memoDao.insert(MemoEntity(book = s.currentBook, chapter = s.currentChapter, verse = verse, text = text, date = date))
+        }
+    }
+
+    fun deleteMemo(id: Long) {
+        viewModelScope.launch { memoDao.deleteById(id) }
+    }
+
     private suspend fun fetchAndApply(book: Int, chapter: Int) {
         val chapterCount = bibleDao.getChapterCount(book) ?: 1
         val verses = bibleDao.getVerses(book, chapter)
@@ -170,6 +195,7 @@ class BibleViewModel @Inject constructor(
             esvVerses = esv,
         )
         savePosition(book, chapter)
+        observeMemos(book, chapter)
     }
 
     private fun savePosition(book: Int, chapter: Int) {

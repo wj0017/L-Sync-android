@@ -39,8 +39,6 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-private data class SavedMemo(val ref: String, val text: String, val date: String)
-
 private val BOOK_NAMES_EN = mapOf(
     1 to "Genesis", 2 to "Exodus", 3 to "Leviticus", 4 to "Numbers", 5 to "Deuteronomy",
     6 to "Joshua", 7 to "Judges", 8 to "Ruth", 9 to "1 Samuel", 10 to "2 Samuel",
@@ -66,12 +64,10 @@ fun BibleScreen(viewModel: BibleViewModel = hiltViewModel()) {
 
     var anchored  by remember { mutableStateOf<Int?>(null) }
     var memoText  by remember { mutableStateOf("") }
-    var savedMemo by remember { mutableStateOf<SavedMemo?>(null) }
 
     LaunchedEffect(state.currentBook, state.currentChapter) {
         anchored  = null
         memoText  = ""
-        savedMemo = null
     }
 
     val today      = remember { LocalDate.now() }
@@ -348,9 +344,20 @@ fun BibleScreen(viewModel: BibleViewModel = hiltViewModel()) {
                 }
             }
 
-            // Saved memo card (현재 장만)
-            if (isCurrentPage) savedMemo?.let { memo ->
-                item {
+            // Persisted memo cards (현재 장만)
+            if (isCurrentPage) {
+                items(state.memos, key = { it.id }) { memo ->
+                    val memoRef = if (state.esvOnTop) {
+                        "${BOOK_NAMES_EN[memo.book] ?: ""} ${memo.chapter}:${memo.verse}"
+                    } else {
+                        val bookKoName = state.books.find { it.book == memo.book }?.bookName ?: ""
+                        "$bookKoName ${memo.chapter}장 ${memo.verse}절"
+                    }
+                    val memoDateLabel = runCatching {
+                        LocalDate.parse(memo.date)
+                            .format(DateTimeFormatter.ofPattern("yyyy년 M월 d일", Locale.KOREAN))
+                    }.getOrDefault(memo.date)
+
                     Column(
                         modifier = Modifier
                             .padding(horizontal = 16.dp, vertical = 6.dp)
@@ -360,14 +367,32 @@ fun BibleScreen(viewModel: BibleViewModel = hiltViewModel()) {
                             .border(1.dp, HairlineWhite, RoundedCornerShape(14.dp))
                             .padding(horizontal = 16.dp, vertical = 14.dp),
                     ) {
-                        Text(
-                            text = "묵상 · ${memo.ref} · ${memo.date}".uppercase(),
-                            fontFamily = Pretendard,
-                            fontWeight = FontWeight.Medium,
-                            fontSize = 10.sp,
-                            letterSpacing = 0.12.em,
-                            color = FgTertiary,
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = "묵상 · $memoRef · $memoDateLabel".uppercase(),
+                                fontFamily = Pretendard,
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 10.sp,
+                                letterSpacing = 0.12.em,
+                                color = FgTertiary,
+                                modifier = Modifier.weight(1f),
+                            )
+                            IconButton(
+                                onClick = { viewModel.deleteMemo(memo.id) },
+                                modifier = Modifier.size(28.dp),
+                            ) {
+                                Icon(
+                                    Icons.Outlined.Close,
+                                    contentDescription = "삭제",
+                                    tint = FgTertiary,
+                                    modifier = Modifier.size(14.dp),
+                                )
+                            }
+                        }
                         Spacer(Modifier.height(6.dp))
                         Text(
                             text = memo.text,
@@ -453,7 +478,7 @@ fun BibleScreen(viewModel: BibleViewModel = hiltViewModel()) {
                             }
                             TextButton(
                                 onClick = {
-                                    savedMemo = SavedMemo(anchoredRef, memoText.trim(), todayLabel)
+                                    viewModel.saveMemo(anchored!!, memoText.trim(), LocalDate.now().toString())
                                     memoText = ""
                                     anchored = null
                                 },

@@ -1,0 +1,24 @@
+{
+  "project": "L-Sync",
+  "phase": "5-bible-ui",
+  "steps": [
+    {
+      "step": 0,
+      "name": "memo-entity-dao",
+      "status": "completed",
+      "started_at": "2026-05-23T20:01:09+0900",
+      "summary": "MemoEntity/MemoDao 신규 생성, AppDatabase v3 마이그레이션(MIGRATION_2_3), AppModule에 provideMemoDao 추가 — 빌드·린트 통과",
+      "completed_at": "2026-05-23T20:03:27+0900"
+    },
+    {
+      "step": 1,
+      "name": "bible-memo-persist",
+      "status": "completed",
+      "started_at": "2026-05-23T20:03:27+0900",
+      "summary": "BibleViewModel에 MemoDao 주입·observeMemos/saveMemo/deleteMemo 추가, BibleUiState에 memos 필드 추가, BibleScreen에서 로컬 SavedMemo 제거 후 Room Flow 기반 메모 카드 렌더링으로 교체 — 빌드·린트 통과",
+      "completed_at": "2026-05-23T20:05:46+0900"
+    }
+  ],
+  "created_at": "2026-05-23T20:01:09+0900",
+  "completed_at": "2026-05-23T20:05:46+0900"
+}
