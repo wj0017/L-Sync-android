@@ -119,13 +119,20 @@ Row (좌우 정렬, vertical = Bottom)
     └── "MMM d, EEEE"  14sp Medium FgSecondary  (예: May 14, Wednesday)
 ```
 
-### 그 외 화면 (일정, 가계부, 성경)
+### 그 외 화면 (가계부, 성경)
 ```
 Row (SpaceBetween, vertical = Bottom)
 ├── Column
 │   ├── 서브레이블   11sp Medium FgTertiary (연도, 버전 등)
 │   └── 화면 제목   30sp SemiBold FgPrimary
 └── 우측 아이콘 버튼 (38dp circle)
+```
+
+### 일정 화면 (통스크롤 예외)
+단일 LazyColumn 통스크롤 레이아웃이라 헤더를 컴팩트하게 유지한다.
+```
+Row (vertical = Bottom)
+└── "YYYY년 M월"   26sp SemiBold -0.035em FgPrimary  (연·월 한 줄 병합)
 ```
 
 ---
@@ -163,6 +170,13 @@ Row { 수입 ₩X(AccentGreen)   지출 ₩X(FgSecondary) }
 | esvOnTop=false | "개역개정" | "ESV" | SwapVert (AccentBlue) |
 
 교차 버튼 및 토글 버튼 상시 노출. 책명·섹션 헤더·검색 결과·목차 모두 esvOnTop에 연동.
+
+---
+
+## 정산 UI (가계부)
+- **지출 카드 정산 푸터:** 진행 표시 "정산 받은 금액 ₩X / ₩Y"(AccentGreen) + "+ 받기" 버튼. 완료 시 "정산 완료"(FgTertiary).
+- **수입 카드 연결 푸터:** "정산에 연결 →"(AccentBlue). 단 `잔액 ≥ 수입액 AND 지출일 ≤ 수입일`인 정산이 있을 때만 노출.
+- **요약 카드 "정산 받음":** 돌려받은 돈이 있을 때만 "+₩X"(AccentBlue) 줄 추가. 수입과 별개로 표기.
 
 ---
 

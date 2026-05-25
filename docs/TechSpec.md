@@ -1,4 +1,4 @@
-# L-Sync Technical Spec (v0.4)
+# L-Sync Technical Spec (v0.5)
 
 **목적:** 데이터베이스 구조, 보안 규칙, 안드로이드 권한·알림, 백그라운드 엔진 등 구현에 직접 필요한 기술 명세.
 
@@ -52,9 +52,16 @@
   "category": "구독",
   "date": "2024-05-15",
   "sourceTodoId": "template_789_2024-05-15",
-  "isExcluded": false
+  "isExcluded": false,
+  "settlementGroupId": null
 }
 ```
+
+**정산 추적 (`settlementGroupId`)**
+- 공동 결제 후 일부를 돌려받는 흐름을 별도 테이블 없이 단일 컬럼으로 추적.
+- 같은 `settlementGroupId`를 공유하는 항목들이 하나의 정산 그룹. `EXPENSE`가 리더, `INCOME`이 정산 입금.
+- 정산 입금은 **수입·지출 어디에도 합산하지 않고** 별도 집계(`reimbursed`)하여 수입 과대·지출 음수 표시를 방지. `net = income + reimbursed − expense`.
+- 리더(EXPENSE) 삭제 시 그룹의 정산 입금도 함께 삭제. 단 Todo 연동 입금(`sourceTodoId != null`)은 삭제 금지 정책상 `settlementGroupId`만 해제.
 
 ### 1.4. `reading_plan` (AppDatabase v2 추가)
 
@@ -68,7 +75,20 @@
 | chapter | INTEGER | 장 번호 |
 | isRead | INTEGER (Boolean) | 읽음 여부 |
 
-### 1.5. 성경 데이터 (로컬 SQLite — Firestore 미사용)
+### 1.5. `memos` (AppDatabase v3 추가)
+
+성경 절 묵상 메모. 절 단위로 메모를 저장하며 Firestore 미사용(로컬 전용).
+
+| 컬럼 | 타입 | 설명 |
+|------|------|------|
+| id | INTEGER PK (autoincrement) | |
+| book | INTEGER | 책 번호 (1~66) |
+| chapter | INTEGER | 장 번호 |
+| verse | INTEGER | 절 번호 |
+| text | TEXT | 메모 본문 |
+| date | TEXT | YYYY-MM-DD |
+
+### 1.6. 성경 데이터 (로컬 SQLite — Firestore 미사용)
 
 #### bible_verses (개역개정 4판)
 - DB 파일: `assets/bible.db` → 내부 `bible_v3.db` (콘텐츠 버전 2)
@@ -102,6 +122,8 @@
 |------|----------|
 | 1 | 초기: events, todos, todo_templates, finance |
 | 2 | reading_plan 테이블 추가 (MIGRATION_1_2) |
+| 3 | memos 테이블 추가 (MIGRATION_2_3) |
+| 4 | finance.settlementGroupId 컬럼 추가 (MIGRATION_3_4) |
 
 ---
 
@@ -175,8 +197,9 @@ service cloud.firestore {
 |--------|-----|-----------|
 | EventEntity | AppDatabase | id, userId, title, isAllDay, startDate, endDate, timezone, rrule, hasAlarm, deletedAt? |
 | TodoEntity | AppDatabase | id, userId, templateId?, title, isCompleted, dueDate?, financeIsLinked, financeType?, financeCategory?, financeAmount?, linkedFinanceId?, deletedAt? |
-| FinanceEntity | AppDatabase | id, userId, type, amount, category, date, note?, sourceTodoId?, isExcluded |
+| FinanceEntity | AppDatabase | id, userId, type, amount, category, date, note?, sourceTodoId?, isExcluded, settlementGroupId? |
 | TodoTemplateEntity | AppDatabase | id, userId, title, rrule, financeIsLinked, financeType?, financeCategory?, financeAmount?, isActive |
 | ReadingPlanEntity | AppDatabase | id, date, book, chapter, isRead |
+| MemoEntity | AppDatabase | id, book, chapter, verse, text, date |
 | BibleVerseEntity | BibleDatabase | idx, book, chapter, verse, text, testament, book_name, book_short |
 | EsvVerseEntity | EsvDatabase | idx, book, chapter, verse, text |

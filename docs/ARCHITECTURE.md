@@ -22,11 +22,11 @@ app/src/main/java/com/lsync/app/
 ├── MainActivity.kt
 ├── di/
 │   └── AppModule.kt                # Hilt SingletonComponent
-│                                   # AppDatabase(v2), BibleDatabase, EsvDatabase,
+│                                   # AppDatabase(v4), BibleDatabase, EsvDatabase,
 │                                   # 모든 DAO, Repository, Firestore 포함
 ├── data/
 │   ├── local/
-│   │   ├── AppDatabase.kt          # v2 — Event, Todo, Finance, TodoTemplate, ReadingPlan
+│   │   ├── AppDatabase.kt          # v4 — Event, Todo, Finance, TodoTemplate, ReadingPlan, Memo
 │   │   ├── BibleDatabase.kt        # 읽기 전용, assets/bible.db 번들
 │   │   ├── EsvDatabase.kt          # 읽기 전용, assets/esv.db 번들
 │   │   ├── FinanceCategory.kt
@@ -36,14 +36,16 @@ app/src/main/java/com/lsync/app/
 │   │   │   ├── TodoTemplateEntity.kt
 │   │   │   ├── FinanceEntity.kt
 │   │   │   ├── ReadingPlanEntity.kt  # reading_plan 테이블 (date, book, chapter, isRead)
+│   │   │   ├── MemoEntity.kt          # memos 테이블 (book, chapter, verse, text, date)
 │   │   │   ├── BibleVerseEntity.kt
 │   │   │   └── EsvVerseEntity.kt
 │   │   └── dao/
 │   │       ├── EventDao.kt
 │   │       ├── TodoDao.kt
 │   │       ├── TodoTemplateDao.kt
-│   │       ├── FinanceDao.kt
+│   │       ├── FinanceDao.kt          # 정산: observeAllSettlementItems, getBySettlementGroup
 │   │       ├── ReadingPlanDao.kt     # observeForDate, markRead, deleteFromDate
+│   │       ├── MemoDao.kt             # observeForChapter, insert, deleteById
 │   │       ├── BibleDao.kt
 │   │       └── EsvDao.kt
 │   ├── remote/
@@ -64,7 +66,8 @@ app/src/main/java/com/lsync/app/
 │   │   ├── HomeScreen.kt           # 오늘 날짜·통독·일정 미리보기·가계부 요약
 │   │   └── HomeViewModel.kt        # EventRepo + TodoRepo + FinanceRepo + ReadingPlanRepo 조합
 │   ├── schedule/
-│   │   ├── ScheduleScreen.kt       # 캘린더 그리드 + 일정·할일 통합 리스트 + ExpandableFab
+│   │   ├── ScheduleScreen.kt       # 단일 LazyColumn 통스크롤(헤더·캘린더·구분선·목록) + ExpandableFab
+│   │   │                           # 위로 스크롤하면 캘린더가 밀려 사라지고 목록만 남음
 │   │   │                           # LSyncDialog, CreateEventDialog, CreateTodoDialog 포함
 │   │   └── ScheduleViewModel.kt    # CalendarViewModel + TodoViewModel 통합
 │   ├── finance/
@@ -72,8 +75,8 @@ app/src/main/java/com/lsync/app/
 │   │   ├── FinanceViewModel.kt
 │   │   └── TransactionFormSheet.kt
 │   └── bible/
-│       ├── BibleScreen.kt          # HorizontalPager, ESV/개역개정 교차, 목차, 검색
-│       └── BibleViewModel.kt
+│       ├── BibleScreen.kt          # HorizontalPager, ESV/개역개정 교차, 목차, 검색, 절 묵상 메모
+│       └── BibleViewModel.kt       # 개역개정 보조 텍스트 기본 표시(showKorean=true)
 ├── notification/
 │   ├── AlarmScheduler.kt
 │   ├── AlarmReceiver.kt
@@ -109,6 +112,16 @@ UI는 Room Flow를 구독하므로 네트워크 없이도 즉각 반응.
 - 완료: `TodoRepository.complete()` → `FinanceEntity` 생성 → Room → Firestore Batch Write
 - 미완료: `FinanceEntity.isExcluded = true` (삭제 금지)
 - 삭제: `FinanceEntity.sourceTodoId = null` (데이터 유지)
+
+### 정산 추적 (Finance Settlement)
+- 별도 테이블 없이 `FinanceEntity.settlementGroupId` 단일 컬럼으로 그룹화. EXPENSE가 리더, INCOME이 정산 입금.
+- `FinanceViewModel`이 `observeAllSettlementItems()`(전 기간)를 구독해 그룹별 `SettlementSummary`(받은 금액/잔액/완료 여부)를 실시간 계산 → 교차월 정산도 추적.
+- 정산 입금은 수입·지출에 합산하지 않고 별도 집계(`reimbursed`). `net = income + reimbursed − expense`.
+- 반자동 연결: 미완료 정산이 있고 `잔액 ≥ 수입액 AND 지출일 ≤ 수입일`인 INCOME에만 "정산에 연결" 노출.
+- 월별 거래는 Room Flow(`observeByMonth`) 단일 구독. 저장/연결 후 재조회하지 않고 Flow 자동 재방출에 의존(`monthJob`으로 이전 구독 취소).
+
+### 성경 묵상 메모
+- `MemoDao.observeForChapter(book, chapter)`를 구독해 현재 장의 절별 메모를 표시. 로컬 전용(Firestore 미사용).
 
 ### 결제 알림 자동 가계부
 - `PaymentNotificationService` → `PaymentNotificationParser` → `FinanceRepository.create()`

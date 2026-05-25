@@ -33,21 +33,28 @@
 - 서버 의존도를 낮추기 위해 **'Client-side Materialization'** 적용.
 - 사용자가 템플릿을 만들면, 앱이 백그라운드에서 주기적으로 개별 Todo 문서들을 생성.
 
+### 2.4. 정산(Settlement) 정책
+
+- 공동 결제 후 일부 금액을 돌려받는 흐름을 추적. 별도 테이블 없이 `settlementGroupId` 단일 컬럼으로 그룹화(EXPENSE 리더 + INCOME 정산 입금).
+- 정산 입금은 **실제 수입이 아니므로 수입·지출 통계에 합산하지 않고** 별도 집계한다. 잔액(`net`)에는 정확히 반영(`net = income + reimbursed − expense`).
+- 정산 리더(EXPENSE) 삭제 시 그룹 전체 정리. 단 데이터 영속성 정책상 Todo 연동 입금은 삭제하지 않고 연결만 해제.
+
 ---
 
 ## 3. 마일스톤 및 검증 게이트
 
-### 🚩 Phase 1: 일정 + 할 일 (MVP) — 현재 진행 중
+### ✅ Phase 1: 일정 + 할 일 (MVP) — 완료
 
 - **구현:** 캘린더 CRUD (RRULE 지원), 투두 CRUD, 로컬 마감 알림, Firebase 연동.
-- **게이트:** 2주간 직접 사용. Crashlytics 기준 **알림 누락 및 동기화 에러율 5% 미만** 달성 시 통과.
-- **남은 작업:** Firebase Auth 연동 (현재 userId 하드코딩 "local_user"), AlarmRestoreWorker 실구현, TodoMaterializerWorker RRULE 파서.
+- **게이트:** 2주간 직접 사용. Crashlytics 기준 **알림 누락 및 동기화 에러율 5% 미만**.
+- **남은 작업:** Firebase Auth 연동 (현재 userId 하드코딩 "local_user"). Auth 연동 전까지 Firestore는 사실상 업로드 전용.
 
-### 🚩 Phase 2: 가계부 자동화 시스템
+### ✅ Phase 2: 가계부 자동화 시스템 — 완료
 
-- **구현:** 가계부 CRUD, 로컬 통계 산출, Todo ↔ Finance 자동 연동, 데이터 CSV 내보내기(Export) 기능.
+- **구현:** 가계부 CRUD, 로컬 통계 산출, Todo ↔ Finance 자동 연동, CSV 내보내기, 결제 알림 자동 파싱, 정산 추적(2.4).
 - **게이트:** 1개월간 직접 사용. **실제 카드 결제액과 앱 내 통계가 오차 없이 일치**할 때 통과.
 
-### 🚩 Phase 3: 성경 파이프라인 및 고도화
+### ✅ Phase 3: 성경 뷰어 및 고도화 — 완료
 
-- **구현:** 성경 통독 뷰어 (Firestore bible 컬렉션 연동), 캘린더 연동 묵상 메모, 안드로이드 홈 위젯 추가.
+- **구현:** 성경 통독 뷰어(개역개정·ESV **로컬 SQLite asset 번들**, Firestore 미사용), 1년 통독 계획, 절 묵상 메모.
+- **남은 작업:** 안드로이드 홈 위젯.
