@@ -42,6 +42,10 @@ interface FinanceDao {
     @Query("DELETE FROM finance WHERE id = :id")
     suspend fun deleteById(id: String)
 
+    // 정산 추적: settlementGroupId가 있는 모든 항목 (EXPENSE 리더 + INCOME 정산 입금)
+    @Query("SELECT * FROM finance WHERE settlementGroupId IS NOT NULL AND isExcluded = 0")
+    fun observeAllSettlementItems(): Flow<List<FinanceEntity>>
+
     // CSV 내보내기용: 날짜 범위 조회, isExcluded 항목 제외
     @Query("""
         SELECT * FROM finance

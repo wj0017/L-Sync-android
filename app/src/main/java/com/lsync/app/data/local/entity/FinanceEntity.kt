@@ -12,8 +12,9 @@ data class FinanceEntity(
     val category: String,
     val date: String,           // "YYYY-MM-DD" (디바이스 로컬 기준)
     val note: String?,
-    val sourceTodoId: String?,  // Todo 삭제 시 null로 해제, 데이터는 유지
-    val isExcluded: Boolean,    // Todo Uncheck 시 Soft Delete (통계 제외)
+    val sourceTodoId: String?,     // Todo 삭제 시 null로 해제, 데이터는 유지
+    val isExcluded: Boolean,       // Todo Uncheck 시 Soft Delete (통계 제외)
+    val settlementGroupId: String? = null,  // 정산 추적 그룹 ID (EXPENSE가 리더, INCOME이 정산 입금)
     val createdAt: Long,
     val updatedAt: Long,
 )

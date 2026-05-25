@@ -39,6 +39,8 @@ import java.util.Locale
 fun FinanceScreen(viewModel: FinanceViewModel = hiltViewModel()) {
     val uiState by viewModel.uiState.collectAsState()
     val formState by viewModel.formState.collectAsState()
+    val reimbursementForm by viewModel.reimbursementForm.collectAsState()
+    val linkSettlement by viewModel.linkSettlement.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -204,6 +206,8 @@ fun FinanceScreen(viewModel: FinanceViewModel = hiltViewModel()) {
                         item(key = "card_$date") {
                             TransactionGroupCard(
                                 transactions = txList,
+                                settlementSummaries = uiState.settlementSummaries,
+                                openSettlements = uiState.openSettlements,
                                 onTap = { finance ->
                                     if (finance.sourceTodoId != null) {
                                         scope.launch {
@@ -214,6 +218,8 @@ fun FinanceScreen(viewModel: FinanceViewModel = hiltViewModel()) {
                                     }
                                 },
                                 onDelete = { id -> viewModel.deleteTransaction(id) },
+                                onOpenReimbursementForm = { groupId -> viewModel.openReimbursementForm(groupId) },
+                                onOpenLinkForm = { incomeId -> viewModel.openLinkSettlement(incomeId) },
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                             )
                         }
@@ -236,8 +242,28 @@ fun FinanceScreen(viewModel: FinanceViewModel = hiltViewModel()) {
             onCategoryChange = { viewModel.updateFormField(category = it) },
             onDateChange = { viewModel.updateFormField(date = it) },
             onNoteChange = { viewModel.updateFormField(note = it) },
+            onSettlementChange = { viewModel.updateFormField(isSettlement = it) },
             onSave = viewModel::saveTransaction,
             onDismiss = viewModel::closeForm,
+        )
+    }
+
+    if (reimbursementForm.isVisible) {
+        ReimbursementSheet(
+            formState = reimbursementForm,
+            onAmountChange = { viewModel.updateReimbursementField(amount = it) },
+            onDateChange = { viewModel.updateReimbursementField(date = it) },
+            onNoteChange = { viewModel.updateReimbursementField(note = it) },
+            onSave = viewModel::saveReimbursement,
+            onDismiss = viewModel::closeReimbursementForm,
+        )
+    }
+
+    if (linkSettlement.isVisible) {
+        LinkSettlementDialog(
+            openSettlements = uiState.openSettlements,
+            onSelect = { groupId -> viewModel.linkToSettlement(groupId) },
+            onDismiss = viewModel::closeLinkSettlement,
         )
     }
 }
@@ -358,8 +384,12 @@ private fun DateGroupHeader(date: String, transactions: List<FinanceEntity>) {
 @Composable
 private fun TransactionGroupCard(
     transactions: List<FinanceEntity>,
+    settlementSummaries: Map<String, SettlementSummary>,
+    openSettlements: List<Pair<FinanceEntity, SettlementSummary>>,
     onTap: (FinanceEntity) -> Unit,
     onDelete: (String) -> Unit,
+    onOpenReimbursementForm: (String) -> Unit,
+    onOpenLinkForm: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -371,10 +401,15 @@ private fun TransactionGroupCard(
     ) {
         transactions.forEachIndexed { i, tx ->
             if (i > 0) Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp).height(1.dp).background(Divider))
+            val summary = tx.settlementGroupId?.let { settlementSummaries[it] }
             TransactionRow(
                 tx = tx,
+                settlementSummary = summary,
+                hasOpenSettlements = openSettlements.isNotEmpty(),
                 onTap = { onTap(tx) },
                 onDelete = if (tx.sourceTodoId == null) { { onDelete(tx.id) } } else null,
+                onOpenReimbursementForm = { summary?.let { onOpenReimbursementForm(it.groupId) } },
+                onOpenLinkForm = { onOpenLinkForm(tx.id) },
             )
         }
     }
@@ -383,86 +418,354 @@ private fun TransactionGroupCard(
 @Composable
 private fun TransactionRow(
     tx: FinanceEntity,
+    settlementSummary: SettlementSummary?,
+    hasOpenSettlements: Boolean,
     onTap: () -> Unit,
     onDelete: (() -> Unit)?,
+    onOpenReimbursementForm: () -> Unit,
+    onOpenLinkForm: () -> Unit,
 ) {
     val isIncome = tx.type == "INCOME"
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onTap)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        // Category tag (pill)
-        Box(
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
             modifier = Modifier
-                .clip(CircleShape)
-                .background(
-                    if (isIncome) AccentGreen.copy(alpha = 0.15f)
-                    else FgPrimary.copy(alpha = 0.06f)
-                )
-                .padding(horizontal = 11.dp, vertical = 7.dp),
+                .fillMaxWidth()
+                .clickable(onClick = onTap)
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Text(
-                text = (tx.category.ifBlank { "미분류" }).uppercase(),
-                fontFamily = Pretendard,
-                fontWeight = FontWeight.Medium,
-                fontSize = 10.sp,
-                letterSpacing = 0.08.em,
-                color = if (isIncome) AccentGreen else FgSecondary,
-            )
-        }
-
-        // Body
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = tx.note ?: (if (isIncome) "수입" else "지출"),
-                fontFamily = Pretendard,
-                fontWeight = FontWeight.Medium,
-                fontSize = 14.sp,
-                letterSpacing = (-0.005).em,
-                color = FgPrimary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (tx.sourceTodoId != null) {
-                Spacer(Modifier.height(3.dp))
+            // Category tag (pill)
+            Box(
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .background(
+                        if (isIncome) AccentGreen.copy(alpha = 0.15f)
+                        else FgPrimary.copy(alpha = 0.06f)
+                    )
+                    .padding(horizontal = 11.dp, vertical = 7.dp),
+            ) {
                 Text(
-                    "· 할 일 연동".uppercase(),
+                    text = (tx.category.ifBlank { "미분류" }).uppercase(),
                     fontFamily = Pretendard,
                     fontWeight = FontWeight.Medium,
                     fontSize = 10.sp,
-                    letterSpacing = 0.12.em,
-                    color = FgTertiary,
+                    letterSpacing = 0.08.em,
+                    color = if (isIncome) AccentGreen else FgSecondary,
                 )
+            }
+
+            // Body
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = tx.note ?: (if (isIncome) "수입" else "지출"),
+                    fontFamily = Pretendard,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 14.sp,
+                    letterSpacing = (-0.005).em,
+                    color = FgPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (tx.sourceTodoId != null) {
+                    Spacer(Modifier.height(3.dp))
+                    Text(
+                        "· 할 일 연동".uppercase(),
+                        fontFamily = Pretendard,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 10.sp,
+                        letterSpacing = 0.12.em,
+                        color = FgTertiary,
+                    )
+                }
+            }
+
+            // Amount — 수입은 AccentGreen, 지출은 FgPrimary (빨강 남용 회피)
+            Text(
+                text = "${if (isIncome) "+" else "−"}₩%,d".format(tx.amount),
+                fontFamily = Pretendard,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 14.sp,
+                letterSpacing = (-0.01).em,
+                color = if (isIncome) AccentGreen else FgPrimary,
+            )
+
+            // Delete icon — Todo-linked items excluded
+            if (onDelete != null) {
+                IconButton(
+                    onClick = onDelete,
+                    modifier = Modifier.size(32.dp),
+                ) {
+                    Icon(
+                        Icons.Outlined.Delete,
+                        contentDescription = "삭제",
+                        tint = AccentRed,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
             }
         }
 
-        // Amount — 수입은 AccentGreen, 지출은 FgPrimary (빨강 남용 회피)
-        Text(
-            text = "${if (isIncome) "+" else "−"}₩%,d".format(tx.amount),
-            fontFamily = Pretendard,
-            fontWeight = FontWeight.SemiBold,
-            fontSize = 14.sp,
-            letterSpacing = (-0.01).em,
-            color = if (isIncome) AccentGreen else FgPrimary,
-        )
-
-        // Delete icon — Todo-linked items excluded
-        if (onDelete != null) {
-            IconButton(
-                onClick = onDelete,
-                modifier = Modifier.size(32.dp),
+        // Settlement footer: EXPENSE with active settlement group
+        if (!isIncome && settlementSummary != null) {
+            Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp).height(1.dp).background(Divider))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Icon(
-                    Icons.Outlined.Delete,
-                    contentDescription = "삭제",
-                    tint = AccentRed,
-                    modifier = Modifier.size(18.dp),
+                Text(
+                    text = if (settlementSummary.isComplete) "정산 완료"
+                           else "정산 받은 금액 ₩%,d / ₩%,d".format(settlementSummary.receivedAmount, settlementSummary.totalExpense),
+                    fontFamily = Pretendard,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 11.sp,
+                    color = if (settlementSummary.isComplete) FgTertiary else AccentGreen,
                 )
+                if (!settlementSummary.isComplete) {
+                    TextButton(
+                        onClick = onOpenReimbursementForm,
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                    ) {
+                        Text(
+                            "+ 받기",
+                            fontFamily = Pretendard,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 11.sp,
+                            color = AccentGreen,
+                        )
+                    }
+                }
+            }
+        }
+
+        // Settlement footer: INCOME with no group and open settlements exist
+        if (isIncome && tx.settlementGroupId == null && hasOpenSettlements) {
+            Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp).height(1.dp).background(Divider))
+            TextButton(
+                onClick = onOpenLinkForm,
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Start,
+                ) {
+                    Text(
+                        "정산에 연결 →",
+                        fontFamily = Pretendard,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 11.sp,
+                        color = AccentBlue,
+                    )
+                }
             }
         }
     }
+}
+
+@Composable
+private fun ReimbursementSheet(
+    formState: ReimbursementFormState,
+    onAmountChange: (String) -> Unit,
+    onDateChange: (String) -> Unit,
+    onNoteChange: (String) -> Unit,
+    onSave: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = BgCard,
+        shape = RoundedCornerShape(18.dp),
+        title = {
+            Text(
+                "정산 받기",
+                fontFamily = Pretendard,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 18.sp,
+                color = FgPrimary,
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                OutlinedTextField(
+                    value = formState.amount,
+                    onValueChange = onAmountChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("받은 금액", fontFamily = Pretendard, fontSize = 12.sp) },
+                    suffix = {
+                        Text(
+                            "원",
+                            fontFamily = InstrumentSerif,
+                            fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                            fontSize = 14.sp,
+                            color = FgSecondary,
+                        )
+                    },
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
+                    ),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = AccentBlue,
+                        unfocusedBorderColor = Divider,
+                        focusedTextColor = FgPrimary,
+                        unfocusedTextColor = FgPrimary,
+                        cursorColor = AccentBlue,
+                        focusedContainerColor = BgElevated,
+                        unfocusedContainerColor = BgElevated,
+                        focusedLabelColor = AccentBlue,
+                        unfocusedLabelColor = FgTertiary,
+                    ),
+                )
+                OutlinedTextField(
+                    value = formState.date,
+                    onValueChange = onDateChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("날짜 (YYYY-MM-DD)", fontFamily = Pretendard, fontSize = 12.sp) },
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = AccentBlue,
+                        unfocusedBorderColor = Divider,
+                        focusedTextColor = FgPrimary,
+                        unfocusedTextColor = FgPrimary,
+                        cursorColor = AccentBlue,
+                        focusedContainerColor = BgElevated,
+                        unfocusedContainerColor = BgElevated,
+                        focusedLabelColor = AccentBlue,
+                        unfocusedLabelColor = FgTertiary,
+                    ),
+                )
+                OutlinedTextField(
+                    value = formState.note,
+                    onValueChange = onNoteChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("메모 (선택)", fontFamily = Pretendard, fontSize = 12.sp) },
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = AccentBlue,
+                        unfocusedBorderColor = Divider,
+                        focusedTextColor = FgPrimary,
+                        unfocusedTextColor = FgPrimary,
+                        cursorColor = AccentBlue,
+                        focusedContainerColor = BgElevated,
+                        unfocusedContainerColor = BgElevated,
+                        focusedLabelColor = AccentBlue,
+                        unfocusedLabelColor = FgTertiary,
+                    ),
+                )
+                if (formState.errorMessage != null) {
+                    Text(
+                        formState.errorMessage,
+                        fontFamily = Pretendard,
+                        fontSize = 12.sp,
+                        color = AccentRed,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = onSave,
+                enabled = !formState.isSaving,
+                colors = ButtonDefaults.textButtonColors(contentColor = AccentGreen),
+            ) {
+                Text(
+                    if (formState.isSaving) "저장 중..." else "저장",
+                    fontFamily = Pretendard,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 14.sp,
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                colors = ButtonDefaults.textButtonColors(contentColor = FgSecondary),
+            ) {
+                Text("취소", fontFamily = Pretendard, fontWeight = FontWeight.Medium, fontSize = 14.sp)
+            }
+        },
+    )
+}
+
+@Composable
+private fun LinkSettlementDialog(
+    openSettlements: List<Pair<FinanceEntity, SettlementSummary>>,
+    onSelect: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = BgCard,
+        shape = RoundedCornerShape(18.dp),
+        title = {
+            Text(
+                "정산 연결",
+                fontFamily = Pretendard,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 18.sp,
+                color = FgPrimary,
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    "어떤 정산 항목에 연결할까요?",
+                    fontFamily = Pretendard,
+                    fontSize = 13.sp,
+                    color = FgSecondary,
+                )
+                Spacer(Modifier.height(4.dp))
+                openSettlements.forEach { (expense, summary) ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(BgElevated)
+                            .clickable { onSelect(summary.groupId) }
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = expense.note ?: "지출",
+                                fontFamily = Pretendard,
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 13.sp,
+                                color = FgPrimary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                text = expense.date,
+                                fontFamily = Pretendard,
+                                fontSize = 11.sp,
+                                color = FgTertiary,
+                            )
+                        }
+                        Text(
+                            text = "−₩%,d".format(summary.remaining),
+                            fontFamily = Pretendard,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 13.sp,
+                            color = FgPrimary,
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                colors = ButtonDefaults.textButtonColors(contentColor = FgSecondary),
+            ) {
+                Text("취소", fontFamily = Pretendard, fontWeight = FontWeight.Medium, fontSize = 14.sp)
+            }
+        },
+    )
 }

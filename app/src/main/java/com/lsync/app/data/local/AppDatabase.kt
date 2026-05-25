@@ -26,7 +26,7 @@ import com.lsync.app.data.local.entity.TodoTemplateEntity
         ReadingPlanEntity::class,
         MemoEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -66,6 +66,12 @@ abstract class AppDatabase : RoomDatabase() {
                         `date` TEXT NOT NULL
                     )"""
                 )
+            }
+        }
+
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE finance ADD COLUMN settlementGroupId TEXT")
             }
         }
     }

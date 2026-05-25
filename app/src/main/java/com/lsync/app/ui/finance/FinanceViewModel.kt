@@ -8,10 +8,21 @@ import com.lsync.app.data.repository.FinanceRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 import java.time.YearMonth
 import javax.inject.Inject
 
 enum class FinanceFilter { ALL, INCOME, EXPENSE }
+
+data class SettlementSummary(
+    val groupId: String,
+    val expenseEntity: FinanceEntity,
+    val totalExpense: Long,
+    val receivedAmount: Long,
+) {
+    val remaining: Long get() = totalExpense - receivedAmount
+    val isComplete: Boolean get() = remaining <= 0
+}
 
 data class FormUiState(
     val isVisible: Boolean = false,
@@ -22,14 +33,33 @@ data class FormUiState(
     val category: String = FinanceCategory.ETC,
     val date: String = "",
     val note: String = "",
+    val isSettlement: Boolean = false,
+    val currentSettlementGroupId: String? = null,
     val isSaving: Boolean = false,
     val errorMessage: String? = null,
+)
+
+data class ReimbursementFormState(
+    val isVisible: Boolean = false,
+    val groupId: String = "",
+    val amount: String = "",
+    val date: String = "",
+    val note: String = "",
+    val isSaving: Boolean = false,
+    val errorMessage: String? = null,
+)
+
+data class LinkSettlementState(
+    val isVisible: Boolean = false,
+    val incomeId: String = "",
 )
 
 data class FinanceUiState(
     val yearMonth: YearMonth = YearMonth.now(),
     val transactions: List<FinanceEntity> = emptyList(),
     val filter: FinanceFilter = FinanceFilter.ALL,
+    val settlementSummaries: Map<String, SettlementSummary> = emptyMap(),
+    val settlementExpenses: List<FinanceEntity> = emptyList(),
 ) {
     val monthKey: String get() = "%04d-%02d".format(yearMonth.year, yearMonth.monthValue)
     val income:  Long get() = transactions.filter { it.type == "INCOME" }.sumOf { it.amount }
@@ -44,6 +74,13 @@ data class FinanceUiState(
 
     val byDate: Map<String, List<FinanceEntity>> get() =
         visible.groupBy { it.date }.toSortedMap(reverseOrder())
+
+    val openSettlements: List<Pair<FinanceEntity, SettlementSummary>> get() =
+        settlementExpenses.mapNotNull { e ->
+            val gid = e.settlementGroupId ?: return@mapNotNull null
+            val s = settlementSummaries[gid] ?: return@mapNotNull null
+            if (!s.isComplete) e to s else null
+        }
 }
 
 @HiltViewModel
@@ -60,7 +97,32 @@ class FinanceViewModel @Inject constructor(
     private val _exportedCsv = MutableSharedFlow<String>()
     val exportedCsv: SharedFlow<String> = _exportedCsv.asSharedFlow()
 
-    init { loadMonth(YearMonth.now()) }
+    private val _reimbursementForm = MutableStateFlow(ReimbursementFormState())
+    val reimbursementForm: StateFlow<ReimbursementFormState> = _reimbursementForm.asStateFlow()
+
+    private val _linkSettlement = MutableStateFlow(LinkSettlementState())
+    val linkSettlement: StateFlow<LinkSettlementState> = _linkSettlement.asStateFlow()
+
+    init {
+        loadMonth(YearMonth.now())
+        observeSettlements()
+    }
+
+    private fun observeSettlements() {
+        viewModelScope.launch {
+            repository.observeAllSettlementItems().collect { items ->
+                val expenses = items.filter { it.type == "EXPENSE" }
+                val summaries = expenses.associate { e ->
+                    val gid = e.settlementGroupId!!
+                    val received = items
+                        .filter { it.type == "INCOME" && it.settlementGroupId == gid }
+                        .sumOf { it.amount }
+                    gid to SettlementSummary(gid, e, e.amount, received)
+                }
+                _uiState.update { it.copy(settlementSummaries = summaries, settlementExpenses = expenses) }
+            }
+        }
+    }
 
     fun shiftMonth(delta: Int) {
         val next = _uiState.value.yearMonth.plusMonths(delta.toLong())
@@ -96,6 +158,8 @@ class FinanceViewModel @Inject constructor(
             category = finance.category,
             date = finance.date,
             note = finance.note ?: "",
+            isSettlement = finance.settlementGroupId != null,
+            currentSettlementGroupId = finance.settlementGroupId,
         )
     }
 
@@ -109,6 +173,7 @@ class FinanceViewModel @Inject constructor(
         category: String? = null,
         date: String? = null,
         note: String? = null,
+        isSettlement: Boolean? = null,
     ) {
         _formState.update { current ->
             current.copy(
@@ -117,6 +182,7 @@ class FinanceViewModel @Inject constructor(
                 category = category ?: current.category,
                 date = date ?: current.date,
                 note = note ?: current.note,
+                isSettlement = isSettlement ?: current.isSettlement,
                 errorMessage = null,
             )
         }
@@ -141,13 +207,20 @@ class FinanceViewModel @Inject constructor(
                         date = form.date,
                         note = form.note.ifBlank { null },
                     )
+                    if (form.isSettlement && form.currentSettlementGroupId == null && form.type == "EXPENSE") {
+                        repository.startSettlement(form.editId)
+                    } else Unit
                 } else {
+                    val settlementGroupId = if (form.isSettlement && form.type == "EXPENSE") {
+                        java.util.UUID.randomUUID().toString()
+                    } else null
                     repository.create(
                         type = form.type,
                         amount = amountLong,
                         category = form.category,
                         date = form.date,
                         note = form.note.ifBlank { null },
+                        settlementGroupId = settlementGroupId,
                     )
                 }
             }.onSuccess {
@@ -174,6 +247,68 @@ class FinanceViewModel @Inject constructor(
             val key = _uiState.value.monthKey
             runCatching { repository.exportCsv(key) }
                 .onSuccess { csv -> _exportedCsv.emit(csv) }
+        }
+    }
+
+    fun openReimbursementForm(groupId: String) {
+        _reimbursementForm.value = ReimbursementFormState(
+            isVisible = true,
+            groupId = groupId,
+            date = LocalDate.now().toString(),
+        )
+    }
+
+    fun updateReimbursementField(amount: String? = null, date: String? = null, note: String? = null) {
+        _reimbursementForm.update { f ->
+            f.copy(
+                amount = amount ?: f.amount,
+                date = date ?: f.date,
+                note = note ?: f.note,
+                errorMessage = null,
+            )
+        }
+    }
+
+    fun saveReimbursement() {
+        val form = _reimbursementForm.value
+        val amountLong = form.amount.toLongOrNull()
+        if (amountLong == null || amountLong <= 0) {
+            _reimbursementForm.update { it.copy(errorMessage = "금액을 올바르게 입력하세요") }
+            return
+        }
+        viewModelScope.launch {
+            _reimbursementForm.update { it.copy(isSaving = true, errorMessage = null) }
+            runCatching {
+                repository.addReimbursement(form.groupId, amountLong, form.date, form.note.ifBlank { null })
+            }.onSuccess {
+                _reimbursementForm.value = ReimbursementFormState()
+                loadMonth(_uiState.value.yearMonth)
+            }.onFailure { e ->
+                _reimbursementForm.update { it.copy(isSaving = false, errorMessage = e.message) }
+            }
+        }
+    }
+
+    fun closeReimbursementForm() {
+        _reimbursementForm.value = ReimbursementFormState()
+    }
+
+    fun openLinkSettlement(incomeId: String) {
+        _linkSettlement.value = LinkSettlementState(isVisible = true, incomeId = incomeId)
+    }
+
+    fun closeLinkSettlement() {
+        _linkSettlement.value = LinkSettlementState()
+    }
+
+    fun linkToSettlement(groupId: String) {
+        val incomeId = _linkSettlement.value.incomeId
+        viewModelScope.launch {
+            runCatching { repository.linkToSettlement(incomeId, groupId) }
+                .onSuccess {
+                    _linkSettlement.value = LinkSettlementState()
+                    loadMonth(_uiState.value.yearMonth)
+                }
         }
     }
 }

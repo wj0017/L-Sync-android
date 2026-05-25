@@ -33,6 +33,7 @@ fun TransactionFormSheet(
     onCategoryChange: (String) -> Unit,
     onDateChange: (String) -> Unit,
     onNoteChange: (String) -> Unit,
+    onSettlementChange: (Boolean) -> Unit,
     onSave: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -194,6 +195,43 @@ fun TransactionFormSheet(
                         unfocusedLabelColor = FgTertiary,
                     ),
                 )
+
+                // 정산 추적 toggle (EXPENSE only)
+                if (formState.type == "EXPENSE") {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Column {
+                            Text(
+                                "정산 추적",
+                                fontFamily = Pretendard,
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 13.sp,
+                                color = FgPrimary,
+                            )
+                            Text(
+                                "다른 사람에게 받을 돈이 있으면 켜세요",
+                                fontFamily = Pretendard,
+                                fontSize = 11.sp,
+                                color = FgTertiary,
+                            )
+                        }
+                        Switch(
+                            checked = formState.isSettlement,
+                            onCheckedChange = onSettlementChange,
+                            enabled = formState.currentSettlementGroupId == null,
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = BgPrimary,
+                                checkedTrackColor = AccentBlue,
+                                uncheckedThumbColor = FgTertiary,
+                                uncheckedTrackColor = BgElevated,
+                                uncheckedBorderColor = Divider,
+                            ),
+                        )
+                    }
+                }
 
                 // Error message
                 if (formState.errorMessage != null) {

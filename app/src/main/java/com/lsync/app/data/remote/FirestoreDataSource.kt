@@ -91,6 +91,7 @@ class FirestoreDataSource @Inject constructor(
         "id" to id, "userId" to userId, "type" to type, "amount" to amount,
         "category" to category, "date" to date, "note" to note,
         "sourceTodoId" to sourceTodoId, "isExcluded" to isExcluded,
+        "settlementGroupId" to settlementGroupId,
         "createdAt" to createdAt, "updatedAt" to updatedAt,
     )
 }

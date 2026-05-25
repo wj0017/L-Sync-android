@@ -1,6 +1,7 @@
 package com.lsync.app.data.repository
 
 import com.google.firebase.crashlytics.FirebaseCrashlytics
+import com.lsync.app.data.local.FinanceCategory
 import com.lsync.app.data.local.dao.FinanceDao
 import com.lsync.app.data.local.entity.FinanceEntity
 import com.lsync.app.data.remote.FirestoreDataSource
@@ -17,12 +18,16 @@ class FinanceRepository @Inject constructor(
     fun observeByMonth(yearMonth: String): Flow<List<FinanceEntity>> =
         dao.observeByDateRange("$yearMonth-01", "$yearMonth-31")
 
+    fun observeAllSettlementItems(): Flow<List<FinanceEntity>> =
+        dao.observeAllSettlementItems()
+
     suspend fun create(
         type: String,
         amount: Long,
         category: String,
         date: String,
         note: String?,
+        settlementGroupId: String? = null,
     ): String {
         val now = System.currentTimeMillis()
         val entity = FinanceEntity(
@@ -35,12 +40,51 @@ class FinanceRepository @Inject constructor(
             note = note,
             sourceTodoId = null,
             isExcluded = false,
+            settlementGroupId = settlementGroupId,
             createdAt = now,
             updatedAt = now,
         )
         dao.upsert(entity)
         syncSafe { remote.upsertFinance(entity) }
         return entity.id
+    }
+
+    suspend fun startSettlement(financeId: String) {
+        val entity = dao.getById(financeId) ?: return
+        if (entity.settlementGroupId != null) return
+        val updated = entity.copy(
+            settlementGroupId = UUID.randomUUID().toString(),
+            updatedAt = System.currentTimeMillis(),
+        )
+        dao.upsert(updated)
+        syncSafe { remote.upsertFinance(updated) }
+    }
+
+    suspend fun addReimbursement(groupId: String, amount: Long, date: String, note: String?) {
+        val now = System.currentTimeMillis()
+        val entity = FinanceEntity(
+            id = UUID.randomUUID().toString(),
+            userId = "local_user",
+            type = "INCOME",
+            amount = amount,
+            category = FinanceCategory.ETC,
+            date = date,
+            note = note,
+            sourceTodoId = null,
+            isExcluded = false,
+            settlementGroupId = groupId,
+            createdAt = now,
+            updatedAt = now,
+        )
+        dao.upsert(entity)
+        syncSafe { remote.upsertFinance(entity) }
+    }
+
+    suspend fun linkToSettlement(financeId: String, groupId: String) {
+        val entity = dao.getById(financeId) ?: return
+        val updated = entity.copy(settlementGroupId = groupId, updatedAt = System.currentTimeMillis())
+        dao.upsert(updated)
+        syncSafe { remote.upsertFinance(updated) }
     }
 
     suspend fun update(
