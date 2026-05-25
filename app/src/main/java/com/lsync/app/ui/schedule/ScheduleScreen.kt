@@ -65,87 +65,95 @@ fun ScheduleScreen(viewModel: ScheduleViewModel = hiltViewModel()) {
             )
         },
     ) { innerPadding ->
-        Column(
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
                 .background(BgPrimary),
+            contentPadding = PaddingValues(bottom = 80.dp),
         ) {
             // Header
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 22.dp, end = 14.dp, top = 24.dp, bottom = 20.dp),
-                verticalAlignment = Alignment.Bottom,
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Column {
-                    Text(
-                        text = uiState.selectedMonth.year.toString(),
-                        fontFamily = Pretendard,
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 11.sp,
-                        letterSpacing = 0.12.em,
-                        color = FgTertiary,
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        text = "${uiState.selectedMonth.monthValue}월",
-                        fontFamily = Pretendard,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 30.sp,
-                        letterSpacing = (-0.035).em,
-                        color = FgPrimary,
-                        lineHeight = (30 * 1.08).sp,
-                    )
+            item(key = "header") {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 22.dp, end = 14.dp, top = 24.dp, bottom = 20.dp),
+                    verticalAlignment = Alignment.Bottom,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Column {
+                        Text(
+                            text = uiState.selectedMonth.year.toString(),
+                            fontFamily = Pretendard,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 11.sp,
+                            letterSpacing = 0.12.em,
+                            color = FgTertiary,
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            text = "${uiState.selectedMonth.monthValue}월",
+                            fontFamily = Pretendard,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 30.sp,
+                            letterSpacing = (-0.035).em,
+                            color = FgPrimary,
+                            lineHeight = (30 * 1.08).sp,
+                        )
+                    }
                 }
             }
 
             // 캘린더 그리드
-            ScheduleCalendarGrid(
-                currentMonth   = uiState.selectedMonth,
-                selectedDate   = uiState.selectedDate,
-                eventDateSet   = uiState.eventDateSet,
-                todoDateSet    = uiState.todoDateSet,
-                onMonthChange  = viewModel::onMonthChange,
-                onDateClick    = viewModel::onDateSelect,
-            )
+            item(key = "calendar") {
+                ScheduleCalendarGrid(
+                    currentMonth   = uiState.selectedMonth,
+                    selectedDate   = uiState.selectedDate,
+                    eventDateSet   = uiState.eventDateSet,
+                    todoDateSet    = uiState.todoDateSet,
+                    onMonthChange  = viewModel::onMonthChange,
+                    onDateClick    = viewModel::onDateSelect,
+                )
+            }
 
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 8.dp)
-                    .height(1.dp)
-                    .background(Divider)
-            )
+            item(key = "divider") {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 8.dp)
+                        .height(1.dp)
+                        .background(Divider)
+                )
+            }
 
-            Text(
-                text = uiState.selectedDate
-                    .format(DateTimeFormatter.ofPattern("M월 d일 (E)", Locale.KOREAN))
-                    .uppercase(),
-                style = MaterialTheme.typography.labelMedium,
-                color = FgTertiary,
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
-            )
+            item(key = "date_label") {
+                Text(
+                    text = uiState.selectedDate
+                        .format(DateTimeFormatter.ofPattern("M월 d일 (E)", Locale.KOREAN))
+                        .uppercase(),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = FgTertiary,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+                )
+            }
 
             if (uiState.dayItems.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 36.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text("일정·할 일 없음", fontSize = 14.sp, color = FgDisabled, fontFamily = Pretendard)
+                item(key = "empty") {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 36.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text("일정·할 일 없음", fontSize = 14.sp, color = FgDisabled, fontFamily = Pretendard)
+                    }
                 }
             } else {
-                LazyColumn(
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    items(uiState.dayItems, key = {
-                        when (it) {
-                            is ScheduleItem.Event -> "e_${it.entity.id}"
-                            is ScheduleItem.Todo  -> "t_${it.entity.id}"
-                        }
-                    }) { item ->
+                items(uiState.dayItems, key = {
+                    when (it) {
+                        is ScheduleItem.Event -> "e_${it.entity.id}"
+                        is ScheduleItem.Todo  -> "t_${it.entity.id}"
+                    }
+                }) { item ->
+                    Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
                         when (item) {
                             is ScheduleItem.Event -> EventCard(
                                 event = item.entity,
