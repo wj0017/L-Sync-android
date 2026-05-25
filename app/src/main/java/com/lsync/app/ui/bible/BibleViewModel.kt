@@ -28,7 +28,7 @@ data class BibleUiState(
     val chapterCount: Int = 1,
     val verses: List<BibleVerseEntity> = emptyList(),
     val esvVerses: List<EsvVerseEntity> = emptyList(),
-    val showKorean: Boolean = false,  // 개역개정 보조 텍스트 표시 여부
+    val showKorean: Boolean = true,   // 개역개정 보조 텍스트 표시 여부
     val esvOnTop: Boolean = true,     // true=ESV 위·개역개정 아래, false=반전
     val isTableOfContentsOpen: Boolean = false,
     val isSearchActive: Boolean = false,

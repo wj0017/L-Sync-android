@@ -77,28 +77,19 @@ fun ScheduleScreen(viewModel: ScheduleViewModel = hiltViewModel()) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = 22.dp, end = 14.dp, top = 24.dp, bottom = 20.dp),
+                        .padding(start = 22.dp, end = 14.dp, top = 24.dp, bottom = 24.dp),
                     verticalAlignment = Alignment.Bottom,
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     Column {
                         Text(
-                            text = uiState.selectedMonth.year.toString(),
-                            fontFamily = Pretendard,
-                            fontWeight = FontWeight.Medium,
-                            fontSize = 11.sp,
-                            letterSpacing = 0.12.em,
-                            color = FgTertiary,
-                        )
-                        Spacer(Modifier.height(6.dp))
-                        Text(
-                            text = "${uiState.selectedMonth.monthValue}월",
+                            text = "${uiState.selectedMonth.year}년 ${uiState.selectedMonth.monthValue}월",
                             fontFamily = Pretendard,
                             fontWeight = FontWeight.SemiBold,
-                            fontSize = 30.sp,
+                            fontSize = 26.sp,
                             letterSpacing = (-0.035).em,
                             color = FgPrimary,
-                            lineHeight = (30 * 1.08).sp,
+                            lineHeight = (26 * 1.08).sp,
                         )
                     }
                 }
@@ -120,7 +111,7 @@ fun ScheduleScreen(viewModel: ScheduleViewModel = hiltViewModel()) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 8.dp)
+                        .padding(horizontal = 20.dp, vertical = 16.dp)
                         .height(1.dp)
                         .background(Divider)
                 )
