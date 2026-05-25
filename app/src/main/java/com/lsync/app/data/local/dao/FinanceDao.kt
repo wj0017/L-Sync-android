@@ -46,6 +46,10 @@ interface FinanceDao {
     @Query("SELECT * FROM finance WHERE settlementGroupId IS NOT NULL AND isExcluded = 0")
     fun observeAllSettlementItems(): Flow<List<FinanceEntity>>
 
+    // 특정 정산 그룹에 속한 모든 항목 (그룹 삭제·정리용)
+    @Query("SELECT * FROM finance WHERE settlementGroupId = :groupId")
+    suspend fun getBySettlementGroup(groupId: String): List<FinanceEntity>
+
     // CSV 내보내기용: 날짜 범위 조회, isExcluded 항목 제외
     @Query("""
         SELECT * FROM finance

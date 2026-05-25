@@ -115,6 +115,22 @@ class FinanceRepository @Inject constructor(
         if (entity.sourceTodoId != null) {
             throw IllegalStateException("Todo-linked finance cannot be deleted directly. Use excludeByTodoId instead.")
         }
+        // 정산 리더(EXPENSE) 삭제 → 그룹 전체 정리.
+        // 정산 입금(INCOME)은 함께 삭제, 단 Todo 연동 입금은 삭제 금지라 그룹 연결만 해제한다.
+        val groupId = entity.settlementGroupId
+        if (entity.type == "EXPENSE" && groupId != null) {
+            dao.getBySettlementGroup(groupId).forEach { member ->
+                if (member.id == id) return@forEach
+                if (member.sourceTodoId != null) {
+                    val unlinked = member.copy(settlementGroupId = null, updatedAt = System.currentTimeMillis())
+                    dao.upsert(unlinked)
+                    syncSafe { remote.upsertFinance(unlinked) }
+                } else {
+                    dao.deleteById(member.id)
+                    syncSafe { remote.deleteFinance(member.id) }
+                }
+            }
+        }
         dao.deleteById(id)
         syncSafe { remote.deleteFinance(id) }
     }

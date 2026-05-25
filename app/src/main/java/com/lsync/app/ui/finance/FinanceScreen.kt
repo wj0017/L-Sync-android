@@ -150,6 +150,7 @@ fun FinanceScreen(viewModel: FinanceViewModel = hiltViewModel()) {
                         net = uiState.net,
                         income = uiState.income,
                         expense = uiState.expense,
+                        reimbursed = uiState.reimbursed,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
                     )
                 }
@@ -260,8 +261,14 @@ fun FinanceScreen(viewModel: FinanceViewModel = hiltViewModel()) {
     }
 
     if (linkSettlement.isVisible) {
+        val income = uiState.transactions.find { it.id == linkSettlement.incomeId }
+        val linkable = if (income != null) {
+            uiState.openSettlements.filter { (expense, s) -> s.remaining >= income.amount && expense.date <= income.date }
+        } else {
+            uiState.openSettlements
+        }
         LinkSettlementDialog(
-            openSettlements = uiState.openSettlements,
+            openSettlements = linkable,
             onSelect = { groupId -> viewModel.linkToSettlement(groupId) },
             onDismiss = viewModel::closeLinkSettlement,
         )
@@ -269,7 +276,7 @@ fun FinanceScreen(viewModel: FinanceViewModel = hiltViewModel()) {
 }
 
 @Composable
-private fun SummaryCard(net: Long, income: Long, expense: Long, modifier: Modifier = Modifier) {
+private fun SummaryCard(net: Long, income: Long, expense: Long, reimbursed: Long, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -356,6 +363,28 @@ private fun SummaryCard(net: Long, income: Long, expense: Long, modifier: Modifi
                 )
             }
         }
+
+        // 정산 받음 — 돌려받은 돈은 수입과 별개로 안내 (있을 때만)
+        if (reimbursed > 0) {
+            Spacer(Modifier.height(14.dp))
+            Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(Divider))
+            Spacer(Modifier.height(14.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("정산 받음", fontFamily = Pretendard, fontWeight = FontWeight.Medium, fontSize = 10.sp, letterSpacing = 0.12.em, color = FgTertiary)
+                Text(
+                    text = "+₩%,d".format(reimbursed),
+                    fontFamily = Pretendard,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 13.sp,
+                    letterSpacing = (-0.01).em,
+                    color = AccentBlue,
+                )
+            }
+        }
     }
 }
 
@@ -402,10 +431,14 @@ private fun TransactionGroupCard(
         transactions.forEachIndexed { i, tx ->
             if (i > 0) Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp).height(1.dp).background(Divider))
             val summary = tx.settlementGroupId?.let { settlementSummaries[it] }
+            // 이 수입을 연결할 만한 정산이 있을 때만 "정산에 연결" 노출:
+            // 받을 잔액이 이 수입 금액 이상이고, 지출일이 수입일보다 앞선 정산.
+            val canLinkSettlement = tx.type == "INCOME" && tx.settlementGroupId == null &&
+                openSettlements.any { (expense, s) -> s.remaining >= tx.amount && expense.date <= tx.date }
             TransactionRow(
                 tx = tx,
                 settlementSummary = summary,
-                hasOpenSettlements = openSettlements.isNotEmpty(),
+                canLinkSettlement = canLinkSettlement,
                 onTap = { onTap(tx) },
                 onDelete = if (tx.sourceTodoId == null) { { onDelete(tx.id) } } else null,
                 onOpenReimbursementForm = { summary?.let { onOpenReimbursementForm(it.groupId) } },
@@ -419,7 +452,7 @@ private fun TransactionGroupCard(
 private fun TransactionRow(
     tx: FinanceEntity,
     settlementSummary: SettlementSummary?,
-    hasOpenSettlements: Boolean,
+    canLinkSettlement: Boolean,
     onTap: () -> Unit,
     onDelete: (() -> Unit)?,
     onOpenReimbursementForm: () -> Unit,
@@ -541,8 +574,8 @@ private fun TransactionRow(
             }
         }
 
-        // Settlement footer: INCOME with no group and open settlements exist
-        if (isIncome && tx.settlementGroupId == null && hasOpenSettlements) {
+        // Settlement footer: INCOME with no group and a linkable settlement exists
+        if (canLinkSettlement) {
             Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp).height(1.dp).background(Divider))
             TextButton(
                 onClick = onOpenLinkForm,

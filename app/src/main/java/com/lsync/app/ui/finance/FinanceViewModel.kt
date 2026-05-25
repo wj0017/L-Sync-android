@@ -6,6 +6,7 @@ import com.lsync.app.data.local.FinanceCategory
 import com.lsync.app.data.local.entity.FinanceEntity
 import com.lsync.app.data.repository.FinanceRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -62,9 +63,18 @@ data class FinanceUiState(
     val settlementExpenses: List<FinanceEntity> = emptyList(),
 ) {
     val monthKey: String get() = "%04d-%02d".format(yearMonth.year, yearMonth.monthValue)
-    val income:  Long get() = transactions.filter { it.type == "INCOME" }.sumOf { it.amount }
-    val expense: Long get() = transactions.filter { it.type == "EXPENSE" }.sumOf { it.amount }
-    val net:     Long get() = income - expense
+    // 정산 입금(INCOME + settlementGroupId)은 실제 수입이 아니라 돌려받은 돈 →
+    // 수입·지출 어디에도 섞지 않고 별도 집계한다. (지출은 항상 총액, 음수 방지)
+    val income:  Long get() = transactions
+        .filter { it.type == "INCOME" && it.settlementGroupId == null }
+        .sumOf { it.amount }
+    val reimbursed: Long get() = transactions
+        .filter { it.type == "INCOME" && it.settlementGroupId != null }
+        .sumOf { it.amount }
+    val expense: Long get() = transactions
+        .filter { it.type == "EXPENSE" }
+        .sumOf { it.amount }
+    val net:     Long get() = income + reimbursed - expense
 
     val visible: List<FinanceEntity> get() = when (filter) {
         FinanceFilter.ALL     -> transactions
@@ -103,6 +113,8 @@ class FinanceViewModel @Inject constructor(
     private val _linkSettlement = MutableStateFlow(LinkSettlementState())
     val linkSettlement: StateFlow<LinkSettlementState> = _linkSettlement.asStateFlow()
 
+    private var monthJob: Job? = null
+
     init {
         loadMonth(YearMonth.now())
         observeSettlements()
@@ -133,7 +145,8 @@ class FinanceViewModel @Inject constructor(
     fun setFilter(filter: FinanceFilter) = _uiState.update { it.copy(filter = filter) }
 
     private fun loadMonth(ym: YearMonth) {
-        viewModelScope.launch {
+        monthJob?.cancel()
+        monthJob = viewModelScope.launch {
             val key = "%04d-%02d".format(ym.year, ym.monthValue)
             repository.observeByMonth(key)
                 .collect { list -> _uiState.update { it.copy(transactions = list) } }
@@ -225,7 +238,6 @@ class FinanceViewModel @Inject constructor(
                 }
             }.onSuccess {
                 closeForm()
-                loadMonth(_uiState.value.yearMonth)
             }.onFailure { e ->
                 _formState.update { it.copy(isSaving = false, errorMessage = e.message) }
             }
@@ -282,7 +294,6 @@ class FinanceViewModel @Inject constructor(
                 repository.addReimbursement(form.groupId, amountLong, form.date, form.note.ifBlank { null })
             }.onSuccess {
                 _reimbursementForm.value = ReimbursementFormState()
-                loadMonth(_uiState.value.yearMonth)
             }.onFailure { e ->
                 _reimbursementForm.update { it.copy(isSaving = false, errorMessage = e.message) }
             }
@@ -307,7 +318,6 @@ class FinanceViewModel @Inject constructor(
             runCatching { repository.linkToSettlement(incomeId, groupId) }
                 .onSuccess {
                     _linkSettlement.value = LinkSettlementState()
-                    loadMonth(_uiState.value.yearMonth)
                 }
         }
     }
