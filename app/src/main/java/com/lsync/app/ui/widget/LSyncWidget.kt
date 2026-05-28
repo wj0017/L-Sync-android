@@ -39,7 +39,8 @@ private val FgPrimary   = ColorProvider(Color(0xFFF5F5F5))
 private val FgSecondary = ColorProvider(Color(0x99F5F5F5))
 private val AccentBlue  = ColorProvider(Color(0xFF4F7EFF))
 private val AccentGreen = ColorProvider(Color(0xFF43A047))
-private val AccentRed   = ColorProvider(Color(0xFFE53935))
+private val AccentRed     = ColorProvider(Color(0xFFE53935))
+private val HairlineWhite = ColorProvider(Color(0x09FFFFFF))
 
 private val BOOK_NAMES = arrayOf(
     "",
@@ -172,9 +173,19 @@ private fun WidgetHeader(dateLabel: String) {
 }
 
 @Composable
-private fun SectionLabel(label: String) {
-    Text(text = label, style = TextStyle(color = AccentBlue, fontSize = 9.sp))
-    Spacer(modifier = GlanceModifier.height(2.dp))
+private fun SectionLabel(label: String, trailing: String = "") {
+    Row(
+        modifier = GlanceModifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(text = label, style = TextStyle(color = AccentBlue, fontSize = 9.sp))
+        if (trailing.isNotEmpty()) {
+            Spacer(modifier = GlanceModifier.defaultWeight())
+            Text(text = trailing, style = TextStyle(color = FgSecondary, fontSize = 9.sp))
+        }
+    }
+    Box(modifier = GlanceModifier.fillMaxWidth().height(1.dp).background(HairlineWhite)) {}
+    Spacer(modifier = GlanceModifier.height(3.dp))
 }
 
 @Composable
@@ -186,7 +197,7 @@ private fun TodoCard(todos: List<TodoEntity>) {
             .cornerRadius(10.dp)
             .padding(horizontal = 8.dp, vertical = 4.dp),
     ) {
-        SectionLabel("할 일")
+        SectionLabel("할 일", if (todos.isEmpty()) "" else "${todos.size}개")
         if (todos.isEmpty()) {
             Text("오늘 할 일 없음", style = TextStyle(color = FgSecondary, fontSize = 10.sp))
         } else {
@@ -227,7 +238,7 @@ private fun EventCard(events: List<EventEntity>) {
             .cornerRadius(10.dp)
             .padding(horizontal = 8.dp, vertical = 4.dp),
     ) {
-        SectionLabel("일정")
+        SectionLabel("일정", if (events.isEmpty()) "" else "${events.size}개")
         if (events.isEmpty()) {
             Text("오늘 일정 없음", style = TextStyle(color = FgSecondary, fontSize = 10.sp))
         } else {
@@ -303,7 +314,8 @@ private fun ReadingCard(
             .cornerRadius(10.dp)
             .padding(horizontal = 8.dp, vertical = 4.dp),
     ) {
-        SectionLabel("통독")
+        val progressPct = if (totalCount > 0) ((readCount.toFloat() / totalCount) * 100).roundToInt() else 0
+        SectionLabel("통독", if (totalCount > 0) "$progressPct%" else "")
         if (todayReadingPlan.isEmpty()) {
             Text("통독 계획 없음", style = TextStyle(color = FgSecondary, fontSize = 10.sp))
         } else {
