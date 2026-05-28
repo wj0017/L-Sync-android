@@ -12,4 +12,16 @@ data class WidgetState(
     val todayReadingPlan: List<ReadingPlanEntity>,
     val readCount: Int,
     val totalCount: Int,
-)
+) {
+    companion object {
+        fun empty() = WidgetState(
+            todos = emptyList(),
+            events = emptyList(),
+            monthExpense = 0,
+            monthIncome = 0,
+            todayReadingPlan = emptyList(),
+            readCount = 0,
+            totalCount = 0,
+        )
+    }
+}

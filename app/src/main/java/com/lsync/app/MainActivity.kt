@@ -10,12 +10,15 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.lsync.app.ui.PermissionHelper
+import com.lsync.app.ui.auth.AuthViewModel
 import com.lsync.app.ui.navigation.NavGraph
 import com.lsync.app.ui.theme.AccentBlue
 import com.lsync.app.ui.theme.BgCard
@@ -31,6 +34,9 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             LSyncTheme {
+                val authViewModel: AuthViewModel = hiltViewModel()
+                val authState by authViewModel.uiState.collectAsState()
+
                 var showExactAlarmDialog by remember { mutableStateOf(false) }
                 var showNotificationListenerDialog by remember { mutableStateOf(false) }
 
@@ -38,7 +44,8 @@ class MainActivity : ComponentActivity() {
                     ActivityResultContracts.RequestPermission()
                 ) { /* 거부해도 앱 동작에 영향 없음 — 알람 기능만 비활성화 */ }
 
-                LaunchedEffect(Unit) {
+                LaunchedEffect(authState.isSignedIn) {
+                    if (!authState.isSignedIn) return@LaunchedEffect
                     if (PermissionHelper.needsNotificationPermission(this@MainActivity)) {
                         notificationLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
                     }
@@ -108,7 +115,7 @@ class MainActivity : ComponentActivity() {
                     )
                 }
 
-                NavGraph()
+                NavGraph(authViewModel = authViewModel)
             }
         }
     }

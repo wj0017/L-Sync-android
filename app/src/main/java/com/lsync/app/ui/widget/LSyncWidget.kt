@@ -69,6 +69,9 @@ class LSyncWidget : GlanceAppWidget() {
             context.applicationContext,
             WidgetEntryPoint::class.java
         )
+        val userId = entryPoint.authRepository().currentUserId
+            ?: return WidgetState.empty()
+
         val todoDao = entryPoint.todoDao()
         val eventDao = entryPoint.eventDao()
         val financeDao = entryPoint.financeDao()
@@ -81,7 +84,7 @@ class LSyncWidget : GlanceAppWidget() {
         val todos = todoDao.getIncompleteByDate(today)
         val events = eventDao.getByDate(today)
 
-        val financeItems = financeDao.getAllByDateRange("local_user", monthStart, monthEnd)
+        val financeItems = financeDao.getAllByDateRange(userId, monthStart, monthEnd)
         val monthExpense = financeItems
             .filter { it.type == "EXPENSE" && it.settlementGroupId == null }
             .sumOf { it.amount }

@@ -12,6 +12,7 @@ lifecycle = "2.8.0"
 ksp = "1.9.24-1.0.20"
 lib-recur = "0.15.0"
 glance = "1.1.0"
+playServicesAuth = "21.2.0"
 
 [libraries]
 # AndroidX Core
@@ -50,6 +51,9 @@ firebase-firestore = { group = "com.google.firebase", name = "firebase-firestore
 firebase-auth = { group = "com.google.firebase", name = "firebase-auth-ktx" }
 firebase-crashlytics = { group = "com.google.firebase", name = "firebase-crashlytics-ktx" }
 firebase-analytics = { group = "com.google.firebase", name = "firebase-analytics-ktx" }
+
+# Google Play Services
+play-services-auth = { group = "com.google.android.gms", name = "play-services-auth", version.ref = "playServicesAuth" }
 
 # WorkManager
 workmanager = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "workmanager" }

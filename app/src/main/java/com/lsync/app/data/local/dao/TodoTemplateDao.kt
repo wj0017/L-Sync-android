@@ -17,4 +17,7 @@ interface TodoTemplateDao {
 
     @Query("UPDATE todo_templates SET isActive = 0, updatedAt = :updatedAt WHERE id = :id")
     suspend fun deactivate(id: String, updatedAt: Long)
+
+    @Query("UPDATE todo_templates SET userId = :newId WHERE userId = :oldId")
+    suspend fun migrateUserId(oldId: String, newId: String)
 }

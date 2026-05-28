@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.lsync.app.data.local.entity.EventEntity
 import com.lsync.app.data.local.entity.TodoEntity
+import com.lsync.app.data.repository.AuthRepository
 import com.lsync.app.data.repository.EventRepository
 import com.lsync.app.data.repository.TodoRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -37,7 +38,10 @@ data class ScheduleUiState(
 class ScheduleViewModel @Inject constructor(
     private val eventRepository: EventRepository,
     private val todoRepository: TodoRepository,
+    private val authRepository: AuthRepository,
 ) : ViewModel() {
+    private val currentUserId: String
+        get() = authRepository.currentUserId ?: error("User not signed in")
 
     private val _uiState = MutableStateFlow(ScheduleUiState())
     val uiState: StateFlow<ScheduleUiState> = _uiState.asStateFlow()
@@ -124,7 +128,7 @@ class ScheduleViewModel @Inject constructor(
             _uiState.update { it.copy(isLoading = true) }
             runCatching {
                 eventRepository.create(
-                    userId = "local_user",
+                    userId = currentUserId,
                     title = title,
                     isAllDay = isAllDay,
                     startDate = startDate,
@@ -151,7 +155,7 @@ class ScheduleViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching {
                 todoRepository.create(
-                    userId = "local_user",
+                    userId = currentUserId,
                     title = title,
                     dueDate = dueDate,
                     financeIsLinked = financeIsLinked,

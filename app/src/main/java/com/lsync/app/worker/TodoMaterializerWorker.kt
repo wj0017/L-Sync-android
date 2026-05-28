@@ -8,6 +8,7 @@ import com.lsync.app.data.local.dao.TodoDao
 import com.lsync.app.data.local.dao.TodoTemplateDao
 import com.lsync.app.data.local.entity.TodoEntity
 import com.lsync.app.data.local.entity.TodoTemplateEntity
+import com.lsync.app.data.repository.AuthRepository
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import org.dmfs.rfc5545.DateTime
@@ -24,18 +25,20 @@ class TodoMaterializerWorker @AssistedInject constructor(
     @Assisted params: WorkerParameters,
     private val todoTemplateDao: TodoTemplateDao,
     private val todoDao: TodoDao,
+    private val authRepository: AuthRepository,
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
+        val userId = authRepository.currentUserId ?: return Result.success()
         return try {
             val today = LocalDate.now()
             val endDate = today.plusDays(WINDOW_DAYS)
             val todayStr = today.toString()
 
-            val templates = todoTemplateDao.getActiveTemplates(USER_ID)
+            val templates = todoTemplateDao.getActiveTemplates(userId)
             for (template in templates) {
                 try {
-                    materializeTemplate(template, today, endDate, todayStr)
+                    materializeTemplate(template, today, endDate, todayStr, userId)
                 } catch (e: Exception) {
                     Log.w(TAG, "Skipping template ${template.id}: ${e.message}")
                 }
@@ -52,6 +55,7 @@ class TodoMaterializerWorker @AssistedInject constructor(
         today: LocalDate,
         endDate: LocalDate,
         todayStr: String,
+        userId: String,
     ) {
         val rule = RecurrenceRule(template.rrule.removePrefix("RRULE:"))
 
@@ -101,7 +105,7 @@ class TodoMaterializerWorker @AssistedInject constructor(
                 toUpsert.add(
                     TodoEntity(
                         id = instanceId,
-                        userId = USER_ID,
+                        userId = userId,
                         templateId = template.id,
                         title = template.title,
                         isCompleted = false,
@@ -126,7 +130,6 @@ class TodoMaterializerWorker @AssistedInject constructor(
 
     companion object {
         private const val TAG = "TodoMaterializerWorker"
-        private const val USER_ID = "local_user"
         private const val MS_PER_DAY = 86400000L
         private const val WINDOW_DAYS = 14L
         private const val MAX_ITERATIONS = 10_000

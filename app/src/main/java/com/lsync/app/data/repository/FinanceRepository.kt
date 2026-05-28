@@ -14,7 +14,10 @@ import javax.inject.Singleton
 class FinanceRepository @Inject constructor(
     private val dao: FinanceDao,
     private val remote: FirestoreDataSource,
+    private val authRepository: AuthRepository,
 ) {
+    private val currentUserId: String
+        get() = authRepository.currentUserId ?: error("User not signed in")
     fun observeByMonth(yearMonth: String): Flow<List<FinanceEntity>> =
         dao.observeByDateRange("$yearMonth-01", "$yearMonth-31")
 
@@ -32,7 +35,7 @@ class FinanceRepository @Inject constructor(
         val now = System.currentTimeMillis()
         val entity = FinanceEntity(
             id = UUID.randomUUID().toString(),
-            userId = "local_user",
+            userId = currentUserId,
             type = type,
             amount = amount,
             category = category,
@@ -64,7 +67,7 @@ class FinanceRepository @Inject constructor(
         val now = System.currentTimeMillis()
         val entity = FinanceEntity(
             id = UUID.randomUUID().toString(),
-            userId = "local_user",
+            userId = currentUserId,
             type = "INCOME",
             amount = amount,
             category = FinanceCategory.ETC,
@@ -136,7 +139,7 @@ class FinanceRepository @Inject constructor(
     }
 
     suspend fun exportCsv(yearMonth: String): String {
-        val rows = dao.getAllByDateRange("local_user", "${yearMonth}-01", "${yearMonth}-31")
+        val rows = dao.getAllByDateRange(currentUserId, "${yearMonth}-01", "${yearMonth}-31")
         val sb = StringBuilder()
         sb.appendLine("날짜,유형,카테고리,금액,메모")
         rows.forEach { f ->

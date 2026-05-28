@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -26,6 +27,7 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.lsync.app.data.local.entity.ReadingPlanEntity
+import com.lsync.app.ui.auth.AuthViewModel
 import com.lsync.app.data.repository.ReadingOrder
 import com.lsync.app.data.repository.ReadingPlanRepository
 import com.lsync.app.data.repository.ReadingPlanSettings
@@ -77,8 +79,10 @@ fun HomeScreen(
     onNavigateToSchedule: () -> Unit,
     onNavigateToBible: () -> Unit,
     viewModel: HomeViewModel = hiltViewModel(),
+    authViewModel: AuthViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    var menuExpanded by remember { mutableStateOf(false) }
 
     if (uiState.showSetupSheet) {
         ReadingPlanSetupSheet(
@@ -113,19 +117,56 @@ fun HomeScreen(
                     letterSpacing = 0.06.em,
                     color = FgPrimary,
                 )
-                // 날짜 (우측 정렬)
-                Column(horizontalAlignment = Alignment.End) {
-                    Text(
-                        text = uiState.today.year.toString(),
-                        fontFamily = Pretendard, fontWeight = FontWeight.Medium,
-                        fontSize = 10.sp, letterSpacing = 0.12.em, color = FgTertiary,
-                    )
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        text = uiState.today.format(DateTimeFormatter.ofPattern("MMM d, EEEE", Locale.ENGLISH)),
-                        fontFamily = Pretendard, fontWeight = FontWeight.Medium,
-                        fontSize = 14.sp, letterSpacing = (-0.01).em, color = FgSecondary,
-                    )
+                // 날짜 + 메뉴 (우측 정렬)
+                Row(
+                    verticalAlignment = Alignment.Bottom,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            text = uiState.today.year.toString(),
+                            fontFamily = Pretendard, fontWeight = FontWeight.Medium,
+                            fontSize = 10.sp, letterSpacing = 0.12.em, color = FgTertiary,
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            text = uiState.today.format(DateTimeFormatter.ofPattern("MMM d, EEEE", Locale.ENGLISH)),
+                            fontFamily = Pretendard, fontWeight = FontWeight.Medium,
+                            fontSize = 14.sp, letterSpacing = (-0.01).em, color = FgSecondary,
+                        )
+                    }
+                    Box {
+                        IconButton(
+                            onClick = { menuExpanded = true },
+                            modifier = Modifier.size(24.dp),
+                        ) {
+                            Icon(
+                                Icons.Outlined.MoreVert,
+                                contentDescription = "메뉴",
+                                tint = FgSecondary,
+                                modifier = Modifier.size(20.dp),
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = menuExpanded,
+                            onDismissRequest = { menuExpanded = false },
+                        ) {
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        "로그아웃",
+                                        fontFamily = Pretendard,
+                                        fontSize = 14.sp,
+                                        color = FgPrimary,
+                                    )
+                                },
+                                onClick = {
+                                    authViewModel.signOut()
+                                    menuExpanded = false
+                                },
+                            )
+                        }
+                    }
                 }
             }
         }

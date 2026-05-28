@@ -8,6 +8,7 @@ Usage:
 
 import argparse
 import contextlib
+import io
 import json
 import os
 import subprocess
@@ -18,6 +19,10 @@ import types
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Optional
+
+# Windows cp949 환경에서 유니코드 출력 깨짐 방지
+if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 
 ROOT = Path(__file__).resolve().parent.parent
 

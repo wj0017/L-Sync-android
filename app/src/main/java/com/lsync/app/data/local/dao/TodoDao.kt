@@ -53,4 +53,7 @@ interface TodoDao {
     // Todo 삭제: Soft delete (deletedAt 기록) + linkedFinanceId 연결 고리 해제는 Repository에서 처리
     @Query("UPDATE todos SET deletedAt = :now, updatedAt = :now WHERE id = :id")
     suspend fun softDelete(id: String, now: Long = System.currentTimeMillis())
+
+    @Query("UPDATE todos SET userId = :newId WHERE userId = :oldId")
+    suspend fun migrateUserId(oldId: String, newId: String)
 }

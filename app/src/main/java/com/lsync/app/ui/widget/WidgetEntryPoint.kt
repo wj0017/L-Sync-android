@@ -4,6 +4,7 @@ import com.lsync.app.data.local.dao.EventDao
 import com.lsync.app.data.local.dao.FinanceDao
 import com.lsync.app.data.local.dao.ReadingPlanDao
 import com.lsync.app.data.local.dao.TodoDao
+import com.lsync.app.data.repository.AuthRepository
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
@@ -15,4 +16,5 @@ interface WidgetEntryPoint {
     fun eventDao(): EventDao
     fun financeDao(): FinanceDao
     fun readingPlanDao(): ReadingPlanDao
+    fun authRepository(): AuthRepository
 }

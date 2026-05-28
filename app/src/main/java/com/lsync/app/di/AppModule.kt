@@ -2,6 +2,7 @@ package com.lsync.app.di
 
 import android.content.Context
 import androidx.room.Room
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.lsync.app.data.local.AppDatabase
 import com.lsync.app.data.local.BibleDatabase
@@ -24,6 +25,9 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import javax.inject.Singleton
 
 @Module
@@ -56,6 +60,16 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun provideFirebaseAuth(): FirebaseAuth = FirebaseAuth.getInstance()
+
+    @Provides
+    @Singleton
+    @ApplicationScope
+    fun provideApplicationScope(): CoroutineScope =
+        CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    @Provides
+    @Singleton
     fun provideFirestore(): FirebaseFirestore = FirebaseFirestore.getInstance()
 
     @Provides
@@ -79,8 +93,11 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideFinanceRepository(dao: FinanceDao, remote: FirestoreDataSource) =
-        FinanceRepository(dao, remote)
+    fun provideFinanceRepository(
+        dao: FinanceDao,
+        remote: FirestoreDataSource,
+        authRepository: com.lsync.app.data.repository.AuthRepository,
+    ) = FinanceRepository(dao, remote, authRepository)
 
     @Provides
     @Singleton

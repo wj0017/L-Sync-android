@@ -10,6 +10,7 @@ import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.MenuBook
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -17,12 +18,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.lsync.app.ui.auth.AuthViewModel
+import com.lsync.app.ui.auth.LoginScreen
 import com.lsync.app.ui.bible.BibleScreen
 import com.lsync.app.ui.finance.FinanceScreen
 import com.lsync.app.ui.home.HomeScreen
@@ -39,7 +43,14 @@ sealed class Screen(val route: String, val label: String, val icon: ImageVector)
 private val bottomNavItems = listOf(Screen.Home, Screen.Schedule, Screen.Finance, Screen.Bible)
 
 @Composable
-fun NavGraph() {
+fun NavGraph(authViewModel: AuthViewModel = hiltViewModel()) {
+    val authState by authViewModel.uiState.collectAsState()
+
+    if (!authState.isSignedIn) {
+        LoginScreen(viewModel = authViewModel)
+        return
+    }
+
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
@@ -108,6 +119,7 @@ fun NavGraph() {
                             restoreState = true
                         }
                     },
+                    authViewModel = authViewModel,
                 )
             }
             composable(Screen.Schedule.route) { ScheduleScreen() }

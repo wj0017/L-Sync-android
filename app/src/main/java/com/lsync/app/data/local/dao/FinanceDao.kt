@@ -60,4 +60,7 @@ interface FinanceDao {
         ORDER BY date ASC
     """)
     suspend fun getAllByDateRange(userId: String, from: String, to: String): List<FinanceEntity>
+
+    @Query("UPDATE finance SET userId = :newId WHERE userId = :oldId")
+    suspend fun migrateUserId(oldId: String, newId: String)
 }
