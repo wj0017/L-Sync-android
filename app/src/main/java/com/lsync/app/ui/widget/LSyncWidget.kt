@@ -8,6 +8,7 @@ import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.appwidget.GlanceAppWidget
+import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
 import androidx.glance.layout.Alignment
@@ -19,6 +20,8 @@ import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
 import androidx.glance.layout.padding
+import androidx.glance.layout.width
+import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
@@ -26,7 +29,9 @@ import com.lsync.app.data.local.entity.EventEntity
 import com.lsync.app.data.local.entity.ReadingPlanEntity
 import com.lsync.app.data.local.entity.TodoEntity
 import dagger.hilt.android.EntryPointAccessors
+import java.time.DayOfWeek
 import java.time.LocalDate
+import kotlin.math.roundToInt
 
 private val BgPrimary   = ColorProvider(Color(0xFF0A0A0A))
 private val BgCard      = ColorProvider(Color(0xFF161616))
@@ -56,6 +61,16 @@ private val BOOK_NAMES = arrayOf(
 
 private fun formatAmount(amount: Long): String = String.format("%,d", amount)
 
+private fun extractTimePrefix(startDate: String): String {
+    return try {
+        val tIndex = startDate.indexOf('T')
+        if (tIndex >= 0 && startDate.length >= tIndex + 6) startDate.substring(tIndex + 1, tIndex + 6)
+        else ""
+    } catch (e: Exception) {
+        ""
+    }
+}
+
 class LSyncWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val state = loadWidgetState(context)
@@ -72,19 +87,15 @@ class LSyncWidget : GlanceAppWidget() {
         val userId = entryPoint.authRepository().currentUserId
             ?: return WidgetState.empty()
 
-        val todoDao = entryPoint.todoDao()
-        val eventDao = entryPoint.eventDao()
-        val financeDao = entryPoint.financeDao()
-        val readingPlanDao = entryPoint.readingPlanDao()
+        val today = LocalDate.now()
+        val todayStr = today.toString()
+        val monthStart = todayStr.substring(0, 7) + "-01"
+        val monthEnd = todayStr.substring(0, 7) + "-31"
 
-        val today = LocalDate.now().toString()
-        val monthStart = today.substring(0, 7) + "-01"
-        val monthEnd = today.substring(0, 7) + "-31"
+        val todos = entryPoint.todoDao().getIncompleteByDate(todayStr)
+        val events = entryPoint.eventDao().getByDate(todayStr)
 
-        val todos = todoDao.getIncompleteByDate(today)
-        val events = eventDao.getByDate(today)
-
-        val financeItems = financeDao.getAllByDateRange(userId, monthStart, monthEnd)
+        val financeItems = entryPoint.financeDao().getAllByDateRange(userId, monthStart, monthEnd)
         val monthExpense = financeItems
             .filter { it.type == "EXPENSE" && it.settlementGroupId == null }
             .sumOf { it.amount }
@@ -92,9 +103,20 @@ class LSyncWidget : GlanceAppWidget() {
             .filter { it.type == "INCOME" && it.settlementGroupId == null }
             .sumOf { it.amount }
 
-        val todayReadingPlan = readingPlanDao.getForDate(today)
+        val todayReadingPlan = entryPoint.readingPlanDao().getForDate(todayStr)
         val readCount = todayReadingPlan.count { it.isRead }
         val totalCount = todayReadingPlan.size
+
+        val dayOfWeek = when (today.dayOfWeek) {
+            DayOfWeek.MONDAY -> "월"
+            DayOfWeek.TUESDAY -> "화"
+            DayOfWeek.WEDNESDAY -> "수"
+            DayOfWeek.THURSDAY -> "목"
+            DayOfWeek.FRIDAY -> "금"
+            DayOfWeek.SATURDAY -> "토"
+            else -> "일"
+        }
+        val dateLabel = "${today.monthValue}월 ${today.dayOfMonth}일 ($dayOfWeek)"
 
         return WidgetState(
             todos = todos,
@@ -104,6 +126,7 @@ class LSyncWidget : GlanceAppWidget() {
             todayReadingPlan = todayReadingPlan,
             readCount = readCount,
             totalCount = totalCount,
+            dateLabel = dateLabel,
         )
     }
 }
@@ -111,141 +134,218 @@ class LSyncWidget : GlanceAppWidget() {
 @Composable
 fun WidgetContent(state: WidgetState) {
     Box(
-        modifier = GlanceModifier
-            .fillMaxSize()
-            .background(BgPrimary)
-            .padding(12.dp),
-        contentAlignment = Alignment.TopStart
+        modifier = GlanceModifier.fillMaxSize().background(BgPrimary).padding(8.dp),
+        contentAlignment = Alignment.TopStart,
     ) {
         Column(modifier = GlanceModifier.fillMaxWidth()) {
-            SectionHeader("할 일")
-            TodoSection(state.todos)
+            WidgetHeader(state.dateLabel)
             Spacer(modifier = GlanceModifier.height(4.dp))
-            SectionHeader("일정")
-            EventSection(state.events)
-            Spacer(modifier = GlanceModifier.height(4.dp))
-            SectionHeader("가계부")
-            FinanceSection(state.monthExpense, state.monthIncome)
-            Spacer(modifier = GlanceModifier.height(4.dp))
-            SectionHeader("통독")
-            ReadingSection(state.todayReadingPlan, state.readCount, state.totalCount)
+            TodoCard(state.todos)
+            Spacer(modifier = GlanceModifier.height(2.dp))
+            EventCard(state.events)
+            Spacer(modifier = GlanceModifier.height(2.dp))
+            FinanceCard(state.monthExpense, state.monthIncome)
+            Spacer(modifier = GlanceModifier.height(2.dp))
+            ReadingCard(state.todayReadingPlan, state.readCount, state.totalCount)
         }
     }
 }
 
 @Composable
-private fun SectionHeader(label: String) {
-    Text(
-        text = label,
-        style = TextStyle(color = AccentBlue, fontSize = 10.sp)
-    )
-}
-
-@Composable
-private fun TodoSection(todos: List<TodoEntity>) {
-    if (todos.isEmpty()) {
+private fun WidgetHeader(dateLabel: String) {
+    Row(
+        modifier = GlanceModifier.fillMaxWidth().padding(horizontal = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         Text(
-            text = "오늘 할 일 없음",
-            style = TextStyle(color = FgSecondary, fontSize = 11.sp)
+            text = "L·SYNC",
+            style = TextStyle(color = AccentBlue, fontSize = 11.sp, fontWeight = FontWeight.Bold),
         )
-        return
-    }
-    Column {
-        todos.take(3).forEach { todo ->
+        if (dateLabel.isNotEmpty()) {
+            Spacer(modifier = GlanceModifier.defaultWeight())
             Text(
-                text = "• ${todo.title}",
-                style = TextStyle(color = FgPrimary, fontSize = 11.sp),
-                maxLines = 1
-            )
-        }
-        if (todos.size > 3) {
-            Text(
-                text = "+${todos.size - 3}개 더",
-                style = TextStyle(color = FgSecondary, fontSize = 10.sp)
+                text = dateLabel,
+                style = TextStyle(color = FgSecondary, fontSize = 9.sp),
             )
         }
     }
 }
 
 @Composable
-private fun EventSection(events: List<EventEntity>) {
-    if (events.isEmpty()) {
-        Text(
-            text = "오늘 일정 없음",
-            style = TextStyle(color = FgSecondary, fontSize = 11.sp)
-        )
-        return
-    }
-    Column {
-        events.take(3).forEach { event ->
-            val displayTitle = if (!event.isAllDay) {
-                try {
-                    val tIndex = event.startDate.indexOf('T')
-                    if (tIndex >= 0 && event.startDate.length >= tIndex + 6) {
-                        "${event.startDate.substring(tIndex + 1, tIndex + 6)} ${event.title}"
-                    } else {
-                        event.title
-                    }
-                } catch (e: Exception) {
-                    event.title
-                }
-            } else {
-                event.title
+private fun SectionLabel(label: String) {
+    Text(text = label, style = TextStyle(color = AccentBlue, fontSize = 9.sp))
+    Spacer(modifier = GlanceModifier.height(2.dp))
+}
+
+@Composable
+private fun TodoCard(todos: List<TodoEntity>) {
+    Column(
+        modifier = GlanceModifier
+            .fillMaxWidth()
+            .background(BgCard)
+            .cornerRadius(10.dp)
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+    ) {
+        SectionLabel("할 일")
+        if (todos.isEmpty()) {
+            Text("오늘 할 일 없음", style = TextStyle(color = FgSecondary, fontSize = 10.sp))
+        } else {
+            todos.take(2).forEach { todo ->
+                TodoRow(todo.title)
             }
-            Text(
-                text = "• $displayTitle",
-                style = TextStyle(color = FgPrimary, fontSize = 11.sp),
-                maxLines = 1
-            )
-        }
-        if (events.size > 3) {
-            Text(
-                text = "+${events.size - 3}개 더",
-                style = TextStyle(color = FgSecondary, fontSize = 10.sp)
-            )
+            if (todos.size > 2) {
+                Text("+${todos.size - 2}개 더", style = TextStyle(color = FgSecondary, fontSize = 9.sp))
+            }
         }
     }
 }
 
 @Composable
-private fun FinanceSection(monthExpense: Long, monthIncome: Long) {
-    Row {
-        Text(
-            text = "지출 ${formatAmount(monthExpense)}원",
-            modifier = GlanceModifier.padding(end = 8.dp),
-            style = TextStyle(color = AccentRed, fontSize = 11.sp)
-        )
-        Text(
-            text = "수입 ${formatAmount(monthIncome)}원",
-            style = TextStyle(color = AccentGreen, fontSize = 11.sp)
-        )
+private fun TodoRow(title: String) {
+    Row(
+        modifier = GlanceModifier.fillMaxWidth().padding(vertical = 1.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = GlanceModifier
+                .width(6.dp)
+                .height(6.dp)
+                .background(AccentBlue)
+                .cornerRadius(3.dp),
+        ) {}
+        Spacer(modifier = GlanceModifier.width(5.dp))
+        Text(text = title, style = TextStyle(color = FgPrimary, fontSize = 11.sp), maxLines = 1)
     }
 }
 
 @Composable
-private fun ReadingSection(
+private fun EventCard(events: List<EventEntity>) {
+    Column(
+        modifier = GlanceModifier
+            .fillMaxWidth()
+            .background(BgCard)
+            .cornerRadius(10.dp)
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+    ) {
+        SectionLabel("일정")
+        if (events.isEmpty()) {
+            Text("오늘 일정 없음", style = TextStyle(color = FgSecondary, fontSize = 10.sp))
+        } else {
+            events.take(2).forEach { event ->
+                EventRow(event)
+            }
+            if (events.size > 2) {
+                Text("+${events.size - 2}개 더", style = TextStyle(color = FgSecondary, fontSize = 9.sp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun EventRow(event: EventEntity) {
+    Row(
+        modifier = GlanceModifier.fillMaxWidth().padding(vertical = 1.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = GlanceModifier
+                .width(6.dp)
+                .height(6.dp)
+                .background(AccentGreen)
+                .cornerRadius(3.dp),
+        ) {}
+        Spacer(modifier = GlanceModifier.width(5.dp))
+        val timePrefix = if (!event.isAllDay) extractTimePrefix(event.startDate) else ""
+        val displayText = if (timePrefix.isNotEmpty()) "$timePrefix ${event.title}" else event.title
+        Text(text = displayText, style = TextStyle(color = FgPrimary, fontSize = 11.sp), maxLines = 1)
+    }
+}
+
+@Composable
+private fun FinanceCard(monthExpense: Long, monthIncome: Long) {
+    Column(
+        modifier = GlanceModifier
+            .fillMaxWidth()
+            .background(BgCard)
+            .cornerRadius(10.dp)
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+    ) {
+        SectionLabel("가계부")
+        Row(modifier = GlanceModifier.fillMaxWidth()) {
+            Column(modifier = GlanceModifier.defaultWeight()) {
+                Text("지출", style = TextStyle(color = FgSecondary, fontSize = 9.sp))
+                Text(
+                    text = "${formatAmount(monthExpense)}원",
+                    style = TextStyle(color = AccentRed, fontSize = 14.sp, fontWeight = FontWeight.Bold),
+                )
+            }
+            Column(modifier = GlanceModifier.defaultWeight()) {
+                Text("수입", style = TextStyle(color = FgSecondary, fontSize = 9.sp))
+                Text(
+                    text = "${formatAmount(monthIncome)}원",
+                    style = TextStyle(color = AccentGreen, fontSize = 14.sp, fontWeight = FontWeight.Bold),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReadingCard(
     todayReadingPlan: List<ReadingPlanEntity>,
     readCount: Int,
-    totalCount: Int
+    totalCount: Int,
 ) {
-    if (todayReadingPlan.isEmpty()) {
-        Text(
-            text = "통독 계획 없음",
-            style = TextStyle(color = FgSecondary, fontSize = 11.sp)
-        )
-        return
-    }
-    Column {
-        Text(
-            text = "${readCount}/${totalCount} 완료",
-            style = TextStyle(color = FgPrimary, fontSize = 11.sp)
-        )
-        todayReadingPlan.filter { !it.isRead }.take(2).forEach { plan ->
-            val bookName = if (plan.book in 1..66) BOOK_NAMES[plan.book] else "?"
-            Text(
-                text = "• $bookName ${plan.chapter}장",
-                style = TextStyle(color = FgSecondary, fontSize = 10.sp)
+    Column(
+        modifier = GlanceModifier
+            .fillMaxWidth()
+            .background(BgCard)
+            .cornerRadius(10.dp)
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+    ) {
+        SectionLabel("통독")
+        if (todayReadingPlan.isEmpty()) {
+            Text("통독 계획 없음", style = TextStyle(color = FgSecondary, fontSize = 10.sp))
+        } else {
+            Row(
+                modifier = GlanceModifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "$readCount/$totalCount 완료",
+                    style = TextStyle(color = FgPrimary, fontSize = 11.sp),
+                )
+                val firstUnread = todayReadingPlan.firstOrNull { !it.isRead }
+                if (firstUnread != null) {
+                    Spacer(modifier = GlanceModifier.defaultWeight())
+                    val bookName = if (firstUnread.book in 1..66) BOOK_NAMES[firstUnread.book] else "?"
+                    Text(
+                        text = "$bookName ${firstUnread.chapter}장",
+                        style = TextStyle(color = FgSecondary, fontSize = 9.sp),
+                    )
+                }
+            }
+            Spacer(modifier = GlanceModifier.height(4.dp))
+            SegmentProgressBar(
+                progress = if (totalCount > 0) readCount.toFloat() / totalCount else 0f,
             )
+        }
+    }
+}
+
+@Composable
+private fun SegmentProgressBar(progress: Float) {
+    val filled = (progress * 10).roundToInt().coerceIn(0, 10)
+    Row(modifier = GlanceModifier.fillMaxWidth()) {
+        repeat(10) { i ->
+            Box(
+                modifier = GlanceModifier
+                    .defaultWeight()
+                    .height(4.dp)
+                    .padding(horizontal = 1.dp)
+                    .background(if (i < filled) AccentBlue else BgPrimary)
+                    .cornerRadius(2.dp),
+            ) {}
         }
     }
 }
