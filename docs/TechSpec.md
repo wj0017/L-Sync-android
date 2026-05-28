@@ -184,14 +184,56 @@ service cloud.firestore {
 
 ---
 
-## 6. 트랜잭션 및 모니터링
+## 6. 홈 위젯
+
+### 6.1 위젯 스펙
+
+| 항목 | 값 |
+|------|----|
+| 라이브러리 | Jetpack Glance 1.1.0 |
+| 크기 | 4×3 cells (minWidth 250dp, minHeight 200dp) |
+| 시스템 갱신 주기 | 1800000ms (30분, fallback) |
+| 실제 갱신 주체 | `WidgetRefreshWorker` (WorkManager PeriodicWork, 30분) |
+| 데이터 소스 | Room 전용 (Firestore 미사용) |
+
+### 6.2 위젯 섹션
+
+| 섹션 | 데이터 | 표시 규칙 |
+|------|--------|----------|
+| 할 일 | `TodoDao.getIncompleteByDate(today)` | 최대 3개 + "+N개 더" |
+| 일정 | `EventDao.getByDate(today)` | 최대 3개, 시간 지정 일정은 "HH:mm 제목" 형식 |
+| 가계부 | `FinanceDao.getAllByDateRange(userId, monthStart, monthEnd)` | 이달 지출·수입 집계, 정산 항목 제외 |
+| 성경 통독 | `ReadingPlanDao.getForDate(today)` | "X/Y 완료" + 미읽은 챕터 최대 2개 |
+
+### 6.3 Hilt 주입 패턴
+
+위젯은 시스템이 직접 인스턴스화하므로 `@HiltAndroidApp` 자동 주입 불가. 아래 패턴 사용:
+
+```kotlin
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+interface WidgetEntryPoint { /* DAO 반환 함수 */ }
+
+// 사용 시
+EntryPointAccessors.fromApplication(context.applicationContext, WidgetEntryPoint::class.java)
+```
+
+### 6.4 갱신 정책
+
+- `WidgetRefreshWorker`: `@HiltWorker` 없는 순수 `CoroutineWorker`. `LSyncWidget().updateAll(context)` 호출.
+- `ExistingPeriodicWorkPolicy.KEEP` — 앱 재시작마다 실행 타이머가 리셋되지 않도록 기존 워커 유지.
+- `LSyncApplication.onCreate()`에서 `enqueuePeriodicWork()` 호출.
+
+---
+
+## 7. 트랜잭션 및 모니터링
 
 - **원자성:** Todo 완료 → Finance 생성은 Firestore Batch Write로 묶음.
 - **Crashlytics:** 네트워크 연결 상태에서 Exception 발생 시 `sync_failed` 이벤트 기록.
 
 ---
 
-## 7. Room Entity 현황
+## 8. Room Entity 현황
 
 | Entity | DB | 주요 필드 |
 |--------|-----|-----------|

@@ -83,9 +83,15 @@ app/src/main/java/com/lsync/app/
 │   ├── BootReceiver.kt
 │   ├── PaymentNotificationParser.kt  # title 정규식 단독 게이트 (바디 폴백 제거)
 │   └── PaymentNotificationService.kt
-└── worker/
-    ├── AlarmRestoreWorker.kt
-    └── TodoMaterializerWorker.kt
+├── worker/
+│   ├── AlarmRestoreWorker.kt
+│   ├── TodoMaterializerWorker.kt
+│   └── WidgetRefreshWorker.kt        # 30분 주기 위젯 갱신 (비-Hilt CoroutineWorker)
+└── ui/widget/
+    ├── LSyncWidget.kt                # GlanceAppWidget — 4개 섹션 UI + loadWidgetState()
+    ├── LSyncWidgetReceiver.kt        # GlanceAppWidgetReceiver
+    ├── WidgetEntryPoint.kt           # Hilt @EntryPoint (TodoDao, EventDao, FinanceDao, ReadingPlanDao)
+    └── WidgetState.kt                # todos, events, monthExpense, monthIncome, readingPlan
 ```
 
 ## 핵심 설계 결정
@@ -126,6 +132,13 @@ UI는 Room Flow를 구독하므로 네트워크 없이도 즉각 반응.
 ### 결제 알림 자동 가계부
 - `PaymentNotificationService` → `PaymentNotificationParser` → `FinanceRepository.create()`
 - Parser: **title에서만** `{금액}원 결제/입금` 패턴 매칭 (바디 폴백 제거 — 알림성 메시지 false positive 방지).
+
+### 홈 위젯 (Jetpack Glance)
+- `LSyncWidgetReceiver`(GlanceAppWidgetReceiver) → `LSyncWidget`(GlanceAppWidget) → `loadWidgetState()` → `WidgetContent()`
+- 위젯은 Hilt 자동 주입 불가 → `WidgetEntryPoint`(@EntryPoint)로 `EntryPointAccessors.fromApplication()` 패턴 사용.
+- 데이터 소스: Room 전용. Firestore 미사용 (네트워크 없이도 동작).
+- 갱신: `WidgetRefreshWorker`(30분 주기, `ExistingPeriodicWorkPolicy.KEEP`) + 시스템 `updatePeriodMillis`(fallback).
+- Finance 집계: `settlementGroupId != null` 항목은 수입·지출에 합산하지 않음 (PRD 2.4 정산 정책 동일 적용).
 
 ### 공유 Dialog 컴포넌트 (ScheduleScreen.kt에 정의)
 - `LSyncDialog` — 확인/취소

@@ -180,6 +180,44 @@ Row { 수입 ₩X(AccentGreen)   지출 ₩X(FgSecondary) }
 
 ---
 
+## 홈 위젯 UI
+
+Glance는 RemoteViews 위에서 동작하므로 앱 컴포넌트(`MaterialTheme`, Pretendard 폰트 등)를 사용할 수 없다.
+
+### 위젯 전용 색상 상수 (`LSyncWidget.kt` 내 private 상수)
+
+```kotlin
+BgPrimary   = ColorProvider(Color(0xFF0A0A0A))
+BgCard      = ColorProvider(Color(0xFF161616))
+FgPrimary   = ColorProvider(Color(0xFFF5F5F5))
+FgSecondary = ColorProvider(Color(0x99F5F5F5))   // 60% opacity
+AccentBlue  = ColorProvider(Color(0xFF4F7EFF))
+AccentGreen = ColorProvider(Color(0xFF43A047))
+AccentRed   = ColorProvider(Color(0xFFE53935))
+```
+
+### 위젯 레이아웃 구조
+
+```
+Box(BgPrimary, padding 12.dp)
+└── Column
+    ├── SectionHeader("할 일")   — AccentBlue 10sp
+    ├── TodoSection              — FgPrimary 11sp, 최대 3개 + "+N개 더"(FgSecondary)
+    ├── SectionHeader("일정")
+    ├── EventSection             — 시간 지정 일정은 "HH:mm 제목" 형식
+    ├── SectionHeader("가계부")
+    ├── FinanceSection           — 지출 AccentRed / 수입 AccentGreen, 11sp
+    ├── SectionHeader("통독")
+    └── ReadingSection           — "X/Y 완료" + 미읽은 챕터 최대 2개(FgSecondary)
+```
+
+### 위젯 금지사항
+- `androidx.compose.material3.*` 컴포넌트 사용 금지 — 런타임 크래시 발생
+- Pretendard 폰트 설정 금지 — RemoteViews 미지원
+- 지출에 AccentRed 금지 규칙은 앱 내 Finance와 달리 **위젯에서는 AccentRed 사용** (공간 제약상 색으로 구분)
+
+---
+
 ## 금지사항
 - 라이트 모드 구현 금지 (다크 전용)
 - 지출 금액에 AccentRed 사용 금지 — 지출은 FgSecondary, 수입만 AccentGreen

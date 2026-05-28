@@ -57,4 +57,9 @@
 ### ✅ Phase 3: 성경 뷰어 및 고도화 — 완료
 
 - **구현:** 성경 통독 뷰어(개역개정·ESV **로컬 SQLite asset 번들**, Firestore 미사용), 1년 통독 계획, 절 묵상 메모.
-- **남은 작업:** 안드로이드 홈 위젯.
+
+### ✅ Phase 4: 홈 위젯 — 완료
+
+- **구현:** Jetpack Glance 기반 안드로이드 홈 위젯. 할 일·일정·이달 가계부·성경 통독 4개 섹션. WorkManager 30분 주기 갱신.
+- **크기:** 4×3 cells (minWidth 250dp, minHeight 200dp).
+- **남은 작업:** Firebase Auth 연동 (현재 `userId = "local_user"` 하드코딩).
