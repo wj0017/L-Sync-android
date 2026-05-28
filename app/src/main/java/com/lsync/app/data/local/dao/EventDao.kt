@@ -23,6 +23,14 @@ interface EventDao {
     """)
     fun observeByDateRange(from: String, to: String): Flow<List<EventEntity>>
 
+    @Query("""
+        SELECT * FROM events
+        WHERE deletedAt IS NULL
+          AND startDate LIKE :datePrefix || '%'
+        ORDER BY startDate ASC
+    """)
+    suspend fun getByDate(datePrefix: String): List<EventEntity>
+
     @Upsert
     suspend fun upsert(event: EventEntity)
 

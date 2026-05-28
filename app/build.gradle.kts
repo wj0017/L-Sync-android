@@ -122,6 +122,9 @@ dependencies {
     implementation(libs.dmfs.lib.recur)
     implementation(libs.dmfs.rfc5545.datetime)
 
+    // Glance (홈 위젯)
+    implementation(libs.glance.appwidget)
+
     // Test
     testImplementation(libs.junit)
 }

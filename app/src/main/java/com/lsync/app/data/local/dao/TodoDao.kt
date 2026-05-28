@@ -35,6 +35,15 @@ interface TodoDao {
     """)
     suspend fun getFutureAlarmedTodos(fromDate: String): List<TodoEntity>
 
+    @Query("""
+        SELECT * FROM todos
+        WHERE dueDate = :date
+          AND isCompleted = 0
+          AND deletedAt IS NULL
+        ORDER BY createdAt ASC
+    """)
+    suspend fun getIncompleteByDate(date: String): List<TodoEntity>
+
     @Upsert
     suspend fun upsert(todo: TodoEntity)
 

@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
 import com.lsync.app.worker.TodoMaterializerWorker
+import com.lsync.app.worker.WidgetRefreshWorker
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
 
@@ -20,5 +21,6 @@ class LSyncApplication : Application(), Configuration.Provider {
     override fun onCreate() {
         super.onCreate()
         TodoMaterializerWorker.enqueuePeriodicWork(this)
+        WidgetRefreshWorker.enqueuePeriodicWork(this)
     }
 }

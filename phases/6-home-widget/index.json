@@ -1,0 +1,40 @@
+{
+  "project": "L-Sync",
+  "phase": "6-home-widget",
+  "steps": [
+    {
+      "step": 0,
+      "name": "glance-setup",
+      "status": "completed",
+      "started_at": "2026-05-28T20:41:34+0900",
+      "summary": "Glance 1.1.0 의존성 추가, lsync_widget_info.xml·widget_loading.xml 생성, LSyncWidget/LSyncWidgetReceiver 스텁 생성 및 AndroidManifest 등록 — assembleDebug·lintDebug 통과",
+      "completed_at": "2026-05-28T20:44:57+0900"
+    },
+    {
+      "step": 1,
+      "name": "widget-data",
+      "status": "completed",
+      "started_at": "2026-05-28T20:44:57+0900",
+      "summary": "TodoDao·EventDao에 위젯용 suspend 쿼리 추가, WidgetState·WidgetEntryPoint 생성, LSyncWidget에 Room 기반 loadWidgetState() 구현 — assembleDebug·lintDebug 통과",
+      "completed_at": "2026-05-28T20:47:25+0900"
+    },
+    {
+      "step": 2,
+      "name": "widget-ui",
+      "status": "completed",
+      "started_at": "2026-05-28T20:47:25+0900",
+      "summary": "WidgetContent 컴포저블 구현 — 할 일·일정·가계부·통독 4개 섹션, Glance 전용 색상 상수·BOOK_NAMES·formatAmount 추가, assembleDebug·lintDebug 통과",
+      "completed_at": "2026-05-28T20:54:24+0900"
+    },
+    {
+      "step": 3,
+      "name": "widget-refresh",
+      "status": "completed",
+      "started_at": "2026-05-28T20:54:24+0900",
+      "summary": "WidgetRefreshWorker 생성(30분 주기, @HiltWorker 없음) 및 LSyncApplication.onCreate()에 enqueuePeriodicWork 등록 — assembleDebug·lintDebug 통과",
+      "completed_at": "2026-05-28T20:56:14+0900"
+    }
+  ],
+  "created_at": "2026-05-28T20:41:34+0900",
+  "completed_at": "2026-05-28T20:56:14+0900"
+}
