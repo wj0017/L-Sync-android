@@ -47,7 +47,6 @@
 
 - **구현:** 캘린더 CRUD (RRULE 지원), 투두 CRUD, 로컬 마감 알림, Firebase 연동.
 - **게이트:** 2주간 직접 사용. Crashlytics 기준 **알림 누락 및 동기화 에러율 5% 미만**.
-- **남은 작업:** Firebase Auth 연동 (현재 userId 하드코딩 "local_user"). Auth 연동 전까지 Firestore는 사실상 업로드 전용.
 
 ### ✅ Phase 2: 가계부 자동화 시스템 — 완료
 
@@ -62,4 +61,9 @@
 
 - **구현:** Jetpack Glance 기반 안드로이드 홈 위젯. 할 일·일정·이달 가계부·성경 통독 4개 섹션. WorkManager 30분 주기 갱신.
 - **크기:** 4×3 cells (minWidth 250dp, minHeight 200dp).
-- **남은 작업:** Firebase Auth 연동 (현재 `userId = "local_user"` 하드코딩).
+
+### ✅ Phase 5: Firebase Auth Google 로그인 — 완료
+
+- **구현:** Google 로그인 화면, Firebase Auth 연동, `userId = "local_user"` 하드코딩 전면 교체, 기존 Room 데이터 자동 마이그레이션, 홈 화면 로그아웃 메뉴.
+- **마이그레이션 정책:** 최초 로그인 시 `AuthMigrationHelper`가 Room 내 `"local_user"` userId를 실제 Firebase UID로 일괄 업데이트. SharedPreferences 플래그로 멱등성 보장.
+- **Firestore 보안 규칙:** `request.auth.uid == resource.data.userId` 적용. 기존 `"local_user"` Firestore 데이터는 폐기 후 마이그레이션된 UID로 재동기화.

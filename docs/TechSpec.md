@@ -146,7 +146,7 @@ service cloud.firestore {
 }
 ```
 
-> 현재 `userId = "local_user"` 하드코딩 상태 (Firebase Auth 미연동).
+> Firebase Auth Google 로그인 연동 완료. `userId`는 `AuthRepository.currentUserId`(실제 Firebase UID)를 사용한다.
 
 ---
 

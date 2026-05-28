@@ -15,7 +15,7 @@
 - CRITICAL: Todo 미완료(Uncheck) 시 Finance를 삭제하지 않는다. `isExcluded = true`로 Soft Delete한다.
 - CRITICAL: 종일 일정과 Todo의 날짜는 Floating Time(`YYYY-MM-DD` 문자열). 타임존 변환 금지.
 - CRITICAL: `collectAsStateWithLifecycle` 사용 금지. `collectAsState()`만 사용한다.
-- CRITICAL: userId는 현재 `"local_user"`로 하드코딩되어 있다 (Firebase Auth 미연동). 새 ViewModel에서도 동일하게 `"local_user"`를 사용하고, Firebase Auth를 직접 호출하지 마라.
+- CRITICAL: userId는 `AuthRepository.currentUserId`를 사용한다. Firebase Auth Google 로그인 연동 완료. `"local_user"` 하드코딩 금지.
 - CRITICAL: ViewModel은 반드시 `@HiltViewModel` + `@Inject constructor(...)` 패턴으로 작성한다. 이 없으면 Hilt 주입 실패로 런타임 크래시.
 - CRITICAL: 새 DAO나 Repository를 추가할 때는 반드시 `di/AppModule.kt`에 `@Provides` 함수를 추가한다. 누락 시 Hilt가 의존성을 찾지 못해 런타임 크래시.
 - Firestore Batch Write를 사용하여 Todo ↔ Finance 양방향 업데이트를 원자적으로 처리한다.

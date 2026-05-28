@@ -54,16 +54,21 @@ app/src/main/java/com/lsync/app/
 │       ├── EventRepository.kt
 │       ├── TodoRepository.kt
 │       ├── FinanceRepository.kt
-│       └── ReadingPlanRepository.kt  # 1년 통독 시퀀스 계산, 설정(SharedPreferences)
+│       ├── ReadingPlanRepository.kt  # 1년 통독 시퀀스 계산, 설정(SharedPreferences)
+│       ├── AuthRepository.kt         # Firebase Auth 래퍼. currentUserId, authState, signInWithGoogle, signOut
+│       └── AuthMigrationHelper.kt    # "local_user" → Firebase UID Room 일괄 마이그레이션 (멱등)
 ├── ui/
 │   ├── theme/
 │   │   ├── Color.kt
 │   │   ├── Type.kt
 │   │   └── Theme.kt
+│   ├── auth/
+│   │   ├── LoginScreen.kt          # Google 로그인 버튼·로딩·에러 UI
+│   │   └── AuthViewModel.kt        # AuthUiState(isSignedIn/isLoading/error/userId), signInWithGoogle, signOut
 │   ├── navigation/
-│   │   └── NavGraph.kt             # 4-tab: Home / Schedule / Finance / Bible
+│   │   └── NavGraph.kt             # 4-tab: Home / Schedule / Finance / Bible. 미로그인 시 LoginScreen early return
 │   ├── home/
-│   │   ├── HomeScreen.kt           # 오늘 날짜·통독·일정 미리보기·가계부 요약
+│   │   ├── HomeScreen.kt           # 오늘 날짜·통독·일정 미리보기·가계부 요약. 헤더 로그아웃 메뉴 포함
 │   │   └── HomeViewModel.kt        # EventRepo + TodoRepo + FinanceRepo + ReadingPlanRepo 조합
 │   ├── schedule/
 │   │   ├── ScheduleScreen.kt       # 단일 LazyColumn 통스크롤(헤더·캘린더·구분선·목록) + ExpandableFab
@@ -90,8 +95,8 @@ app/src/main/java/com/lsync/app/
 └── ui/widget/
     ├── LSyncWidget.kt                # GlanceAppWidget — 4개 섹션 UI + loadWidgetState()
     ├── LSyncWidgetReceiver.kt        # GlanceAppWidgetReceiver
-    ├── WidgetEntryPoint.kt           # Hilt @EntryPoint (TodoDao, EventDao, FinanceDao, ReadingPlanDao)
-    └── WidgetState.kt                # todos, events, monthExpense, monthIncome, readingPlan
+    ├── WidgetEntryPoint.kt           # Hilt @EntryPoint (TodoDao, EventDao, FinanceDao, ReadingPlanDao, AuthRepository)
+    └── WidgetState.kt                # todos, events, monthExpense, monthIncome, readingPlan + empty()
 ```
 
 ## 핵심 설계 결정
@@ -139,6 +144,17 @@ UI는 Room Flow를 구독하므로 네트워크 없이도 즉각 반응.
 - 데이터 소스: Room 전용. Firestore 미사용 (네트워크 없이도 동작).
 - 갱신: `WidgetRefreshWorker`(30분 주기, `ExistingPeriodicWorkPolicy.KEEP`) + 시스템 `updatePeriodMillis`(fallback).
 - Finance 집계: `settlementGroupId != null` 항목은 수입·지출에 합산하지 않음 (PRD 2.4 정산 정책 동일 적용).
+
+### Firebase Auth (Google 로그인)
+- `AuthRepository`: `callbackFlow` + `stateIn(Eagerly)`로 `FirebaseAuth.AuthStateListener`를 `StateFlow<FirebaseUser?>`로 래핑.
+- `AuthViewModel`: 초기값을 `authRepository.currentUserId != null`로 즉시 계산 → 앱 재실행 시 LoginScreen 깜빡임 방지.
+- `NavGraph`: `!authState.isSignedIn`이면 `LoginScreen` early return — NavHost 진입 전 차단하여 BottomBar 노출 방지.
+- `di/Qualifiers.kt`: `@ApplicationScope` Qualifier로 `CoroutineScope(SupervisorJob() + Dispatchers.Default)` 주입.
+
+### userId 마이그레이션
+- `AuthMigrationHelper`: 첫 로그인 시 Room의 `"local_user"` userId를 실제 Firebase UID로 일괄 UPDATE. SharedPreferences 플래그로 멱등성 보장.
+- 신규 로그인: `signInWithGoogle()` 내부에서 마이그레이션 동기 await 후 반환 → NavGraph 전환 시점에 데이터 준비 완료.
+- 앱 재실행(자동 로그인): `AuthRepository.init`에서 `scope.launch` 비동기 실행 (이미 마이그레이션됐으면 즉시 종료).
 
 ### 공유 Dialog 컴포넌트 (ScheduleScreen.kt에 정의)
 - `LSyncDialog` — 확인/취소
