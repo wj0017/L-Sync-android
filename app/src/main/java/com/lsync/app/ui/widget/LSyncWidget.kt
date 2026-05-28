@@ -1,12 +1,18 @@
 package com.lsync.app.ui.widget
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.RectF
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
+import androidx.glance.Image
+import androidx.glance.ImageProvider
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
@@ -33,12 +39,12 @@ import java.time.DayOfWeek
 import java.time.LocalDate
 import kotlin.math.roundToInt
 
-private val BgPrimary   = ColorProvider(Color(0xFF0A0A0A))
-private val BgCard      = ColorProvider(Color(0xFF161616))
-private val FgPrimary   = ColorProvider(Color(0xFFF5F5F5))
-private val FgSecondary = ColorProvider(Color(0x99F5F5F5))
-private val AccentBlue  = ColorProvider(Color(0xFF4F7EFF))
-private val AccentGreen = ColorProvider(Color(0xFF43A047))
+private val BgPrimary     = ColorProvider(Color(0xFF0A0A0A))
+private val BgCard        = ColorProvider(Color(0xFF161616))
+private val FgPrimary     = ColorProvider(Color(0xFFF5F5F5))
+private val FgSecondary   = ColorProvider(Color(0x99F5F5F5))
+private val AccentBlue    = ColorProvider(Color(0xFF4F7EFF))
+private val AccentGreen   = ColorProvider(Color(0xFF43A047))
 private val AccentRed     = ColorProvider(Color(0xFFE53935))
 private val HairlineWhite = ColorProvider(Color(0x09FFFFFF))
 
@@ -72,12 +78,31 @@ private fun extractTimePrefix(startDate: String): String {
     }
 }
 
+private fun createProgressBitmap(progress: Float): Bitmap {
+    val size = 200
+    val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bitmap)
+    val strokeWidth = size * 0.11f
+    val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        this.strokeWidth = strokeWidth
+        strokeCap = Paint.Cap.ROUND
+    }
+    val inset = strokeWidth / 2f
+    val rect = RectF(inset, inset, size - inset, size - inset)
+    paint.color = 0x33FFFFFF.toInt()
+    canvas.drawArc(rect, 135f, 270f, false, paint)
+    if (progress > 0f) {
+        paint.color = 0xFF4F7EFF.toInt()
+        canvas.drawArc(rect, 135f, 270f * progress.coerceIn(0f, 1f), false, paint)
+    }
+    return bitmap
+}
+
 class LSyncWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val state = loadWidgetState(context)
-        provideContent {
-            WidgetContent(state)
-        }
+        provideContent { WidgetContent(state) }
     }
 
     private suspend fun loadWidgetState(context: Context): WidgetState {
@@ -104,30 +129,48 @@ class LSyncWidget : GlanceAppWidget() {
             .filter { it.type == "INCOME" && it.settlementGroupId == null }
             .sumOf { it.amount }
 
+        val currentDay = today.dayOfMonth
+        val dailyExpenses = (1..currentDay).map { day ->
+            val dayStr = "${todayStr.substring(0, 7)}-${day.toString().padStart(2, '0')}"
+            financeItems.filter { it.type == "EXPENSE" && it.settlementGroupId == null && it.date == dayStr }
+                .sumOf { it.amount }
+        }
+        val dailyIncomes = (1..currentDay).map { day ->
+            val dayStr = "${todayStr.substring(0, 7)}-${day.toString().padStart(2, '0')}"
+            financeItems.filter { it.type == "INCOME" && it.settlementGroupId == null && it.date == dayStr }
+                .sumOf { it.amount }
+        }
+
         val todayReadingPlan = entryPoint.readingPlanDao().getForDate(todayStr)
         val readCount = todayReadingPlan.count { it.isRead }
         val totalCount = todayReadingPlan.size
 
         val dayOfWeek = when (today.dayOfWeek) {
-            DayOfWeek.MONDAY -> "월"
-            DayOfWeek.TUESDAY -> "화"
+            DayOfWeek.MONDAY    -> "월"
+            DayOfWeek.TUESDAY   -> "화"
             DayOfWeek.WEDNESDAY -> "수"
-            DayOfWeek.THURSDAY -> "목"
-            DayOfWeek.FRIDAY -> "금"
-            DayOfWeek.SATURDAY -> "토"
-            else -> "일"
+            DayOfWeek.THURSDAY  -> "목"
+            DayOfWeek.FRIDAY    -> "금"
+            DayOfWeek.SATURDAY  -> "토"
+            else                -> "일"
         }
         val dateLabel = "${today.monthValue}월 ${today.dayOfMonth}일 ($dayOfWeek)"
+
+        val readingProgress = if (totalCount > 0) readCount.toFloat() / totalCount else 0f
+        val circularProgressBitmap = createProgressBitmap(readingProgress)
 
         return WidgetState(
             todos = todos,
             events = events,
             monthExpense = monthExpense,
             monthIncome = monthIncome,
+            dailyExpenses = dailyExpenses,
+            dailyIncomes = dailyIncomes,
             todayReadingPlan = todayReadingPlan,
             readCount = readCount,
             totalCount = totalCount,
             dateLabel = dateLabel,
+            circularProgressBitmap = circularProgressBitmap,
         )
     }
 }
@@ -135,19 +178,35 @@ class LSyncWidget : GlanceAppWidget() {
 @Composable
 fun WidgetContent(state: WidgetState) {
     Box(
-        modifier = GlanceModifier.fillMaxSize().background(BgPrimary).padding(8.dp),
+        modifier = GlanceModifier.fillMaxSize().background(BgPrimary).padding(10.dp),
         contentAlignment = Alignment.TopStart,
     ) {
         Column(modifier = GlanceModifier.fillMaxWidth()) {
             WidgetHeader(state.dateLabel)
-            Spacer(modifier = GlanceModifier.height(4.dp))
-            TodoCard(state.todos)
-            Spacer(modifier = GlanceModifier.height(2.dp))
-            EventCard(state.events)
-            Spacer(modifier = GlanceModifier.height(2.dp))
-            FinanceCard(state.monthExpense, state.monthIncome)
-            Spacer(modifier = GlanceModifier.height(2.dp))
-            ReadingCard(state.todayReadingPlan, state.readCount, state.totalCount)
+            Spacer(modifier = GlanceModifier.height(8.dp))
+            Row(modifier = GlanceModifier.fillMaxWidth()) {
+                TodoCard(state.todos, GlanceModifier.defaultWeight())
+                Spacer(modifier = GlanceModifier.width(6.dp))
+                EventCard(state.events, GlanceModifier.defaultWeight())
+            }
+            Spacer(modifier = GlanceModifier.height(6.dp))
+            Row(modifier = GlanceModifier.fillMaxWidth()) {
+                FinanceCard(
+                    monthExpense = state.monthExpense,
+                    monthIncome = state.monthIncome,
+                    dailyExpenses = state.dailyExpenses,
+                    dailyIncomes = state.dailyIncomes,
+                    modifier = GlanceModifier.defaultWeight(),
+                )
+                Spacer(modifier = GlanceModifier.width(6.dp))
+                ReadingCard(
+                    todayReadingPlan = state.todayReadingPlan,
+                    readCount = state.readCount,
+                    totalCount = state.totalCount,
+                    bitmap = state.circularProgressBitmap,
+                    modifier = GlanceModifier.defaultWeight(),
+                )
+            }
         }
     }
 }
@@ -160,14 +219,11 @@ private fun WidgetHeader(dateLabel: String) {
     ) {
         Text(
             text = "L·SYNC",
-            style = TextStyle(color = AccentBlue, fontSize = 11.sp, fontWeight = FontWeight.Bold),
+            style = TextStyle(color = AccentBlue, fontSize = 13.sp, fontWeight = FontWeight.Bold),
         )
         if (dateLabel.isNotEmpty()) {
             Spacer(modifier = GlanceModifier.defaultWeight())
-            Text(
-                text = dateLabel,
-                style = TextStyle(color = FgSecondary, fontSize = 9.sp),
-            )
+            Text(text = dateLabel, style = TextStyle(color = FgSecondary, fontSize = 9.sp))
         }
     }
 }
@@ -189,23 +245,20 @@ private fun SectionLabel(label: String, trailing: String = "") {
 }
 
 @Composable
-private fun TodoCard(todos: List<TodoEntity>) {
+private fun TodoCard(todos: List<TodoEntity>, modifier: GlanceModifier) {
     Column(
-        modifier = GlanceModifier
-            .fillMaxWidth()
+        modifier = modifier
             .background(BgCard)
             .cornerRadius(10.dp)
-            .padding(horizontal = 8.dp, vertical = 4.dp),
+            .padding(horizontal = 8.dp, vertical = 6.dp),
     ) {
-        SectionLabel("할 일", if (todos.isEmpty()) "" else "${todos.size}개")
+        SectionLabel("To-Do", if (todos.isEmpty()) "" else "${todos.size}개")
         if (todos.isEmpty()) {
-            Text("오늘 할 일 없음", style = TextStyle(color = FgSecondary, fontSize = 10.sp))
+            Text("할 일 없음", style = TextStyle(color = FgSecondary, fontSize = 10.sp))
         } else {
-            todos.take(2).forEach { todo ->
-                TodoRow(todo.title)
-            }
-            if (todos.size > 2) {
-                Text("+${todos.size - 2}개 더", style = TextStyle(color = FgSecondary, fontSize = 9.sp))
+            todos.take(3).forEach { todo -> TodoRow(todo.title) }
+            if (todos.size > 3) {
+                Text("+${todos.size - 3}개 더", style = TextStyle(color = FgSecondary, fontSize = 8.sp))
             }
         }
     }
@@ -218,35 +271,29 @@ private fun TodoRow(title: String) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
-            modifier = GlanceModifier
-                .width(6.dp)
-                .height(6.dp)
-                .background(AccentBlue)
-                .cornerRadius(3.dp),
+            modifier = GlanceModifier.width(5.dp).height(5.dp)
+                .background(AccentBlue).cornerRadius(3.dp),
         ) {}
         Spacer(modifier = GlanceModifier.width(5.dp))
-        Text(text = title, style = TextStyle(color = FgPrimary, fontSize = 11.sp), maxLines = 1)
+        Text(text = title, style = TextStyle(color = FgPrimary, fontSize = 10.sp), maxLines = 1)
     }
 }
 
 @Composable
-private fun EventCard(events: List<EventEntity>) {
+private fun EventCard(events: List<EventEntity>, modifier: GlanceModifier) {
     Column(
-        modifier = GlanceModifier
-            .fillMaxWidth()
+        modifier = modifier
             .background(BgCard)
             .cornerRadius(10.dp)
-            .padding(horizontal = 8.dp, vertical = 4.dp),
+            .padding(horizontal = 8.dp, vertical = 6.dp),
     ) {
-        SectionLabel("일정", if (events.isEmpty()) "" else "${events.size}개")
+        SectionLabel("Schedule", if (events.isEmpty()) "" else "${events.size}개")
         if (events.isEmpty()) {
-            Text("오늘 일정 없음", style = TextStyle(color = FgSecondary, fontSize = 10.sp))
+            Text("일정 없음", style = TextStyle(color = FgSecondary, fontSize = 10.sp))
         } else {
-            events.take(2).forEach { event ->
-                EventRow(event)
-            }
-            if (events.size > 2) {
-                Text("+${events.size - 2}개 더", style = TextStyle(color = FgSecondary, fontSize = 9.sp))
+            events.take(3).forEach { event -> EventRow(event) }
+            if (events.size > 3) {
+                Text("+${events.size - 3}개 더", style = TextStyle(color = FgSecondary, fontSize = 8.sp))
             }
         }
     }
@@ -259,43 +306,73 @@ private fun EventRow(event: EventEntity) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
-            modifier = GlanceModifier
-                .width(6.dp)
-                .height(6.dp)
-                .background(AccentGreen)
-                .cornerRadius(3.dp),
+            modifier = GlanceModifier.width(5.dp).height(5.dp)
+                .background(AccentGreen).cornerRadius(3.dp),
         ) {}
         Spacer(modifier = GlanceModifier.width(5.dp))
         val timePrefix = if (!event.isAllDay) extractTimePrefix(event.startDate) else ""
         val displayText = if (timePrefix.isNotEmpty()) "$timePrefix ${event.title}" else event.title
-        Text(text = displayText, style = TextStyle(color = FgPrimary, fontSize = 11.sp), maxLines = 1)
+        Text(text = displayText, style = TextStyle(color = FgPrimary, fontSize = 10.sp), maxLines = 1)
     }
 }
 
 @Composable
-private fun FinanceCard(monthExpense: Long, monthIncome: Long) {
+private fun FinanceCard(
+    monthExpense: Long,
+    monthIncome: Long,
+    dailyExpenses: List<Long>,
+    dailyIncomes: List<Long>,
+    modifier: GlanceModifier,
+) {
     Column(
-        modifier = GlanceModifier
-            .fillMaxWidth()
+        modifier = modifier
             .background(BgCard)
             .cornerRadius(10.dp)
-            .padding(horizontal = 8.dp, vertical = 4.dp),
+            .padding(horizontal = 8.dp, vertical = 6.dp),
     ) {
         SectionLabel("가계부")
         Row(modifier = GlanceModifier.fillMaxWidth()) {
             Column(modifier = GlanceModifier.defaultWeight()) {
-                Text("지출", style = TextStyle(color = FgSecondary, fontSize = 9.sp))
+                Text("지출", style = TextStyle(color = FgSecondary, fontSize = 8.sp))
                 Text(
                     text = "${formatAmount(monthExpense)}원",
-                    style = TextStyle(color = AccentRed, fontSize = 14.sp, fontWeight = FontWeight.Bold),
+                    style = TextStyle(color = AccentRed, fontSize = 13.sp, fontWeight = FontWeight.Bold),
                 )
+                Spacer(modifier = GlanceModifier.height(4.dp))
+                MiniBarChart(dailyExpenses, AccentRed)
             }
+            Spacer(modifier = GlanceModifier.width(6.dp))
             Column(modifier = GlanceModifier.defaultWeight()) {
-                Text("수입", style = TextStyle(color = FgSecondary, fontSize = 9.sp))
+                Text("수입", style = TextStyle(color = FgSecondary, fontSize = 8.sp))
                 Text(
                     text = "${formatAmount(monthIncome)}원",
-                    style = TextStyle(color = AccentGreen, fontSize = 14.sp, fontWeight = FontWeight.Bold),
+                    style = TextStyle(color = AccentGreen, fontSize = 13.sp, fontWeight = FontWeight.Bold),
                 )
+                Spacer(modifier = GlanceModifier.height(4.dp))
+                MiniBarChart(dailyIncomes, AccentGreen)
+            }
+        }
+    }
+}
+
+@Composable
+private fun MiniBarChart(values: List<Long>, color: ColorProvider) {
+    val displayValues = values.takeLast(20)
+    if (displayValues.isNotEmpty()) {
+        val maxVal = displayValues.maxOrNull()?.takeIf { it > 0 } ?: 1L
+        Row(modifier = GlanceModifier.fillMaxWidth().height(20.dp)) {
+            displayValues.forEach { v ->
+                val barDp = ((v.toFloat() / maxVal) * 16f).coerceAtLeast(1f).dp
+                Column(modifier = GlanceModifier.defaultWeight().height(20.dp)) {
+                    Spacer(modifier = GlanceModifier.defaultWeight())
+                    Box(
+                        modifier = GlanceModifier
+                            .fillMaxWidth()
+                            .height(barDp)
+                            .background(color)
+                            .cornerRadius(1.dp),
+                    ) {}
+                }
             }
         }
     }
@@ -306,58 +383,51 @@ private fun ReadingCard(
     todayReadingPlan: List<ReadingPlanEntity>,
     readCount: Int,
     totalCount: Int,
+    bitmap: Bitmap?,
+    modifier: GlanceModifier,
 ) {
     Column(
-        modifier = GlanceModifier
-            .fillMaxWidth()
+        modifier = modifier
             .background(BgCard)
             .cornerRadius(10.dp)
-            .padding(horizontal = 8.dp, vertical = 4.dp),
+            .padding(horizontal = 8.dp, vertical = 6.dp),
     ) {
-        val progressPct = if (totalCount > 0) ((readCount.toFloat() / totalCount) * 100).roundToInt() else 0
-        SectionLabel("통독", if (totalCount > 0) "$progressPct%" else "")
+        SectionLabel("통독")
         if (todayReadingPlan.isEmpty()) {
-            Text("통독 계획 없음", style = TextStyle(color = FgSecondary, fontSize = 10.sp))
+            Text("계획 없음", style = TextStyle(color = FgSecondary, fontSize = 10.sp))
         } else {
-            Row(
-                modifier = GlanceModifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
+            val pct = if (totalCount > 0) ((readCount.toFloat() / totalCount) * 100).roundToInt() else 0
+            Box(
+                modifier = GlanceModifier.fillMaxWidth().height(72.dp),
+                contentAlignment = Alignment.Center,
             ) {
-                Text(
-                    text = "$readCount/$totalCount 완료",
-                    style = TextStyle(color = FgPrimary, fontSize = 11.sp),
-                )
-                val firstUnread = todayReadingPlan.firstOrNull { !it.isRead }
-                if (firstUnread != null) {
-                    Spacer(modifier = GlanceModifier.defaultWeight())
-                    val bookName = if (firstUnread.book in 1..66) BOOK_NAMES[firstUnread.book] else "?"
+                if (bitmap != null) {
+                    Image(
+                        provider = ImageProvider(bitmap),
+                        contentDescription = null,
+                        modifier = GlanceModifier.width(64.dp).height(64.dp),
+                    )
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        text = "$bookName ${firstUnread.chapter}장",
-                        style = TextStyle(color = FgSecondary, fontSize = 9.sp),
+                        text = "$pct%",
+                        style = TextStyle(color = FgPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold),
+                    )
+                    Text(
+                        text = "$readCount/$totalCount",
+                        style = TextStyle(color = FgSecondary, fontSize = 8.sp),
                     )
                 }
             }
-            Spacer(modifier = GlanceModifier.height(4.dp))
-            SegmentProgressBar(
-                progress = if (totalCount > 0) readCount.toFloat() / totalCount else 0f,
-            )
-        }
-    }
-}
-
-@Composable
-private fun SegmentProgressBar(progress: Float) {
-    val filled = (progress * 10).roundToInt().coerceIn(0, 10)
-    Row(modifier = GlanceModifier.fillMaxWidth()) {
-        repeat(10) { i ->
-            Box(
-                modifier = GlanceModifier
-                    .defaultWeight()
-                    .height(4.dp)
-                    .padding(horizontal = 1.dp)
-                    .background(if (i < filled) AccentBlue else BgPrimary)
-                    .cornerRadius(2.dp),
-            ) {}
+            val firstUnread = todayReadingPlan.firstOrNull { !it.isRead }
+            if (firstUnread != null) {
+                val bookName = if (firstUnread.book in 1..66) BOOK_NAMES[firstUnread.book] else "?"
+                Spacer(modifier = GlanceModifier.height(2.dp))
+                Text(
+                    text = "$bookName ${firstUnread.chapter}장",
+                    style = TextStyle(color = FgSecondary, fontSize = 9.sp),
+                )
+            }
         }
     }
 }
