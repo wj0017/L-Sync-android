@@ -9,6 +9,7 @@ import com.lsync.app.data.repository.ReadingPlanRepository
 import com.lsync.app.data.repository.ReadingPlanSettings
 import com.lsync.app.data.repository.TodoRepository
 import com.lsync.app.ui.schedule.ScheduleItem
+import com.lsync.app.ui.widget.WidgetRefreshHelper
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -54,6 +55,7 @@ class HomeViewModel @Inject constructor(
     private val todoRepository: TodoRepository,
     private val financeRepository: FinanceRepository,
     private val readingPlanRepository: ReadingPlanRepository,
+    private val widgetRefreshHelper: WidgetRefreshHelper,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -151,6 +153,7 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             readingPlanRepository.resetFromToday()
             observeReadingPlan(today)
+            widgetRefreshHelper.requestUpdate()
         }
         _uiState.update { it.copy(showSetupSheet = false) }
     }
@@ -160,6 +163,7 @@ class HomeViewModel @Inject constructor(
     fun markChapterRead(book: Int, chapter: Int, isRead: Boolean) {
         viewModelScope.launch {
             readingPlanRepository.markRead(LocalDate.now().toString(), book, chapter, isRead)
+            widgetRefreshHelper.requestUpdate()
         }
     }
 

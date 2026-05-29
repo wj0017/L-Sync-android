@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.lsync.app.data.local.FinanceCategory
 import com.lsync.app.data.local.entity.FinanceEntity
 import com.lsync.app.data.repository.FinanceRepository
+import com.lsync.app.ui.widget.WidgetRefreshHelper
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
@@ -96,6 +97,7 @@ data class FinanceUiState(
 @HiltViewModel
 class FinanceViewModel @Inject constructor(
     private val repository: FinanceRepository,
+    private val widgetRefreshHelper: WidgetRefreshHelper,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(FinanceUiState())
@@ -238,6 +240,7 @@ class FinanceViewModel @Inject constructor(
                 }
             }.onSuccess {
                 closeForm()
+                widgetRefreshHelper.requestUpdate()
             }.onFailure { e ->
                 _formState.update { it.copy(isSaving = false, errorMessage = e.message) }
             }
@@ -248,6 +251,8 @@ class FinanceViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching {
                 repository.delete(id)
+            }.onSuccess {
+                widgetRefreshHelper.requestUpdate()
             }.onFailure { e ->
                 android.util.Log.w("FinanceViewModel", "deleteTransaction failed: ${e.message}")
             }
@@ -294,6 +299,7 @@ class FinanceViewModel @Inject constructor(
                 repository.addReimbursement(form.groupId, amountLong, form.date, form.note.ifBlank { null })
             }.onSuccess {
                 _reimbursementForm.value = ReimbursementFormState()
+                widgetRefreshHelper.requestUpdate()
             }.onFailure { e ->
                 _reimbursementForm.update { it.copy(isSaving = false, errorMessage = e.message) }
             }
@@ -318,6 +324,7 @@ class FinanceViewModel @Inject constructor(
             runCatching { repository.linkToSettlement(incomeId, groupId) }
                 .onSuccess {
                     _linkSettlement.value = LinkSettlementState()
+                    widgetRefreshHelper.requestUpdate()
                 }
         }
     }

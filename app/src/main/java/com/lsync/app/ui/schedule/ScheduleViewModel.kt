@@ -7,6 +7,7 @@ import com.lsync.app.data.local.entity.TodoEntity
 import com.lsync.app.data.repository.AuthRepository
 import com.lsync.app.data.repository.EventRepository
 import com.lsync.app.data.repository.TodoRepository
+import com.lsync.app.ui.widget.WidgetRefreshHelper
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
@@ -39,6 +40,7 @@ class ScheduleViewModel @Inject constructor(
     private val eventRepository: EventRepository,
     private val todoRepository: TodoRepository,
     private val authRepository: AuthRepository,
+    private val widgetRefreshHelper: WidgetRefreshHelper,
 ) : ViewModel() {
     private val currentUserId: String
         get() = authRepository.currentUserId ?: error("User not signed in")
@@ -136,11 +138,11 @@ class ScheduleViewModel @Inject constructor(
                     hasAlarm = hasAlarm,
                 )
             }.onFailure { e -> _uiState.update { it.copy(error = e.message, isLoading = false) } }
-             .onSuccess { _uiState.update { it.copy(isLoading = false) } }
+             .onSuccess { _uiState.update { it.copy(isLoading = false) }; widgetRefreshHelper.requestUpdate() }
         }
     }
 
-    fun deleteEvent(id: String) = viewModelScope.launch { eventRepository.delete(id) }
+    fun deleteEvent(id: String) = viewModelScope.launch { eventRepository.delete(id); widgetRefreshHelper.requestUpdate() }
 
     // ── 투두 CRUD ─────────────────────────────────────────────────────────────
 
@@ -163,7 +165,8 @@ class ScheduleViewModel @Inject constructor(
                     financeCategory = financeCategory,
                     financeAmount = financeAmount,
                 )
-            }.onFailure { e -> _uiState.update { it.copy(error = e.message) } }
+            }.onSuccess { widgetRefreshHelper.requestUpdate() }
+             .onFailure { e -> _uiState.update { it.copy(error = e.message) } }
         }
     }
 
@@ -171,11 +174,13 @@ class ScheduleViewModel @Inject constructor(
         viewModelScope.launch {
             if (todo.isCompleted) {
                 todoRepository.uncheck(todo)
+                widgetRefreshHelper.requestUpdate()
             } else {
                 if (todo.financeIsLinked && todo.financeAmount == null) {
                     _uiState.update { it.copy(pendingFinanceTodo = todo) }
                 } else {
                     todoRepository.complete(todo)
+                        .onSuccess { widgetRefreshHelper.requestUpdate() }
                         .onFailure { e -> _uiState.update { it.copy(error = e.message) } }
                 }
             }
@@ -186,6 +191,7 @@ class ScheduleViewModel @Inject constructor(
         val todo = _uiState.value.pendingFinanceTodo ?: return
         viewModelScope.launch {
             todoRepository.complete(todo, amount)
+                .onSuccess { widgetRefreshHelper.requestUpdate() }
                 .onFailure { e -> _uiState.update { it.copy(error = e.message) } }
             _uiState.update { it.copy(pendingFinanceTodo = null) }
         }
@@ -193,7 +199,7 @@ class ScheduleViewModel @Inject constructor(
 
     fun dismissFinancePopup() = _uiState.update { it.copy(pendingFinanceTodo = null) }
 
-    fun deleteTodo(todo: TodoEntity) = viewModelScope.launch { todoRepository.delete(todo) }
+    fun deleteTodo(todo: TodoEntity) = viewModelScope.launch { todoRepository.delete(todo); widgetRefreshHelper.requestUpdate() }
 
     fun clearError() = _uiState.update { it.copy(error = null) }
 }
