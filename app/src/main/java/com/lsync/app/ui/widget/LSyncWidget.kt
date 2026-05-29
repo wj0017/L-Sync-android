@@ -41,12 +41,14 @@ import kotlin.math.roundToInt
 
 private val BgPrimary     = ColorProvider(Color(0xFF0A0A0A))
 private val BgCard        = ColorProvider(Color(0xFF161616))
+private val BgCardBorder  = ColorProvider(Color(0xFF2A2A2A))
 private val FgPrimary     = ColorProvider(Color(0xFFF5F5F5))
 private val FgSecondary   = ColorProvider(Color(0x99F5F5F5))
+private val FgTertiary    = ColorProvider(Color(0x55F5F5F5))
 private val AccentBlue    = ColorProvider(Color(0xFF4F7EFF))
 private val AccentGreen   = ColorProvider(Color(0xFF43A047))
 private val AccentRed     = ColorProvider(Color(0xFFE53935))
-private val HairlineWhite = ColorProvider(Color(0x09FFFFFF))
+private val HairlineWhite = ColorProvider(Color(0x14FFFFFF))
 
 private val BOOK_NAMES = arrayOf(
     "",
@@ -82,7 +84,7 @@ private fun createProgressBitmap(progress: Float): Bitmap {
     val size = 200
     val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bitmap)
-    val strokeWidth = size * 0.11f
+    val strokeWidth = size * 0.13f
     val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
         this.strokeWidth = strokeWidth
@@ -90,7 +92,7 @@ private fun createProgressBitmap(progress: Float): Bitmap {
     }
     val inset = strokeWidth / 2f
     val rect = RectF(inset, inset, size - inset, size - inset)
-    paint.color = 0x33FFFFFF.toInt()
+    paint.color = 0x20FFFFFF.toInt()
     canvas.drawArc(rect, 135f, 270f, false, paint)
     if (progress > 0f) {
         paint.color = 0xFF4F7EFF.toInt()
@@ -178,18 +180,18 @@ class LSyncWidget : GlanceAppWidget() {
 @Composable
 fun WidgetContent(state: WidgetState) {
     Box(
-        modifier = GlanceModifier.fillMaxSize().background(BgPrimary).padding(10.dp),
+        modifier = GlanceModifier.fillMaxSize().background(BgPrimary).padding(12.dp),
         contentAlignment = Alignment.TopStart,
     ) {
         Column(modifier = GlanceModifier.fillMaxWidth()) {
             WidgetHeader(state.dateLabel)
-            Spacer(modifier = GlanceModifier.height(8.dp))
+            Spacer(modifier = GlanceModifier.height(10.dp))
             Row(modifier = GlanceModifier.fillMaxWidth()) {
                 TodoCard(state.todos, GlanceModifier.defaultWeight())
-                Spacer(modifier = GlanceModifier.width(6.dp))
+                Spacer(modifier = GlanceModifier.width(8.dp))
                 EventCard(state.events, GlanceModifier.defaultWeight())
             }
-            Spacer(modifier = GlanceModifier.height(6.dp))
+            Spacer(modifier = GlanceModifier.height(8.dp))
             Row(modifier = GlanceModifier.fillMaxWidth()) {
                 FinanceCard(
                     monthExpense = state.monthExpense,
@@ -198,7 +200,7 @@ fun WidgetContent(state: WidgetState) {
                     dailyIncomes = state.dailyIncomes,
                     modifier = GlanceModifier.defaultWeight(),
                 )
-                Spacer(modifier = GlanceModifier.width(6.dp))
+                Spacer(modifier = GlanceModifier.width(8.dp))
                 ReadingCard(
                     todayReadingPlan = state.todayReadingPlan,
                     readCount = state.readCount,
@@ -219,7 +221,7 @@ private fun WidgetHeader(dateLabel: String) {
     ) {
         Text(
             text = "L·SYNC",
-            style = TextStyle(color = AccentBlue, fontSize = 13.sp, fontWeight = FontWeight.Bold),
+            style = TextStyle(color = AccentBlue, fontSize = 15.sp, fontWeight = FontWeight.Bold),
         )
         if (dateLabel.isNotEmpty()) {
             Spacer(modifier = GlanceModifier.defaultWeight())
@@ -234,31 +236,34 @@ private fun SectionLabel(label: String, trailing: String = "") {
         modifier = GlanceModifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(text = label, style = TextStyle(color = AccentBlue, fontSize = 9.sp))
+        Text(text = label, style = TextStyle(color = AccentBlue, fontSize = 8.sp, fontWeight = FontWeight.Bold))
         if (trailing.isNotEmpty()) {
             Spacer(modifier = GlanceModifier.defaultWeight())
-            Text(text = trailing, style = TextStyle(color = FgSecondary, fontSize = 9.sp))
+            Text(text = trailing, style = TextStyle(color = FgTertiary, fontSize = 8.sp))
         }
     }
     Box(modifier = GlanceModifier.fillMaxWidth().height(1.dp).background(HairlineWhite)) {}
-    Spacer(modifier = GlanceModifier.height(3.dp))
+    Spacer(modifier = GlanceModifier.height(4.dp))
 }
 
 @Composable
 private fun TodoCard(todos: List<TodoEntity>, modifier: GlanceModifier) {
     Column(
-        modifier = modifier
-            .background(BgCard)
-            .cornerRadius(10.dp)
-            .padding(horizontal = 8.dp, vertical = 6.dp),
+        modifier = modifier.background(BgCardBorder).cornerRadius(12.dp).padding(1.dp),
     ) {
-        SectionLabel("To-Do", if (todos.isEmpty()) "" else "${todos.size}개")
-        if (todos.isEmpty()) {
-            Text("할 일 없음", style = TextStyle(color = FgSecondary, fontSize = 10.sp))
-        } else {
-            todos.take(3).forEach { todo -> TodoRow(todo.title) }
-            if (todos.size > 3) {
-                Text("+${todos.size - 3}개 더", style = TextStyle(color = FgSecondary, fontSize = 8.sp))
+        Column(
+            modifier = GlanceModifier.fillMaxWidth().background(BgCard).cornerRadius(11.dp)
+                .padding(horizontal = 8.dp, vertical = 7.dp),
+        ) {
+            SectionLabel("TO-DO", if (todos.isEmpty()) "" else "${todos.size}개")
+            if (todos.isEmpty()) {
+                Text("없음", style = TextStyle(color = FgTertiary, fontSize = 10.sp))
+            } else {
+                todos.take(3).forEach { todo -> TodoRow(todo.title) }
+                if (todos.size > 3) {
+                    Spacer(modifier = GlanceModifier.height(1.dp))
+                    Text("+${todos.size - 3}개", style = TextStyle(color = FgTertiary, fontSize = 8.sp))
+                }
             }
         }
     }
@@ -267,33 +272,36 @@ private fun TodoCard(todos: List<TodoEntity>, modifier: GlanceModifier) {
 @Composable
 private fun TodoRow(title: String) {
     Row(
-        modifier = GlanceModifier.fillMaxWidth().padding(vertical = 1.dp),
+        modifier = GlanceModifier.fillMaxWidth().padding(vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             modifier = GlanceModifier.width(5.dp).height(5.dp)
                 .background(AccentBlue).cornerRadius(3.dp),
         ) {}
-        Spacer(modifier = GlanceModifier.width(5.dp))
-        Text(text = title, style = TextStyle(color = FgPrimary, fontSize = 10.sp), maxLines = 1)
+        Spacer(modifier = GlanceModifier.width(6.dp))
+        Text(text = title, style = TextStyle(color = FgPrimary, fontSize = 11.sp), maxLines = 1)
     }
 }
 
 @Composable
 private fun EventCard(events: List<EventEntity>, modifier: GlanceModifier) {
     Column(
-        modifier = modifier
-            .background(BgCard)
-            .cornerRadius(10.dp)
-            .padding(horizontal = 8.dp, vertical = 6.dp),
+        modifier = modifier.background(BgCardBorder).cornerRadius(12.dp).padding(1.dp),
     ) {
-        SectionLabel("Schedule", if (events.isEmpty()) "" else "${events.size}개")
-        if (events.isEmpty()) {
-            Text("일정 없음", style = TextStyle(color = FgSecondary, fontSize = 10.sp))
-        } else {
-            events.take(3).forEach { event -> EventRow(event) }
-            if (events.size > 3) {
-                Text("+${events.size - 3}개 더", style = TextStyle(color = FgSecondary, fontSize = 8.sp))
+        Column(
+            modifier = GlanceModifier.fillMaxWidth().background(BgCard).cornerRadius(11.dp)
+                .padding(horizontal = 8.dp, vertical = 7.dp),
+        ) {
+            SectionLabel("SCHEDULE", if (events.isEmpty()) "" else "${events.size}개")
+            if (events.isEmpty()) {
+                Text("없음", style = TextStyle(color = FgTertiary, fontSize = 10.sp))
+            } else {
+                events.take(3).forEach { event -> EventRow(event) }
+                if (events.size > 3) {
+                    Spacer(modifier = GlanceModifier.height(1.dp))
+                    Text("+${events.size - 3}개", style = TextStyle(color = FgTertiary, fontSize = 8.sp))
+                }
             }
         }
     }
@@ -302,17 +310,17 @@ private fun EventCard(events: List<EventEntity>, modifier: GlanceModifier) {
 @Composable
 private fun EventRow(event: EventEntity) {
     Row(
-        modifier = GlanceModifier.fillMaxWidth().padding(vertical = 1.dp),
+        modifier = GlanceModifier.fillMaxWidth().padding(vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             modifier = GlanceModifier.width(5.dp).height(5.dp)
                 .background(AccentGreen).cornerRadius(3.dp),
         ) {}
-        Spacer(modifier = GlanceModifier.width(5.dp))
+        Spacer(modifier = GlanceModifier.width(6.dp))
         val timePrefix = if (!event.isAllDay) extractTimePrefix(event.startDate) else ""
         val displayText = if (timePrefix.isNotEmpty()) "$timePrefix ${event.title}" else event.title
-        Text(text = displayText, style = TextStyle(color = FgPrimary, fontSize = 10.sp), maxLines = 1)
+        Text(text = displayText, style = TextStyle(color = FgPrimary, fontSize = 11.sp), maxLines = 1)
     }
 }
 
@@ -325,31 +333,33 @@ private fun FinanceCard(
     modifier: GlanceModifier,
 ) {
     Column(
-        modifier = modifier
-            .background(BgCard)
-            .cornerRadius(10.dp)
-            .padding(horizontal = 8.dp, vertical = 6.dp),
+        modifier = modifier.background(BgCardBorder).cornerRadius(12.dp).padding(1.dp),
     ) {
-        SectionLabel("가계부")
-        Row(modifier = GlanceModifier.fillMaxWidth()) {
-            Column(modifier = GlanceModifier.defaultWeight()) {
-                Text("지출", style = TextStyle(color = FgSecondary, fontSize = 8.sp))
-                Text(
-                    text = "${formatAmount(monthExpense)}원",
-                    style = TextStyle(color = AccentRed, fontSize = 13.sp, fontWeight = FontWeight.Bold),
-                )
-                Spacer(modifier = GlanceModifier.height(4.dp))
-                MiniBarChart(dailyExpenses, AccentRed)
-            }
-            Spacer(modifier = GlanceModifier.width(6.dp))
-            Column(modifier = GlanceModifier.defaultWeight()) {
-                Text("수입", style = TextStyle(color = FgSecondary, fontSize = 8.sp))
-                Text(
-                    text = "${formatAmount(monthIncome)}원",
-                    style = TextStyle(color = AccentGreen, fontSize = 13.sp, fontWeight = FontWeight.Bold),
-                )
-                Spacer(modifier = GlanceModifier.height(4.dp))
-                MiniBarChart(dailyIncomes, AccentGreen)
+        Column(
+            modifier = GlanceModifier.fillMaxWidth().background(BgCard).cornerRadius(11.dp)
+                .padding(horizontal = 8.dp, vertical = 7.dp),
+        ) {
+            SectionLabel("가계부")
+            Row(modifier = GlanceModifier.fillMaxWidth()) {
+                Column(modifier = GlanceModifier.defaultWeight()) {
+                    Text("지출", style = TextStyle(color = FgTertiary, fontSize = 7.sp))
+                    Text(
+                        text = "${formatAmount(monthExpense)}원",
+                        style = TextStyle(color = AccentRed, fontSize = 15.sp, fontWeight = FontWeight.Bold),
+                    )
+                    Spacer(modifier = GlanceModifier.height(5.dp))
+                    MiniBarChart(dailyExpenses, AccentRed)
+                }
+                Spacer(modifier = GlanceModifier.width(6.dp))
+                Column(modifier = GlanceModifier.defaultWeight()) {
+                    Text("수입", style = TextStyle(color = FgTertiary, fontSize = 7.sp))
+                    Text(
+                        text = "${formatAmount(monthIncome)}원",
+                        style = TextStyle(color = AccentGreen, fontSize = 15.sp, fontWeight = FontWeight.Bold),
+                    )
+                    Spacer(modifier = GlanceModifier.height(5.dp))
+                    MiniBarChart(dailyIncomes, AccentGreen)
+                }
             }
         }
     }
@@ -360,10 +370,10 @@ private fun MiniBarChart(values: List<Long>, color: ColorProvider) {
     val displayValues = values.takeLast(20)
     if (displayValues.isNotEmpty()) {
         val maxVal = displayValues.maxOrNull()?.takeIf { it > 0 } ?: 1L
-        Row(modifier = GlanceModifier.fillMaxWidth().height(20.dp)) {
+        Row(modifier = GlanceModifier.fillMaxWidth().height(22.dp)) {
             displayValues.forEach { v ->
-                val barDp = ((v.toFloat() / maxVal) * 16f).coerceAtLeast(1f).dp
-                Column(modifier = GlanceModifier.defaultWeight().height(20.dp)) {
+                val barDp = ((v.toFloat() / maxVal) * 18f).coerceAtLeast(1f).dp
+                Column(modifier = GlanceModifier.defaultWeight().height(22.dp)) {
                     Spacer(modifier = GlanceModifier.defaultWeight())
                     Box(
                         modifier = GlanceModifier
@@ -387,46 +397,48 @@ private fun ReadingCard(
     modifier: GlanceModifier,
 ) {
     Column(
-        modifier = modifier
-            .background(BgCard)
-            .cornerRadius(10.dp)
-            .padding(horizontal = 8.dp, vertical = 6.dp),
+        modifier = modifier.background(BgCardBorder).cornerRadius(12.dp).padding(1.dp),
     ) {
-        SectionLabel("통독")
-        if (todayReadingPlan.isEmpty()) {
-            Text("계획 없음", style = TextStyle(color = FgSecondary, fontSize = 10.sp))
-        } else {
-            val pct = if (totalCount > 0) ((readCount.toFloat() / totalCount) * 100).roundToInt() else 0
-            Box(
-                modifier = GlanceModifier.fillMaxWidth().height(72.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                if (bitmap != null) {
-                    Image(
-                        provider = ImageProvider(bitmap),
-                        contentDescription = null,
-                        modifier = GlanceModifier.width(64.dp).height(64.dp),
+        Column(
+            modifier = GlanceModifier.fillMaxWidth().background(BgCard).cornerRadius(11.dp)
+                .padding(horizontal = 8.dp, vertical = 7.dp),
+        ) {
+            SectionLabel("통독")
+            if (todayReadingPlan.isEmpty()) {
+                Text("계획 없음", style = TextStyle(color = FgTertiary, fontSize = 10.sp))
+            } else {
+                val pct = if (totalCount > 0) ((readCount.toFloat() / totalCount) * 100).roundToInt() else 0
+                Box(
+                    modifier = GlanceModifier.fillMaxWidth().height(76.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (bitmap != null) {
+                        Image(
+                            provider = ImageProvider(bitmap),
+                            contentDescription = null,
+                            modifier = GlanceModifier.width(68.dp).height(68.dp),
+                        )
+                    }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "$pct%",
+                            style = TextStyle(color = FgPrimary, fontSize = 21.sp, fontWeight = FontWeight.Bold),
+                        )
+                        Text(
+                            text = "$readCount / $totalCount",
+                            style = TextStyle(color = FgSecondary, fontSize = 8.sp),
+                        )
+                    }
+                }
+                val firstUnread = todayReadingPlan.firstOrNull { !it.isRead }
+                if (firstUnread != null) {
+                    val bookName = if (firstUnread.book in 1..66) BOOK_NAMES[firstUnread.book] else "?"
+                    Spacer(modifier = GlanceModifier.height(2.dp))
+                    Text(
+                        text = "$bookName ${firstUnread.chapter}장",
+                        style = TextStyle(color = FgSecondary, fontSize = 9.sp),
                     )
                 }
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = "$pct%",
-                        style = TextStyle(color = FgPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold),
-                    )
-                    Text(
-                        text = "$readCount/$totalCount",
-                        style = TextStyle(color = FgSecondary, fontSize = 8.sp),
-                    )
-                }
-            }
-            val firstUnread = todayReadingPlan.firstOrNull { !it.isRead }
-            if (firstUnread != null) {
-                val bookName = if (firstUnread.book in 1..66) BOOK_NAMES[firstUnread.book] else "?"
-                Spacer(modifier = GlanceModifier.height(2.dp))
-                Text(
-                    text = "$bookName ${firstUnread.chapter}장",
-                    style = TextStyle(color = FgSecondary, fontSize = 9.sp),
-                )
             }
         }
     }
