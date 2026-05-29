@@ -370,10 +370,10 @@ private fun MiniBarChart(values: List<Long>, color: ColorProvider) {
     val displayValues = values.takeLast(20)
     if (displayValues.isNotEmpty()) {
         val maxVal = displayValues.maxOrNull()?.takeIf { it > 0 } ?: 1L
-        Row(modifier = GlanceModifier.fillMaxWidth().height(22.dp)) {
+        Row(modifier = GlanceModifier.fillMaxWidth().height(38.dp)) {
             displayValues.forEach { v ->
-                val barDp = ((v.toFloat() / maxVal) * 18f).coerceAtLeast(1f).dp
-                Column(modifier = GlanceModifier.defaultWeight().height(22.dp)) {
+                val barDp = ((v.toFloat() / maxVal) * 32f).coerceAtLeast(1f).dp
+                Column(modifier = GlanceModifier.defaultWeight().height(38.dp)) {
                     Spacer(modifier = GlanceModifier.defaultWeight())
                     Box(
                         modifier = GlanceModifier
@@ -403,20 +403,23 @@ private fun ReadingCard(
             modifier = GlanceModifier.fillMaxWidth().background(BgCard).cornerRadius(11.dp)
                 .padding(horizontal = 8.dp, vertical = 7.dp),
         ) {
-            SectionLabel("통독")
+            val firstUnread = todayReadingPlan.firstOrNull { !it.isRead }
+            val chapterTrailing = if (firstUnread != null && firstUnread.book in 1..66)
+                "${BOOK_NAMES[firstUnread.book]} ${firstUnread.chapter}장" else ""
+            SectionLabel("통독", chapterTrailing)
             if (todayReadingPlan.isEmpty()) {
                 Text("계획 없음", style = TextStyle(color = FgTertiary, fontSize = 10.sp))
             } else {
                 val pct = if (totalCount > 0) ((readCount.toFloat() / totalCount) * 100).roundToInt() else 0
                 Box(
-                    modifier = GlanceModifier.fillMaxWidth().height(76.dp),
+                    modifier = GlanceModifier.fillMaxWidth().height(72.dp),
                     contentAlignment = Alignment.Center,
                 ) {
                     if (bitmap != null) {
                         Image(
                             provider = ImageProvider(bitmap),
                             contentDescription = null,
-                            modifier = GlanceModifier.width(68.dp).height(68.dp),
+                            modifier = GlanceModifier.width(64.dp).height(64.dp),
                         )
                     }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -429,15 +432,6 @@ private fun ReadingCard(
                             style = TextStyle(color = FgSecondary, fontSize = 8.sp),
                         )
                     }
-                }
-                val firstUnread = todayReadingPlan.firstOrNull { !it.isRead }
-                if (firstUnread != null) {
-                    val bookName = if (firstUnread.book in 1..66) BOOK_NAMES[firstUnread.book] else "?"
-                    Spacer(modifier = GlanceModifier.height(2.dp))
-                    Text(
-                        text = "$bookName ${firstUnread.chapter}장",
-                        style = TextStyle(color = FgSecondary, fontSize = 9.sp),
-                    )
                 }
             }
         }
