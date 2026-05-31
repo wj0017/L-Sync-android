@@ -16,6 +16,7 @@ import androidx.glance.layout.Box
 import androidx.glance.layout.Column
 import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
+import androidx.glance.layout.fillMaxHeight
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
@@ -154,7 +155,7 @@ fun WidgetContent(state: WidgetState) {
     ) {
         Column(modifier = GlanceModifier.fillMaxWidth()) {
             WidgetHeader(state.dateLabel)
-            Spacer(modifier = GlanceModifier.height(10.dp))
+            Spacer(modifier = GlanceModifier.height(18.dp))
             Row(modifier = GlanceModifier.fillMaxWidth()) {
                 TodoCard(state.todos, GlanceModifier.defaultWeight())
                 Spacer(modifier = GlanceModifier.width(8.dp))
@@ -217,10 +218,10 @@ private fun SectionLabel(label: String, trailing: String = "") {
 @Composable
 private fun TodoCard(todos: List<TodoEntity>, modifier: GlanceModifier) {
     Column(
-        modifier = modifier.background(BgCardBorder).cornerRadius(12.dp).padding(1.dp),
+        modifier = modifier.fillMaxHeight().background(BgCardBorder).cornerRadius(12.dp).padding(1.dp),
     ) {
         Column(
-            modifier = GlanceModifier.fillMaxWidth().background(BgCard).cornerRadius(11.dp)
+            modifier = GlanceModifier.fillMaxWidth().fillMaxHeight().background(BgCard).cornerRadius(11.dp)
                 .padding(horizontal = 8.dp, vertical = 7.dp),
         ) {
             SectionLabel("TO-DO", if (todos.isEmpty()) "" else "${todos.size}개")
@@ -255,10 +256,10 @@ private fun TodoRow(title: String) {
 @Composable
 private fun EventCard(events: List<EventEntity>, modifier: GlanceModifier) {
     Column(
-        modifier = modifier.background(BgCardBorder).cornerRadius(12.dp).padding(1.dp),
+        modifier = modifier.fillMaxHeight().background(BgCardBorder).cornerRadius(12.dp).padding(1.dp),
     ) {
         Column(
-            modifier = GlanceModifier.fillMaxWidth().background(BgCard).cornerRadius(11.dp)
+            modifier = GlanceModifier.fillMaxWidth().fillMaxHeight().background(BgCard).cornerRadius(11.dp)
                 .padding(horizontal = 8.dp, vertical = 7.dp),
         ) {
             SectionLabel("SCHEDULE", if (events.isEmpty()) "" else "${events.size}개")
@@ -301,10 +302,10 @@ private fun FinanceCard(
     modifier: GlanceModifier,
 ) {
     Column(
-        modifier = modifier.background(BgCardBorder).cornerRadius(12.dp).padding(1.dp),
+        modifier = modifier.fillMaxHeight().background(BgCardBorder).cornerRadius(12.dp).padding(1.dp),
     ) {
         Column(
-            modifier = GlanceModifier.fillMaxWidth().background(BgCard).cornerRadius(11.dp)
+            modifier = GlanceModifier.fillMaxWidth().fillMaxHeight().background(BgCard).cornerRadius(11.dp)
                 .padding(horizontal = 8.dp, vertical = 7.dp),
         ) {
             SectionLabel("가계부")
@@ -364,10 +365,10 @@ private fun ReadingCard(
     modifier: GlanceModifier,
 ) {
     Column(
-        modifier = modifier.background(BgCardBorder).cornerRadius(12.dp).padding(1.dp),
+        modifier = modifier.fillMaxHeight().background(BgCardBorder).cornerRadius(12.dp).padding(1.dp),
     ) {
         Column(
-            modifier = GlanceModifier.fillMaxWidth().background(BgCard).cornerRadius(11.dp)
+            modifier = GlanceModifier.fillMaxWidth().fillMaxHeight().background(BgCard).cornerRadius(11.dp)
                 .padding(horizontal = 8.dp, vertical = 7.dp),
         ) {
             val trailing = if (totalCount > 0) "$readCount/$totalCount" else ""
