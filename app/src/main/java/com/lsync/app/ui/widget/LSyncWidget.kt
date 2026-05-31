@@ -1,18 +1,12 @@
 package com.lsync.app.ui.widget
 
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.Paint
-import android.graphics.RectF
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
-import androidx.glance.Image
-import androidx.glance.ImageProvider
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
@@ -37,7 +31,6 @@ import com.lsync.app.data.local.entity.TodoEntity
 import dagger.hilt.android.EntryPointAccessors
 import java.time.DayOfWeek
 import java.time.LocalDate
-import kotlin.math.roundToInt
 
 private val BgPrimary     = ColorProvider(Color(0xFF0A0A0A))
 private val BgCard        = ColorProvider(Color(0xFF161616))
@@ -80,26 +73,6 @@ private fun extractTimePrefix(startDate: String): String {
     }
 }
 
-private fun createProgressBitmap(progress: Float): Bitmap {
-    val size = 200
-    val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-    val canvas = Canvas(bitmap)
-    val strokeWidth = size * 0.13f
-    val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        style = Paint.Style.STROKE
-        this.strokeWidth = strokeWidth
-        strokeCap = Paint.Cap.ROUND
-    }
-    val inset = strokeWidth / 2f
-    val rect = RectF(inset, inset, size - inset, size - inset)
-    paint.color = 0x20FFFFFF.toInt()
-    canvas.drawArc(rect, 135f, 270f, false, paint)
-    if (progress > 0f) {
-        paint.color = 0xFF4F7EFF.toInt()
-        canvas.drawArc(rect, 135f, 270f * progress.coerceIn(0f, 1f), false, paint)
-    }
-    return bitmap
-}
 
 class LSyncWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
@@ -158,9 +131,6 @@ class LSyncWidget : GlanceAppWidget() {
         }
         val dateLabel = "${today.monthValue}월 ${today.dayOfMonth}일 ($dayOfWeek)"
 
-        val readingProgress = if (totalCount > 0) readCount.toFloat() / totalCount else 0f
-        val circularProgressBitmap = createProgressBitmap(readingProgress)
-
         return WidgetState(
             todos = todos,
             events = events,
@@ -172,7 +142,6 @@ class LSyncWidget : GlanceAppWidget() {
             readCount = readCount,
             totalCount = totalCount,
             dateLabel = dateLabel,
-            circularProgressBitmap = circularProgressBitmap,
         )
     }
 }
@@ -205,7 +174,6 @@ fun WidgetContent(state: WidgetState) {
                     todayReadingPlan = state.todayReadingPlan,
                     readCount = state.readCount,
                     totalCount = state.totalCount,
-                    bitmap = state.circularProgressBitmap,
                     modifier = GlanceModifier.defaultWeight(),
                 )
             }
@@ -393,7 +361,6 @@ private fun ReadingCard(
     todayReadingPlan: List<ReadingPlanEntity>,
     readCount: Int,
     totalCount: Int,
-    bitmap: Bitmap?,
     modifier: GlanceModifier,
 ) {
     Column(
@@ -403,37 +370,39 @@ private fun ReadingCard(
             modifier = GlanceModifier.fillMaxWidth().background(BgCard).cornerRadius(11.dp)
                 .padding(horizontal = 8.dp, vertical = 7.dp),
         ) {
-            val firstUnread = todayReadingPlan.firstOrNull { !it.isRead }
-            val chapterTrailing = if (firstUnread != null && firstUnread.book in 1..66)
-                "${BOOK_NAMES[firstUnread.book]} ${firstUnread.chapter}장" else ""
-            SectionLabel("통독", chapterTrailing)
+            val trailing = if (totalCount > 0) "$readCount/$totalCount" else ""
+            SectionLabel("통독", trailing)
             if (todayReadingPlan.isEmpty()) {
                 Text("계획 없음", style = TextStyle(color = FgSecondary, fontSize = 10.sp))
             } else {
-                val pct = if (totalCount > 0) ((readCount.toFloat() / totalCount) * 100).roundToInt() else 0
-                Box(
-                    modifier = GlanceModifier.fillMaxWidth().height(72.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    if (bitmap != null) {
-                        Image(
-                            provider = ImageProvider(bitmap),
-                            contentDescription = null,
-                            modifier = GlanceModifier.width(64.dp).height(64.dp),
-                        )
-                    }
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = "$pct%",
-                            style = TextStyle(color = FgPrimary, fontSize = 21.sp, fontWeight = FontWeight.Bold),
-                        )
-                        Text(
-                            text = "$readCount / $totalCount",
-                            style = TextStyle(color = FgSecondary, fontSize = 9.sp),
-                        )
-                    }
+                todayReadingPlan.take(5).forEach { entry -> ReadingRow(entry) }
+                if (todayReadingPlan.size > 5) {
+                    Spacer(modifier = GlanceModifier.height(1.dp))
+                    Text("+${todayReadingPlan.size - 5}개", style = TextStyle(color = FgTertiary, fontSize = 8.sp))
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ReadingRow(entry: ReadingPlanEntity) {
+    Row(
+        modifier = GlanceModifier.fillMaxWidth().padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        val dotColor = if (entry.isRead) FgTertiary else AccentBlue
+        val textColor = if (entry.isRead) FgTertiary else FgPrimary
+        Box(
+            modifier = GlanceModifier.width(5.dp).height(5.dp)
+                .background(dotColor).cornerRadius(3.dp),
+        ) {}
+        Spacer(modifier = GlanceModifier.width(6.dp))
+        val bookName = if (entry.book in 1..66) BOOK_NAMES[entry.book] else "?"
+        Text(
+            text = "$bookName ${entry.chapter}장",
+            style = TextStyle(color = textColor, fontSize = 11.sp),
+            maxLines = 1,
+        )
     }
 }

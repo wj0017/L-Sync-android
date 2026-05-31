@@ -1,6 +1,5 @@
 package com.lsync.app.ui.widget
 
-import android.graphics.Bitmap
 import com.lsync.app.data.local.entity.EventEntity
 import com.lsync.app.data.local.entity.ReadingPlanEntity
 import com.lsync.app.data.local.entity.TodoEntity
@@ -16,7 +15,6 @@ data class WidgetState(
     val readCount: Int,
     val totalCount: Int,
     val dateLabel: String,
-    val circularProgressBitmap: Bitmap?,
 ) {
     companion object {
         fun empty() = WidgetState(
@@ -30,7 +28,6 @@ data class WidgetState(
             readCount = 0,
             totalCount = 0,
             dateLabel = "",
-            circularProgressBitmap = null,
         )
     }
 }
