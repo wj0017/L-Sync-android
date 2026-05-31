@@ -162,7 +162,7 @@ fun WidgetContent(state: WidgetState) {
                 EventCard(state.events, GlanceModifier.defaultWeight())
             }
             Spacer(modifier = GlanceModifier.height(8.dp))
-            Row(modifier = GlanceModifier.fillMaxWidth()) {
+            Row(modifier = GlanceModifier.fillMaxWidth().height(106.dp)) {
                 FinanceCard(
                     monthExpense = state.monthExpense,
                     monthIncome = state.monthIncome,
@@ -218,10 +218,10 @@ private fun SectionLabel(label: String, trailing: String = "") {
 @Composable
 private fun TodoCard(todos: List<TodoEntity>, modifier: GlanceModifier) {
     Column(
-        modifier = modifier.fillMaxHeight().background(BgCardBorder).cornerRadius(12.dp).padding(1.dp),
+        modifier = modifier.background(BgCardBorder).cornerRadius(12.dp).padding(1.dp),
     ) {
         Column(
-            modifier = GlanceModifier.fillMaxWidth().fillMaxHeight().background(BgCard).cornerRadius(11.dp)
+            modifier = GlanceModifier.fillMaxWidth().background(BgCard).cornerRadius(11.dp)
                 .padding(horizontal = 8.dp, vertical = 7.dp),
         ) {
             SectionLabel("TO-DO", if (todos.isEmpty()) "" else "${todos.size}개")
@@ -256,10 +256,10 @@ private fun TodoRow(title: String) {
 @Composable
 private fun EventCard(events: List<EventEntity>, modifier: GlanceModifier) {
     Column(
-        modifier = modifier.fillMaxHeight().background(BgCardBorder).cornerRadius(12.dp).padding(1.dp),
+        modifier = modifier.background(BgCardBorder).cornerRadius(12.dp).padding(1.dp),
     ) {
         Column(
-            modifier = GlanceModifier.fillMaxWidth().fillMaxHeight().background(BgCard).cornerRadius(11.dp)
+            modifier = GlanceModifier.fillMaxWidth().background(BgCard).cornerRadius(11.dp)
                 .padding(horizontal = 8.dp, vertical = 7.dp),
         ) {
             SectionLabel("SCHEDULE", if (events.isEmpty()) "" else "${events.size}개")
