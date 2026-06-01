@@ -98,9 +98,12 @@ class LSyncWidget : GlanceAppWidget() {
         val events = entryPoint.eventDao().getByDate(todayStr)
 
         val financeItems = entryPoint.financeDao().getAllByDateRange(userId, monthStart, monthEnd)
-        val monthExpense = financeItems
-            .filter { it.type == "EXPENSE" && it.settlementGroupId == null }
+        val monthReimbursed = financeItems
+            .filter { it.type == "INCOME" && it.settlementGroupId != null }
             .sumOf { it.amount }
+        val monthExpense = (financeItems
+            .filter { it.type == "EXPENSE" }
+            .sumOf { it.amount } - monthReimbursed).coerceAtLeast(0)
         val monthIncome = financeItems
             .filter { it.type == "INCOME" && it.settlementGroupId == null }
             .sumOf { it.amount }

@@ -149,8 +149,7 @@ fun FinanceScreen(viewModel: FinanceViewModel = hiltViewModel()) {
                     SummaryCard(
                         net = uiState.net,
                         income = uiState.income,
-                        expense = uiState.expense,
-                        reimbursed = uiState.reimbursed,
+                        expense = uiState.expense - uiState.reimbursed,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
                     )
                 }
@@ -276,7 +275,7 @@ fun FinanceScreen(viewModel: FinanceViewModel = hiltViewModel()) {
 }
 
 @Composable
-private fun SummaryCard(net: Long, income: Long, expense: Long, reimbursed: Long, modifier: Modifier = Modifier) {
+private fun SummaryCard(net: Long, income: Long, expense: Long, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -364,27 +363,6 @@ private fun SummaryCard(net: Long, income: Long, expense: Long, reimbursed: Long
             }
         }
 
-        // 정산 받음 — 돌려받은 돈은 수입과 별개로 안내 (있을 때만)
-        if (reimbursed > 0) {
-            Spacer(Modifier.height(14.dp))
-            Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(Divider))
-            Spacer(Modifier.height(14.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text("정산 받음", fontFamily = Pretendard, fontWeight = FontWeight.Medium, fontSize = 10.sp, letterSpacing = 0.12.em, color = FgTertiary)
-                Text(
-                    text = "+₩%,d".format(reimbursed),
-                    fontFamily = Pretendard,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 13.sp,
-                    letterSpacing = (-0.01).em,
-                    color = AccentBlue,
-                )
-            }
-        }
     }
 }
 
