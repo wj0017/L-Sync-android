@@ -33,6 +33,7 @@ import com.lsync.app.data.repository.ReadingPlanRepository
 import com.lsync.app.data.repository.ReadingPlanSettings
 import com.lsync.app.ui.schedule.ScheduleItem
 import com.lsync.app.ui.theme.*
+import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -531,7 +532,17 @@ private fun ReadingPlanCard(
         } else {
             // 헤더 행
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("성경 통독", fontFamily = Pretendard, fontWeight = FontWeight.Medium, fontSize = 11.sp, letterSpacing = 0.12.em, color = FgTertiary)
+                Column {
+                    Text("성경 통독", fontFamily = Pretendard, fontWeight = FontWeight.Medium, fontSize = 11.sp, letterSpacing = 0.12.em, color = FgTertiary)
+                    if (state.streak > 0) {
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            "연속 ${state.streak}일",
+                            fontFamily = Pretendard, fontWeight = FontWeight.SemiBold,
+                            fontSize = 11.sp, color = AccentGreen,
+                        )
+                    }
+                }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
                         "Day ${state.dayNumber} / ${state.estimatedTotalDays}",
@@ -565,6 +576,11 @@ private fun ReadingPlanCard(
                     )
                     Spacer(Modifier.height(6.dp))
                 }
+            }
+
+            if (state.weeklyHeatmap.isNotEmpty()) {
+                Spacer(Modifier.height(12.dp))
+                WeeklyHeatmapRow(heatmap = state.weeklyHeatmap)
             }
 
             Spacer(Modifier.height(10.dp))
@@ -611,6 +627,51 @@ private fun ChapterCheckRow(entry: ReadingPlanEntity, onToggle: () -> Unit, onNa
             textDecoration = if (entry.isRead) TextDecoration.LineThrough else null,
             modifier = Modifier.weight(1f).clickable { onNavigate() },
         )
+    }
+}
+
+@Composable
+private fun WeeklyHeatmapRow(heatmap: List<Boolean>) {
+    val today = remember { LocalDate.now() }
+    val dayLabels = listOf("일", "월", "화", "수", "목", "금", "토")
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        heatmap.forEachIndexed { idx, read ->
+            val date = today.minusDays((6 - idx).toLong())
+            val isToday = idx == 6
+            val dayLabel = dayLabels[date.dayOfWeek.value % 7]
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(3.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(20.dp)
+                        .clip(CircleShape)
+                        .background(if (read) AccentGreen else Color.Transparent)
+                        .then(
+                            when {
+                                read    -> Modifier
+                                isToday -> Modifier.border(1.5.dp, AccentBlue, CircleShape)
+                                else    -> Modifier.border(1.dp, Divider, CircleShape)
+                            }
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (read) {
+                        Text("✓", fontFamily = Pretendard, fontSize = 8.sp, color = Color.White)
+                    }
+                }
+                Text(
+                    dayLabel,
+                    fontFamily = Pretendard,
+                    fontSize = 8.sp,
+                    color = if (isToday) FgSecondary else FgTertiary,
+                )
+            }
+        }
     }
 }
 

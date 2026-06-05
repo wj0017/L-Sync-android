@@ -289,6 +289,14 @@ fun BibleScreen(viewModel: BibleViewModel = hiltViewModel()) {
             }
         }
 
+        // 오늘 통독 분량 배너
+        if (state.isPlanChapter) {
+            PlanChapterBanner(
+                isRead = state.isPlanChapterRead,
+                onToggle = { viewModel.togglePlanChapterRead() },
+            )
+        }
+
         HorizontalPager(
             state    = pagerState,
             modifier = Modifier.fillMaxSize(),
@@ -511,6 +519,51 @@ fun BibleScreen(viewModel: BibleViewModel = hiltViewModel()) {
         }
         } // end LazyColumn
         } // end HorizontalPager + else
+    }
+}
+
+@Composable
+private fun PlanChapterBanner(isRead: Boolean, onToggle: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 4.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (isRead) AccentGreen.copy(alpha = 0.08f) else AccentBlue.copy(alpha = 0.08f))
+            .clickable { onToggle() }
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(
+            "오늘 통독 분량",
+            fontFamily = Pretendard,
+            fontWeight = FontWeight.Medium,
+            fontSize = 12.sp,
+            color = if (isRead) AccentGreen else AccentBlue,
+        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(18.dp)
+                    .clip(CircleShape)
+                    .background(if (isRead) AccentGreen else Color.Transparent)
+                    .then(if (!isRead) Modifier.border(1.5.dp, AccentBlue, CircleShape) else Modifier),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (isRead) Text("✓", fontFamily = Pretendard, fontSize = 8.sp, color = Color.White)
+            }
+            Text(
+                text = if (isRead) "완료" else "완료 표시",
+                fontFamily = Pretendard,
+                fontWeight = FontWeight.Medium,
+                fontSize = 12.sp,
+                color = if (isRead) AccentGreen else AccentBlue,
+            )
+        }
     }
 }
 

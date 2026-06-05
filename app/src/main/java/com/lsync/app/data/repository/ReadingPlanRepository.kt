@@ -139,4 +139,23 @@ class ReadingPlanRepository @Inject constructor(
         dao.markRead(date, book, chapter, isRead)
 
     suspend fun getTotalRead(): Int = dao.getTotalRead()
+
+    suspend fun getStreak(): Int {
+        val readDates = dao.getReadDates().toHashSet()
+        var streak = 0
+        var date = LocalDate.now()
+        while (readDates.contains(date.toString())) {
+            streak++
+            date = date.minusDays(1)
+        }
+        return streak
+    }
+
+    suspend fun getWeeklyHeatmap(): List<Boolean> {
+        val readDates = dao.getReadDates().toHashSet()
+        val today = LocalDate.now()
+        return (6 downTo 0).map { daysAgo ->
+            readDates.contains(today.minusDays(daysAgo.toLong()).toString())
+        }
+    }
 }

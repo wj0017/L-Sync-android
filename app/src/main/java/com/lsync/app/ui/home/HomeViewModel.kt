@@ -22,6 +22,8 @@ data class ReadingPlanSectionState(
     val startDate: LocalDate? = null,
     val settings: ReadingPlanSettings = ReadingPlanSettings(),
     val estimatedTotalDays: Int = 365,
+    val streak: Int = 0,
+    val weeklyHeatmap: List<Boolean> = emptyList(),
 ) {
     val hasStarted: Boolean get() = startDate != null
     val todayDoneCount: Int get() = entries.count { it.isRead }
@@ -79,7 +81,7 @@ class HomeViewModel @Inject constructor(
                     events.forEach { add(ScheduleItem.Event(it)) }
                     todos.forEach  { add(ScheduleItem.Todo(it)) }
                 }.sortedWith(compareBy(
-                    { it is ScheduleItem.Todo && (it as ScheduleItem.Todo).entity.isCompleted },
+                    { it is ScheduleItem.Todo && it.entity.isCompleted },
                     {
                         when (it) {
                             is ScheduleItem.Event -> it.entity.startDate
@@ -116,14 +118,18 @@ class HomeViewModel @Inject constructor(
                     val totalRead      = readingPlanRepository.getTotalRead()
                     val settings       = readingPlanRepository.getSettings()
                     val estimatedDays  = readingPlanRepository.estimatedTotalDays()
+                    val streak         = readingPlanRepository.getStreak()
+                    val weeklyHeatmap  = readingPlanRepository.getWeeklyHeatmap()
                     _uiState.update {
                         it.copy(
                             readingPlan = it.readingPlan.copy(
-                                entries           = entries,
-                                totalRead         = totalRead,
-                                startDate         = readingPlanRepository.getStartDate(),
-                                settings          = settings,
+                                entries            = entries,
+                                totalRead          = totalRead,
+                                startDate          = readingPlanRepository.getStartDate(),
+                                settings           = settings,
                                 estimatedTotalDays = estimatedDays,
+                                streak             = streak,
+                                weeklyHeatmap      = weeklyHeatmap,
                             )
                         )
                     }

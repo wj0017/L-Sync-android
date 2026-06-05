@@ -10,6 +10,8 @@ import com.lsync.app.data.local.dao.MemoDao
 import com.lsync.app.data.local.entity.BibleVerseEntity
 import com.lsync.app.data.local.entity.EsvVerseEntity
 import com.lsync.app.data.local.entity.MemoEntity
+import com.lsync.app.data.local.entity.ReadingPlanEntity
+import com.lsync.app.data.repository.ReadingPlanRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Job
@@ -18,31 +20,39 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 import javax.inject.Inject
 
 data class BibleUiState(
     val books: List<BibleBook> = emptyList(),
-    val chapterCounts: Map<Int, Int> = emptyMap(),  // book → max chapter
+    val chapterCounts: Map<Int, Int> = emptyMap(),
     val currentBook: Int = 1,
     val currentChapter: Int = 1,
     val chapterCount: Int = 1,
     val verses: List<BibleVerseEntity> = emptyList(),
     val esvVerses: List<EsvVerseEntity> = emptyList(),
-    val showKorean: Boolean = true,   // 개역개정 보조 텍스트 표시 여부
-    val esvOnTop: Boolean = true,     // true=ESV 위·개역개정 아래, false=반전
+    val showKorean: Boolean = true,
+    val esvOnTop: Boolean = true,
     val isTableOfContentsOpen: Boolean = false,
     val isSearchActive: Boolean = false,
     val searchQuery: String = "",
     val searchResults: List<BibleVerseEntity> = emptyList(),
     val error: String? = null,
     val memos: List<MemoEntity> = emptyList(),
-)
+    val todayReadingPlan: List<ReadingPlanEntity> = emptyList(),
+) {
+    val isPlanChapter: Boolean
+        get() = todayReadingPlan.any { it.book == currentBook && it.chapter == currentChapter }
+    val isPlanChapterRead: Boolean
+        get() = todayReadingPlan.find { it.book == currentBook && it.chapter == currentChapter }?.isRead ?: false
+}
 
 @HiltViewModel
 class BibleViewModel @Inject constructor(
     private val bibleDao: BibleDao,
     private val esvDao: EsvDao,
     private val memoDao: MemoDao,
+    private val readingPlanRepository: ReadingPlanRepository,
     @ApplicationContext context: Context,
 ) : ViewModel() {
 
@@ -68,6 +78,7 @@ class BibleViewModel @Inject constructor(
                 _state.value = _state.value.copy(error = e.message)
             }
         }
+        observeTodayPlan()
     }
 
     fun navigateTo(book: Int, chapter: Int) {
@@ -161,6 +172,23 @@ class BibleViewModel @Inject constructor(
 
     fun toggleTableOfContents() {
         _state.value = _state.value.copy(isTableOfContentsOpen = !_state.value.isTableOfContentsOpen)
+    }
+
+    private fun observeTodayPlan() {
+        viewModelScope.launch {
+            readingPlanRepository.observeForDate(LocalDate.now().toString()).collect { plan ->
+                _state.value = _state.value.copy(todayReadingPlan = plan)
+            }
+        }
+    }
+
+    fun togglePlanChapterRead() {
+        val s = _state.value
+        val today = LocalDate.now().toString()
+        val entry = s.todayReadingPlan.find { it.book == s.currentBook && it.chapter == s.currentChapter } ?: return
+        viewModelScope.launch {
+            readingPlanRepository.markRead(today, entry.book, entry.chapter, !entry.isRead)
+        }
     }
 
     private fun observeMemos(book: Int, chapter: Int) {

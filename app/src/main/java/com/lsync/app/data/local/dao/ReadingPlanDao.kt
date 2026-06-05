@@ -29,4 +29,7 @@ interface ReadingPlanDao {
 
     @Query("DELETE FROM reading_plan WHERE date >= :fromDate")
     suspend fun deleteFromDate(fromDate: String)
+
+    @Query("SELECT DISTINCT date FROM reading_plan WHERE isRead = 1 ORDER BY date DESC LIMIT 400")
+    suspend fun getReadDates(): List<String>
 }
