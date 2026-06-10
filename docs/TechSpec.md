@@ -168,7 +168,11 @@ service cloud.firestore {
 ## 5. 안드로이드 알림 & 권한
 
 ### 5.1 일정/할 일 알람
-- `RECEIVE_BOOT_COMPLETED` → `BootReceiver` → 로컬 DB 조회 → AlarmManager 재등록.
+- **등록 시점:** 생성/수정 시 Repository가 `AlarmScheduler.scheduleForEvent`/`scheduleForTodo`로 즉시 AlarmManager 등록. 삭제·완료 시 `cancel`. (재부팅 전에도 발화)
+- **트리거 시각(단일 계산):** 시간 지정 일정 = 시작 시각 / 종일 일정·마감일 Todo = 그 날 **09:00**(`REMINDER_HOUR=9`, `ZoneId.systemDefault()`). `trigger ≤ now`면 등록 스킵.
+- **게이팅:** Event = `hasAlarm` 플래그. Todo = 마감일 있는 모든 미완료 Todo 자동 리마인더(별도 플래그 없음).
+- **재부팅 복원:** `RECEIVE_BOOT_COMPLETED` → `BootReceiver` → `AlarmRestoreWorker` → `getFutureAlarmedEvents`/`getFutureAlarmedTodos` 조회 → 동일한 `scheduleForEvent`/`scheduleForTodo` 재사용(라이브와 시각 로직 일치).
+- **정확 알람 권한:** Android 12+(API 31)에서 `canScheduleExactAlarms()` false면 `setExactAndAllowWhileIdle` 대신 `setAndAllowWhileIdle`(inexact) 폴백. 권한 요청은 `PermissionHelper`.
 - Android 13+: 첫 실행 시 `POST_NOTIFICATIONS` 요청.
 
 ### 5.2 결제 알림 자동 가계부

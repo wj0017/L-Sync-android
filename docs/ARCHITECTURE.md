@@ -83,7 +83,7 @@ app/src/main/java/com/lsync/app/
 │       ├── BibleScreen.kt          # HorizontalPager, ESV/개역개정 교차, 목차, 검색, 절 묵상 메모, PlanChapterBanner(오늘 통독 장 읽음 토글)
 │       └── BibleViewModel.kt       # 개역개정 보조 텍스트 기본 표시(showKorean=true), ReadingPlanRepository 주입 → isPlanChapter/isPlanChapterRead
 ├── notification/
-│   ├── AlarmScheduler.kt
+│   ├── AlarmScheduler.kt              # scheduleForEvent/scheduleForTodo(트리거 계산 단일화), 정확알람 권한 폴백
 │   ├── AlarmReceiver.kt
 │   ├── BootReceiver.kt
 │   ├── PaymentNotificationParser.kt  # title 정규식 단독 게이트 (바디 폴백 제거)
@@ -140,6 +140,13 @@ UI는 Room Flow를 구독하므로 네트워크 없이도 즉각 반응.
 - **BibleScreen 연동:** `BibleViewModel`이 `ReadingPlanRepository`를 주입받아 현재 펼친 (book, chapter)가 오늘 통독 분량인지(`isPlanChapter`)와 읽음 여부(`isPlanChapterRead`)를 계산. 통독 장이면 `PlanChapterBanner`를 노출하고 탭으로 읽음 토글.
 - **연속 읽기 streak:** `ReadingPlanRepository.getStreak()` — 오늘부터 거꾸로 읽은 날짜가 연속된 일수. `ReadingPlanDao.getReadDates()`(읽은 날짜 distinct)를 HashSet으로 조회.
 - **주간 히트맵:** `getWeeklyHeatmap()` — 최근 7일(6일 전 → 오늘) 각 날짜의 읽음 여부 `List<Boolean>`. 홈 화면 도트로 렌더링.
+
+### 일정·할 일 알람 라이프사이클
+- **단일 진실 원천:** 트리거 시각 계산은 `AlarmScheduler.scheduleForEvent(event)` / `scheduleForTodo(todo)` 안에만 존재. 라이브 등록(Repository)과 재부팅 복원(`AlarmRestoreWorker`)이 같은 메서드를 공유해 시각 드리프트를 방지.
+- **트리거 규칙:** 시간 지정 일정 = 시작 시각 그대로 / 종일 일정·마감일 Todo = 그 날 **09:00**(`REMINDER_HOUR`, `ZoneId.systemDefault()`). `trigger ≤ now`면 등록 스킵(과거 알람 즉시 발화 방지).
+- **라이브 연결:** Event는 `save()`에서 등록·`delete()`에서 취소. Todo는 `create`/`uncheck`에서 등록, `complete`/`delete`에서 취소. → 생성 시점부터 알람이 실제 발화(재부팅 불필요).
+- **게이팅:** Event는 `hasAlarm` 플래그(false면 cancel). Todo는 별도 플래그 없이 *마감일 있는 모든 미완료 Todo = 자동 리마인더*(완료·`dueDate==null`이면 cancel).
+- **정확 알람 권한 폴백:** Android 12+에서 정확 알람 권한이 없으면 `setExactAndAllowWhileIdle` 대신 `setAndAllowWhileIdle`(inexact)로 폴백 — 권한 미허용 시 알람이 조용히 사라지지 않게. 트리거 계산·등록은 `runCatching`으로 감싸 한 항목 실패가 복원 루프를 막지 않음.
 
 ### 결제 알림 자동 가계부
 - `PaymentNotificationService` → `PaymentNotificationParser` → `FinanceRepository.create()`
