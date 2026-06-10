@@ -2,8 +2,31 @@
   "project": "L-Sync",
   "phase": "8-alarm-lifecycle",
   "steps": [
-    { "step": 0, "name": "alarm-scheduler-core", "status": "pending" },
-    { "step": 1, "name": "repository-wiring", "status": "pending" },
-    { "step": 2, "name": "restore-refactor", "status": "pending" }
-  ]
+    {
+      "step": 0,
+      "name": "alarm-scheduler-core",
+      "status": "completed",
+      "started_at": "2026-06-10T23:28:46+0900",
+      "summary": "AlarmScheduler에 scheduleForEvent/scheduleForTodo 추가 — 트리거 시각(시작시각/마감일 09:00/과거 스킵) 단일화, REMINDER_HOUR=9, 정확 알람 권한 없으면 inexact 폴백, low-level 시그니처 보존",
+      "completed_at": "2026-06-10T23:30:12+0900"
+    },
+    {
+      "step": 1,
+      "name": "repository-wiring",
+      "status": "completed",
+      "started_at": "2026-06-10T23:30:12+0900",
+      "summary": "EventRepository/TodoRepository에 AlarmScheduler 주입 — save·create·uncheck에서 등록, delete·complete에서 취소. 생성 시점부터 알람 실제 발화",
+      "completed_at": "2026-06-10T23:34:08+0900"
+    },
+    {
+      "step": 2,
+      "name": "restore-refactor",
+      "status": "completed",
+      "started_at": "2026-06-10T23:34:08+0900",
+      "summary": "AlarmRestoreWorker가 인라인 트리거 계산을 버리고 scheduleForEvent/scheduleForTodo 재사용 — 복원·라이브 경로 09:00/과거-스킵 규칙 단일화 완료",
+      "completed_at": "2026-06-10T23:35:06+0900"
+    }
+  ],
+  "created_at": "2026-06-10T23:28:46+0900",
+  "completed_at": "2026-06-10T23:35:06+0900"
 }

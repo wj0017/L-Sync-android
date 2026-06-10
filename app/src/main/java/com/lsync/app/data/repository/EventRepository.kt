@@ -4,6 +4,7 @@ import com.google.firebase.crashlytics.FirebaseCrashlytics
 import com.lsync.app.data.local.dao.EventDao
 import com.lsync.app.data.local.entity.EventEntity
 import com.lsync.app.data.remote.FirestoreDataSource
+import com.lsync.app.notification.AlarmScheduler
 import kotlinx.coroutines.flow.Flow
 import java.util.UUID
 import javax.inject.Inject
@@ -13,6 +14,7 @@ import javax.inject.Singleton
 class EventRepository @Inject constructor(
     private val dao: EventDao,
     private val remote: FirestoreDataSource,
+    private val alarmScheduler: AlarmScheduler,
 ) {
     fun observeAll(): Flow<List<EventEntity>> = dao.observeAll()
 
@@ -22,6 +24,7 @@ class EventRepository @Inject constructor(
     suspend fun save(event: EventEntity) {
         dao.upsert(event)
         syncSafe { remote.upsertEvent(event) }
+        alarmScheduler.scheduleForEvent(event)
     }
 
     suspend fun create(
@@ -57,6 +60,7 @@ class EventRepository @Inject constructor(
     suspend fun delete(id: String) {
         dao.deleteById(id)
         syncSafe { remote.deleteEvent(id) }
+        alarmScheduler.cancel(id)
     }
 
     // 네트워크 에러는 Crashlytics에 기록하고 로컬은 이미 저장됐으므로 조용히 실패

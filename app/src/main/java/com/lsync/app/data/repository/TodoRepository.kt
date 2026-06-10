@@ -8,6 +8,7 @@ import com.lsync.app.data.local.entity.TodoTemplateEntity
 import com.lsync.app.data.local.entity.FinanceEntity
 import com.lsync.app.data.local.entity.TodoEntity
 import com.lsync.app.data.remote.FirestoreDataSource
+import com.lsync.app.notification.AlarmScheduler
 import kotlinx.coroutines.flow.Flow
 import java.util.UUID
 import javax.inject.Inject
@@ -19,6 +20,7 @@ class TodoRepository @Inject constructor(
     private val todoTemplateDao: TodoTemplateDao,
     private val financeDao: FinanceDao,
     private val remote: FirestoreDataSource,
+    private val alarmScheduler: AlarmScheduler,
 ) {
     fun observeAll(): Flow<List<TodoEntity>> = todoDao.observeAll()
 
@@ -63,6 +65,7 @@ class TodoRepository @Inject constructor(
         )
         todoDao.upsert(entity)
         syncSafe { remote.upsertTodo(entity) }
+        alarmScheduler.scheduleForTodo(entity)
         return entity
     }
 
@@ -102,6 +105,9 @@ class TodoRepository @Inject constructor(
             todoDao.upsert(completedTodo)
             syncSafe { remote.upsertTodo(completedTodo) }
         }
+
+        // 완료된 Todo는 리마인더가 필요 없으므로 알람 취소
+        alarmScheduler.cancel(todo.id)
     }
 
     // Todo Uncheck — Finance Soft Delete (통계 제외)
@@ -114,6 +120,9 @@ class TodoRepository @Inject constructor(
             financeDao.excludeByTodoId(todo.id)
             syncSafe { remote.uncheckTodoWithFinance(todo.id, financeId, now) }
         } ?: syncSafe { remote.upsertTodo(unchecked) }
+
+        // 다시 미완료가 됐으니 알람 복구 (마감일이 지났으면 내부에서 자동 스킵)
+        alarmScheduler.scheduleForTodo(unchecked)
     }
 
     // Todo 삭제 — Finance는 연결 고리만 해제, 데이터 유지 (PRD 2.2 정책)
@@ -122,6 +131,7 @@ class TodoRepository @Inject constructor(
         todoDao.softDelete(todo.id, now)
         financeDao.unlinkTodo(todo.id)
         syncSafe { remote.deleteTodoUnlinkFinance(todo.id, todo.linkedFinanceId, now) }
+        alarmScheduler.cancel(todo.id)
     }
 
     private fun today(): String {

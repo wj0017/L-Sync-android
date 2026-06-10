@@ -16,6 +16,7 @@ import com.lsync.app.data.local.dao.ReadingPlanDao
 import com.lsync.app.data.local.dao.TodoDao
 import com.lsync.app.data.local.dao.TodoTemplateDao
 import com.lsync.app.data.remote.FirestoreDataSource
+import com.lsync.app.notification.AlarmScheduler
 import com.lsync.app.data.repository.EventRepository
 import com.lsync.app.data.repository.FinanceRepository
 import com.lsync.app.data.repository.ReadingPlanRepository
@@ -79,8 +80,11 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideEventRepository(dao: EventDao, remote: FirestoreDataSource) =
-        EventRepository(dao, remote)
+    fun provideEventRepository(
+        dao: EventDao,
+        remote: FirestoreDataSource,
+        alarmScheduler: AlarmScheduler,
+    ) = EventRepository(dao, remote, alarmScheduler)
 
     @Provides
     @Singleton
@@ -89,7 +93,8 @@ object AppModule {
         todoTemplateDao: TodoTemplateDao,
         financeDao: FinanceDao,
         remote: FirestoreDataSource,
-    ) = TodoRepository(todoDao, todoTemplateDao, financeDao, remote)
+        alarmScheduler: AlarmScheduler,
+    ) = TodoRepository(todoDao, todoTemplateDao, financeDao, remote, alarmScheduler)
 
     @Provides
     @Singleton
