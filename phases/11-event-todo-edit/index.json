@@ -1,0 +1,9 @@
+{
+  "project": "L-Sync",
+  "phase": "11-event-todo-edit",
+  "steps": [
+    { "step": 0, "name": "repository-update", "status": "pending" },
+    { "step": 1, "name": "viewmodel-update", "status": "pending" },
+    { "step": 2, "name": "compose-edit-ui", "status": "pending" }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "project": "L-Sync",
+  "phase": "12-finance-dashboard",
+  "steps": [
+    { "step": 0, "name": "range-source", "status": "pending" },
+    { "step": 1, "name": "dashboard-viewmodel", "status": "pending" },
+    { "step": 2, "name": "dashboard-ui", "status": "pending" }
+  ]
+}

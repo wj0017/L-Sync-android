@@ -1,0 +1,7 @@
+{
+  "project": "L-Sync",
+  "phase": "13-permission-entry",
+  "steps": [
+    { "step": 0, "name": "permission-entry", "status": "pending" }
+  ]
+}

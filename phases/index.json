@@ -39,6 +39,26 @@
       "dir": "8-alarm-lifecycle",
       "status": "completed",
       "completed_at": "2026-06-10T23:35:06+0900"
+    },
+    {
+      "dir": "9-repeat-todo",
+      "status": "pending"
+    },
+    {
+      "dir": "10-sync-pull",
+      "status": "pending"
+    },
+    {
+      "dir": "11-event-todo-edit",
+      "status": "pending"
+    },
+    {
+      "dir": "12-finance-dashboard",
+      "status": "pending"
+    },
+    {
+      "dir": "13-permission-entry",
+      "status": "pending"
     }
   ]
 }

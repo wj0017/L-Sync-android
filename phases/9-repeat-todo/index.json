@@ -1,0 +1,11 @@
+{
+  "project": "L-Sync",
+  "phase": "9-repeat-todo",
+  "steps": [
+    { "step": 0, "name": "rrule-builder", "status": "pending" },
+    { "step": 1, "name": "repository-layer", "status": "pending" },
+    { "step": 2, "name": "materializer-wiring", "status": "pending" },
+    { "step": 3, "name": "viewmodel-layer", "status": "pending" },
+    { "step": 4, "name": "compose-ui", "status": "pending" }
+  ]
+}
