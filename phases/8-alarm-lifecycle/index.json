@@ -1,0 +1,9 @@
+{
+  "project": "L-Sync",
+  "phase": "8-alarm-lifecycle",
+  "steps": [
+    { "step": 0, "name": "alarm-scheduler-core", "status": "pending" },
+    { "step": 1, "name": "repository-wiring", "status": "pending" },
+    { "step": 2, "name": "restore-refactor", "status": "pending" }
+  ]
+}
