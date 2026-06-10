@@ -59,11 +59,19 @@
 
 ### ✅ Phase 4: 홈 위젯 — 완료
 
-- **구현:** Jetpack Glance 기반 안드로이드 홈 위젯. 할 일·일정·이달 가계부·성경 통독 4개 섹션. WorkManager 30분 주기 갱신.
-- **크기:** 4×3 cells (minWidth 250dp, minHeight 200dp).
+- **구현:** Jetpack Glance 기반 안드로이드 홈 위젯. 할 일·일정·이달 가계부·성경 통독 4개 섹션. 2열 카드 레이아웃, 가계부 막대 차트, 통독은 오늘 챕터 목록 표시.
+- **크기:** 5×2 cells (minWidth 250dp, minHeight 110dp).
+- **갱신:** 데이터 변경 시 `WidgetRefreshHelper`로 즉시 갱신. WorkManager 30분 주기 + 시스템 `updatePeriodMillis`(fallback).
 
 ### ✅ Phase 5: Firebase Auth Google 로그인 — 완료
 
 - **구현:** Google 로그인 화면, Firebase Auth 연동, `userId = "local_user"` 하드코딩 전면 교체, 기존 Room 데이터 자동 마이그레이션, 홈 화면 로그아웃 메뉴.
 - **마이그레이션 정책:** 최초 로그인 시 `AuthMigrationHelper`가 Room 내 `"local_user"` userId를 실제 Firebase UID로 일괄 업데이트. SharedPreferences 플래그로 멱등성 보장.
 - **Firestore 보안 규칙:** `request.auth.uid == resource.data.userId` 적용. 기존 `"local_user"` Firestore 데이터는 폐기 후 마이그레이션된 UID로 재동기화.
+
+### ✅ Phase 6: 통독 고급화 — 완료
+
+- **구현:** 성경 화면과 통독 계획 연동. 연속 읽기(streak)·주간 히트맵 동기 부여 요소 추가.
+  - **BibleScreen:** 현재 펼친 장이 오늘 통독 분량이면 `PlanChapterBanner` 노출, 탭 한 번으로 읽음 토글.
+  - **홈 화면:** 연속 읽기 streak 수치 + 최근 7일 주간 히트맵 도트.
+- **순지출 표시 정책:** 가계부·위젯의 이달 지출은 **정산 받은 금액(`reimbursed`)을 차감한 순지출**(`expense − reimbursed`, 음수 방지)로 표시한다.

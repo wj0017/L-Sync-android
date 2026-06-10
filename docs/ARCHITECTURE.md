@@ -44,7 +44,7 @@ app/src/main/java/com/lsync/app/
 │   │       ├── TodoDao.kt
 │   │       ├── TodoTemplateDao.kt
 │   │       ├── FinanceDao.kt          # 정산: observeAllSettlementItems, getBySettlementGroup
-│   │       ├── ReadingPlanDao.kt     # observeForDate, markRead, deleteFromDate
+│   │       ├── ReadingPlanDao.kt     # observeForDate, markRead, deleteFromDate, getReadDates
 │   │       ├── MemoDao.kt             # observeForChapter, insert, deleteById
 │   │       ├── BibleDao.kt
 │   │       └── EsvDao.kt
@@ -54,7 +54,7 @@ app/src/main/java/com/lsync/app/
 │       ├── EventRepository.kt
 │       ├── TodoRepository.kt
 │       ├── FinanceRepository.kt
-│       ├── ReadingPlanRepository.kt  # 1년 통독 시퀀스 계산, 설정(SharedPreferences)
+│       ├── ReadingPlanRepository.kt  # 1년 통독 시퀀스 계산, 설정(SharedPreferences), getStreak/getWeeklyHeatmap
 │       ├── AuthRepository.kt         # Firebase Auth 래퍼. currentUserId, authState, signInWithGoogle, signOut
 │       └── AuthMigrationHelper.kt    # "local_user" → Firebase UID Room 일괄 마이그레이션 (멱등)
 ├── ui/
@@ -68,8 +68,8 @@ app/src/main/java/com/lsync/app/
 │   ├── navigation/
 │   │   └── NavGraph.kt             # 4-tab: Home / Schedule / Finance / Bible. 미로그인 시 LoginScreen early return
 │   ├── home/
-│   │   ├── HomeScreen.kt           # 오늘 날짜·통독·일정 미리보기·가계부 요약. 헤더 로그아웃 메뉴 포함
-│   │   └── HomeViewModel.kt        # EventRepo + TodoRepo + FinanceRepo + ReadingPlanRepo 조합
+│   │   ├── HomeScreen.kt           # 오늘 날짜·통독·일정 미리보기·가계부 요약. 연속 읽기 streak + 주간 히트맵. 헤더 로그아웃 메뉴 포함
+│   │   └── HomeViewModel.kt        # EventRepo + TodoRepo + FinanceRepo + ReadingPlanRepo 조합 (streak/heatmap 포함)
 │   ├── schedule/
 │   │   ├── ScheduleScreen.kt       # 단일 LazyColumn 통스크롤(헤더·캘린더·구분선·목록) + ExpandableFab
 │   │   │                           # 위로 스크롤하면 캘린더가 밀려 사라지고 목록만 남음
@@ -80,8 +80,8 @@ app/src/main/java/com/lsync/app/
 │   │   ├── FinanceViewModel.kt
 │   │   └── TransactionFormSheet.kt
 │   └── bible/
-│       ├── BibleScreen.kt          # HorizontalPager, ESV/개역개정 교차, 목차, 검색, 절 묵상 메모
-│       └── BibleViewModel.kt       # 개역개정 보조 텍스트 기본 표시(showKorean=true)
+│       ├── BibleScreen.kt          # HorizontalPager, ESV/개역개정 교차, 목차, 검색, 절 묵상 메모, PlanChapterBanner(오늘 통독 장 읽음 토글)
+│       └── BibleViewModel.kt       # 개역개정 보조 텍스트 기본 표시(showKorean=true), ReadingPlanRepository 주입 → isPlanChapter/isPlanChapterRead
 ├── notification/
 │   ├── AlarmScheduler.kt
 │   ├── AlarmReceiver.kt
@@ -96,6 +96,7 @@ app/src/main/java/com/lsync/app/
     ├── LSyncWidget.kt                # GlanceAppWidget — 4개 섹션 UI + loadWidgetState()
     ├── LSyncWidgetReceiver.kt        # GlanceAppWidgetReceiver
     ├── WidgetEntryPoint.kt           # Hilt @EntryPoint (TodoDao, EventDao, FinanceDao, ReadingPlanDao, AuthRepository)
+    ├── WidgetRefreshHelper.kt        # @Singleton — 데이터 변경 시 LSyncWidget().update() 즉시 호출 (Home/Finance/Schedule VM에서 사용)
     └── WidgetState.kt                # todos, events, monthExpense, monthIncome, readingPlan + empty()
 ```
 
@@ -128,11 +129,17 @@ UI는 Room Flow를 구독하므로 네트워크 없이도 즉각 반응.
 - 별도 테이블 없이 `FinanceEntity.settlementGroupId` 단일 컬럼으로 그룹화. EXPENSE가 리더, INCOME이 정산 입금.
 - `FinanceViewModel`이 `observeAllSettlementItems()`(전 기간)를 구독해 그룹별 `SettlementSummary`(받은 금액/잔액/완료 여부)를 실시간 계산 → 교차월 정산도 추적.
 - 정산 입금은 수입·지출에 합산하지 않고 별도 집계(`reimbursed`). `net = income + reimbursed − expense`.
+- **지출 표시는 순지출**(`expense − reimbursed`, 음수 방지)로 노출 — 정산으로 돌려받은 금액을 미리 차감해 체감 지출과 일치(FinanceScreen·위젯 공통).
 - 반자동 연결: 미완료 정산이 있고 `잔액 ≥ 수입액 AND 지출일 ≤ 수입일`인 INCOME에만 "정산에 연결" 노출.
 - 월별 거래는 Room Flow(`observeByMonth`) 단일 구독. 저장/연결 후 재조회하지 않고 Flow 자동 재방출에 의존(`monthJob`으로 이전 구독 취소).
 
 ### 성경 묵상 메모
 - `MemoDao.observeForChapter(book, chapter)`를 구독해 현재 장의 절별 메모를 표시. 로컬 전용(Firestore 미사용).
+
+### 통독 고급화 (BibleScreen 연동 · streak · 히트맵)
+- **BibleScreen 연동:** `BibleViewModel`이 `ReadingPlanRepository`를 주입받아 현재 펼친 (book, chapter)가 오늘 통독 분량인지(`isPlanChapter`)와 읽음 여부(`isPlanChapterRead`)를 계산. 통독 장이면 `PlanChapterBanner`를 노출하고 탭으로 읽음 토글.
+- **연속 읽기 streak:** `ReadingPlanRepository.getStreak()` — 오늘부터 거꾸로 읽은 날짜가 연속된 일수. `ReadingPlanDao.getReadDates()`(읽은 날짜 distinct)를 HashSet으로 조회.
+- **주간 히트맵:** `getWeeklyHeatmap()` — 최근 7일(6일 전 → 오늘) 각 날짜의 읽음 여부 `List<Boolean>`. 홈 화면 도트로 렌더링.
 
 ### 결제 알림 자동 가계부
 - `PaymentNotificationService` → `PaymentNotificationParser` → `FinanceRepository.create()`
@@ -142,8 +149,9 @@ UI는 Room Flow를 구독하므로 네트워크 없이도 즉각 반응.
 - `LSyncWidgetReceiver`(GlanceAppWidgetReceiver) → `LSyncWidget`(GlanceAppWidget) → `loadWidgetState()` → `WidgetContent()`
 - 위젯은 Hilt 자동 주입 불가 → `WidgetEntryPoint`(@EntryPoint)로 `EntryPointAccessors.fromApplication()` 패턴 사용.
 - 데이터 소스: Room 전용. Firestore 미사용 (네트워크 없이도 동작).
-- 갱신: `WidgetRefreshWorker`(30분 주기, `ExistingPeriodicWorkPolicy.KEEP`) + 시스템 `updatePeriodMillis`(fallback).
-- Finance 집계: `settlementGroupId != null` 항목은 수입·지출에 합산하지 않음 (PRD 2.4 정산 정책 동일 적용).
+- 크기: 5×2 cells (minWidth 250dp, minHeight 110dp). 2열 카드 레이아웃, 가계부 막대 차트, 통독은 오늘 챕터 목록 표시.
+- 갱신: ① 데이터 변경 시 `WidgetRefreshHelper.requestUpdate()`로 즉시 갱신(Home/Finance/Schedule ViewModel에서 호출), ② `WidgetRefreshWorker`(30분 주기, `ExistingPeriodicWorkPolicy.KEEP`), ③ 시스템 `updatePeriodMillis`(fallback).
+- Finance 집계: 이달 지출은 **순지출**(`expense − reimbursed`, 음수 방지)로 표시. `reimbursed`(`INCOME` & `settlementGroupId != null`)와 정산 입금은 수입·지출에 합산하지 않음 (PRD 2.4 정산 정책 동일 적용).
 
 ### Firebase Auth (Google 로그인)
 - `AuthRepository`: `callbackFlow` + `stateIn(Eagerly)`로 `FirebaseAuth.AuthStateListener`를 `StateFlow<FirebaseUser?>`로 래핑.

@@ -8,7 +8,7 @@
 
 | 탭 | 주요 기능 |
 |----|----------|
-| **홈** | 오늘 날짜, 통독 진행, 일정·할일 미리보기, 가계부 요약 |
+| **홈** | 오늘 날짜, 통독 진행·연속 읽기 streak·주간 히트맵, 일정·할일 미리보기, 가계부 요약 |
 | **일정** | 캘린더 그리드, 일정/할일 통합 관리, RRULE 반복 일정 |
 | **가계부** | 수입·지출 기록, Todo 완료 시 자동 생성, 통계, 정산 추적 |
 | **성경** | 개역개정·ESV 병렬 뷰어, 1년 통독 계획, 검색, 절 묵상 메모 |
@@ -83,7 +83,8 @@ app/src/main/java/com/lsync/app/
 ## 개발 로드맵
 
 - [x] **Phase 1** — 일정 + 할 일 MVP (캘린더 CRUD, Todo, 알림, Firebase 연동)
-- [x] **Phase 2** — 가계부 자동화 (Finance CRUD, Todo 연동, 통계, CSV Export)
-- [x] **Phase 3** — 결제 알림 자동 파싱
-- [x] **Phase 4** — 성경 뷰어 + 1년 통독 계획
-- [x] **Phase 5** — 성경 UI 고도화 (절 묵상 메모, 개역개정 기본 표시)
+- [x] **Phase 2** — 가계부 자동화 (Finance CRUD, Todo 연동, 통계, CSV Export, 결제 알림 파싱, 정산 추적)
+- [x] **Phase 3** — 성경 뷰어 + 1년 통독 계획 + 절 묵상 메모
+- [x] **Phase 4** — 홈 위젯 (Jetpack Glance, 5×2, 4개 섹션)
+- [x] **Phase 5** — Firebase Auth Google 로그인 + userId 마이그레이션
+- [x] **Phase 6** — 통독 고급화 (BibleScreen 연동, 연속 읽기 streak, 주간 히트맵)

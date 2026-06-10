@@ -1,4 +1,4 @@
-# L-Sync Technical Spec (v0.5)
+# L-Sync Technical Spec (v0.6)
 
 **목적:** 데이터베이스 구조, 보안 규칙, 안드로이드 권한·알림, 백그라운드 엔진 등 구현에 직접 필요한 기술 명세.
 
@@ -61,6 +61,7 @@
 - 공동 결제 후 일부를 돌려받는 흐름을 별도 테이블 없이 단일 컬럼으로 추적.
 - 같은 `settlementGroupId`를 공유하는 항목들이 하나의 정산 그룹. `EXPENSE`가 리더, `INCOME`이 정산 입금.
 - 정산 입금은 **수입·지출 어디에도 합산하지 않고** 별도 집계(`reimbursed`)하여 수입 과대·지출 음수 표시를 방지. `net = income + reimbursed − expense`.
+- **지출 표시값은 순지출**(`expense − reimbursed`, `coerceAtLeast(0)`) — 정산으로 돌려받은 금액을 차감해 표기(FinanceScreen·위젯 공통).
 - 리더(EXPENSE) 삭제 시 그룹의 정산 입금도 함께 삭제. 단 Todo 연동 입금(`sourceTodoId != null`)은 삭제 금지 정책상 `settlementGroupId`만 해제.
 
 ### 1.4. `reading_plan` (AppDatabase v2 추가)
@@ -74,6 +75,12 @@
 | book | INTEGER | 책 번호 (1~66) |
 | chapter | INTEGER | 장 번호 |
 | isRead | INTEGER (Boolean) | 읽음 여부 |
+
+**통독 고급화 집계 (Room 쿼리)**
+- `ReadingPlanDao.getReadDates()` — `isRead = 1`인 distinct 날짜 목록.
+- `ReadingPlanRepository.getStreak()` — 오늘부터 거꾸로 연속 읽은 일수.
+- `ReadingPlanRepository.getWeeklyHeatmap()` — 최근 7일(6일 전 → 오늘) 읽음 여부 `List<Boolean>` (홈 히트맵).
+- BibleScreen 연동: `BibleViewModel`이 현재 (book, chapter)가 오늘 통독 분량인지/읽음인지 판정해 `PlanChapterBanner` 노출·토글.
 
 ### 1.5. `memos` (AppDatabase v3 추가)
 
@@ -191,9 +198,10 @@ service cloud.firestore {
 | 항목 | 값 |
 |------|----|
 | 라이브러리 | Jetpack Glance 1.1.0 |
-| 크기 | 4×3 cells (minWidth 250dp, minHeight 200dp) |
+| 크기 | 5×2 cells (minWidth 250dp, minHeight 110dp) |
+| 레이아웃 | 2열 카드, 가계부 막대 차트, 통독은 오늘 챕터 목록 |
 | 시스템 갱신 주기 | 1800000ms (30분, fallback) |
-| 실제 갱신 주체 | `WidgetRefreshWorker` (WorkManager PeriodicWork, 30분) |
+| 갱신 주체 | ① `WidgetRefreshHelper`(데이터 변경 시 즉시), ② `WidgetRefreshWorker`(30분 주기) |
 | 데이터 소스 | Room 전용 (Firestore 미사용) |
 
 ### 6.2 위젯 섹션
@@ -202,7 +210,7 @@ service cloud.firestore {
 |------|--------|----------|
 | 할 일 | `TodoDao.getIncompleteByDate(today)` | 최대 3개 + "+N개 더" |
 | 일정 | `EventDao.getByDate(today)` | 최대 3개, 시간 지정 일정은 "HH:mm 제목" 형식 |
-| 가계부 | `FinanceDao.getAllByDateRange(userId, monthStart, monthEnd)` | 이달 지출·수입 집계, 정산 항목 제외 |
+| 가계부 | `FinanceDao.getAllByDateRange(userId, monthStart, monthEnd)` | 이달 순지출(`expense − reimbursed`)·수입 집계, 정산 항목 제외 |
 | 성경 통독 | `ReadingPlanDao.getForDate(today)` | "X/Y 완료" + 미읽은 챕터 최대 2개 |
 
 ### 6.3 Hilt 주입 패턴
@@ -220,9 +228,9 @@ EntryPointAccessors.fromApplication(context.applicationContext, WidgetEntryPoint
 
 ### 6.4 갱신 정책
 
-- `WidgetRefreshWorker`: `@HiltWorker` 없는 순수 `CoroutineWorker`. `LSyncWidget().updateAll(context)` 호출.
-- `ExistingPeriodicWorkPolicy.KEEP` — 앱 재시작마다 실행 타이머가 리셋되지 않도록 기존 워커 유지.
-- `LSyncApplication.onCreate()`에서 `enqueuePeriodicWork()` 호출.
+- **즉시 갱신:** `WidgetRefreshHelper`(@Singleton). `GlanceAppWidgetManager`로 위젯 ID를 조회해 `LSyncWidget().update()` 호출. Home/Finance/Schedule ViewModel이 데이터 변경 후 `requestUpdate()`를 부른다(`@ApplicationScope` 코루틴).
+- **주기 갱신:** `WidgetRefreshWorker`(`@HiltWorker` 없는 순수 `CoroutineWorker`). `LSyncWidget().updateAll(context)` 호출. `ExistingPeriodicWorkPolicy.KEEP`으로 앱 재시작 시 타이머 리셋 방지. `LSyncApplication.onCreate()`에서 `enqueuePeriodicWork()`.
+- **Fallback:** 시스템 `updatePeriodMillis`(30분).
 
 ---
 

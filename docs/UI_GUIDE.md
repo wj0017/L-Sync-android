@@ -196,20 +196,21 @@ AccentGreen = ColorProvider(Color(0xFF43A047))
 AccentRed   = ColorProvider(Color(0xFFE53935))
 ```
 
-### 위젯 레이아웃 구조
+### 위젯 레이아웃 구조 (5×2, 2열 카드)
 
 ```
 Box(BgPrimary, padding 12.dp)
-└── Column
-    ├── SectionHeader("할 일")   — AccentBlue 10sp
-    ├── TodoSection              — FgPrimary 11sp, 최대 3개 + "+N개 더"(FgSecondary)
-    ├── SectionHeader("일정")
-    ├── EventSection             — 시간 지정 일정은 "HH:mm 제목" 형식
-    ├── SectionHeader("가계부")
-    ├── FinanceSection           — 지출 AccentRed / 수입 AccentGreen, 11sp
-    ├── SectionHeader("통독")
-    └── ReadingSection           — "X/Y 완료" + 미읽은 챕터 최대 2개(FgSecondary)
+└── Row (2열, 카드별 BgCard + HairlineWhite 테두리, 높이 고정)
+    ├── 좌열 Column
+    │   ├── 할 일 카드   — AccentBlue 헤더, 최대 3개 + "+N개 더"
+    │   └── 일정 카드     — 시간 지정 일정은 "HH:mm 제목" 형식
+    └── 우열 Column
+        ├── 가계부 카드   — 이달 순지출/수입 막대 차트, 지출 AccentRed / 수입 AccentGreen
+        └── 통독 카드     — "X/Y 완료" + 오늘 챕터 목록 (원형 진행 바 대신 목록 표시)
 ```
+
+- 가계부 지출은 **순지출**(`expense − reimbursed`)을 표시 — 정산 받은 금액을 차감해 앱 내 표기와 일치.
+- 카드 높이는 고정해 좌·우열 정렬을 맞춘다(데이터 양과 무관).
 
 ### 위젯 금지사항
 - `androidx.compose.material3.*` 컴포넌트 사용 금지 — 런타임 크래시 발생
