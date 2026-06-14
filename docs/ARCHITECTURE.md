@@ -51,8 +51,8 @@ app/src/main/java/com/lsync/app/
 │   ├── remote/
 │   │   └── FirestoreDataSource.kt    # push(upsert/batch) + fetchEvents/fetchTodos/fetchFinance(복원 pull)
 │   └── repository/
-│       ├── EventRepository.kt
-│       ├── TodoRepository.kt          # createTemplate, upsertMaterialized(로컬+알람+동기화), create/complete/uncheck/delete
+│       ├── EventRepository.kt         # create/save/update(save 재사용)/delete
+│       ├── TodoRepository.kt          # createTemplate, upsertMaterialized(로컬+알람+동기화), create/update/complete/uncheck/delete
 │       ├── FinanceRepository.kt
 │       ├── ReadingPlanRepository.kt  # 1년 통독 시퀀스 계산, 설정(SharedPreferences), getStreak/getWeeklyHeatmap
 │       ├── SyncRepository.kt         # pullAll(userId) — Firestore→Room last-write-wins 복원(upsert-only)
@@ -74,9 +74,10 @@ app/src/main/java/com/lsync/app/
 │   ├── schedule/
 │   │   ├── ScheduleScreen.kt       # 단일 LazyColumn 통스크롤(헤더·캘린더·구분선·목록) + ExpandableFab
 │   │   │                           # 위로 스크롤하면 캘린더가 밀려 사라지고 목록만 남음
+│   │   │                           # 카드 탭=완료 토글 / 롱프레스=편집(생성 다이얼로그 prefill 재사용)
 │   │   │                           # LSyncDialog, CreateEventDialog, CreateTodoDialog, CreateRepeatTodoDialog(반복 템플릿), 활성 템플릿 목록 포함
 │   │   ├── RecurrenceOptions.kt    # RecurrenceOption 모델 + buildRrule(FREQ/INTERVAL/BYDAY)·describeRrule(한국어 요약)
-│   │   └── ScheduleViewModel.kt    # CalendarViewModel + TodoViewModel 통합. templates 상태·createTemplate·deleteTemplate
+│   │   └── ScheduleViewModel.kt    # CalendarViewModel + TodoViewModel 통합. templates·createTemplate·deleteTemplate, updateEvent·updateTodo
 │   ├── finance/
 │   │   ├── FinanceScreen.kt
 │   │   ├── FinanceViewModel.kt
@@ -133,6 +134,11 @@ UI는 Room Flow를 구독하므로 네트워크 없이도 즉각 반응. UI는 F
 - 완료: `TodoRepository.complete()` → `FinanceEntity` 생성 → Room → Firestore Batch Write
 - 미완료: `FinanceEntity.isExcluded = true` (삭제 금지)
 - 삭제: `FinanceEntity.sourceTodoId = null` (데이터 유지)
+
+### 일정·할 일 수정 (Edit)
+- **진입:** ScheduleScreen 카드 **롱프레스**로 편집(탭은 Todo 완료 토글 유지). 생성 다이얼로그를 기존 값으로 prefill해 재사용.
+- **EventRepository.update:** 불변 필드(`id`/`userId`/`createdAt`) 보존 후 `save()` 재사용 → upsert + 동기화 + 알람 재등록 일원화.
+- **TodoRepository.update:** *편집 가능 필드(제목·마감일·가계부 연동)만* 갱신. **완료 상태(`isCompleted`/`completedAt`)·연결 가계부(`linkedFinanceId`)·`createdAt`·`templateId`는 보존**(데이터 무결성). 갱신 후 `scheduleForTodo`로 알람 재등록.
 
 ### 정산 추적 (Finance Settlement)
 - 별도 테이블 없이 `FinanceEntity.settlementGroupId` 단일 컬럼으로 그룹화. EXPENSE가 리더, INCOME이 정산 입금.
