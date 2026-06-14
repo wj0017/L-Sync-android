@@ -2,8 +2,31 @@
   "project": "L-Sync",
   "phase": "10-sync-pull",
   "steps": [
-    { "step": 0, "name": "firestore-fetch", "status": "pending" },
-    { "step": 1, "name": "sync-repository", "status": "pending" },
-    { "step": 2, "name": "sync-trigger", "status": "pending" }
-  ]
+    {
+      "step": 0,
+      "name": "firestore-fetch",
+      "status": "completed",
+      "summary": "FirestoreDataSource에 fetchEvents/fetchTodos/fetchFinance(userId) 추가 — 문서→엔티티 복원 매핑(toMap 1:1), 개별 실패 skip. Step1 머지가 소비",
+      "started_at": "2026-06-14T16:23:16+0900",
+      "completed_at": "2026-06-14T16:25:10+0900"
+    },
+    {
+      "step": 1,
+      "name": "sync-repository",
+      "status": "completed",
+      "summary": "SyncRepository.pullAll(userId) 추가 — fetch 후 updatedAt 기반 last-write-wins upsert(로컬 최신 보존), 실패 syncSafe. (AppModule 등록). Step2가 로그인/시작 시 호출",
+      "started_at": "2026-06-14T16:25:10+0900",
+      "completed_at": "2026-06-14T16:26:23+0900"
+    },
+    {
+      "step": 2,
+      "name": "sync-trigger",
+      "status": "completed",
+      "summary": "로그인·자동로그인 시 마이그레이션 직후 SyncRepository.pullAll을 백그라운드 실행하도록 배선. Firestore→Room 복원 end-to-end 완성",
+      "started_at": "2026-06-14T16:26:23+0900",
+      "completed_at": "2026-06-14T16:27:44+0900"
+    }
+  ],
+  "created_at": "2026-06-14T16:23:16+0900",
+  "completed_at": "2026-06-14T16:27:44+0900"
 }

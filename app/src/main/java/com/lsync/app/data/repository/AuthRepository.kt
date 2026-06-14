@@ -19,6 +19,7 @@ import javax.inject.Singleton
 class AuthRepository @Inject constructor(
     private val firebaseAuth: FirebaseAuth,
     private val migrationHelper: AuthMigrationHelper,
+    private val syncRepository: SyncRepository,
     @ApplicationScope private val scope: CoroutineScope,
 ) {
     val currentUserId: String? get() = firebaseAuth.currentUser?.uid
@@ -32,7 +33,11 @@ class AuthRepository @Inject constructor(
     init {
         // 앱 재실행 시 자동 로그인: 이미 currentUser가 있으면 마이그레이션 시도 (멱등성으로 안전)
         firebaseAuth.currentUser?.uid?.let { uid ->
-            scope.launch { migrationHelper.migrate(uid) }
+            scope.launch {
+                migrationHelper.migrate(uid)
+                // 마이그레이션 직후 원격 복원 pull (UI는 Room Flow로 자동 반영)
+                syncRepository.pullAll(uid)
+            }
         }
     }
 
@@ -42,6 +47,8 @@ class AuthRepository @Inject constructor(
             ?: throw IllegalStateException("signIn succeeded but user is null")
         // 신규 로그인: 마이그레이션 동기 완료 후 반환 → NavGraph 전환 시 데이터 준비됨
         migrationHelper.migrate(user.uid)
+        // 마이그레이션 직후 원격 복원 pull은 백그라운드로 (로그인 흐름 차단 방지, UI는 Room Flow로 반영)
+        scope.launch { syncRepository.pullAll(user.uid) }
         return user
     }
 
