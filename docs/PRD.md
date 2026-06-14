@@ -32,6 +32,8 @@
 
 - 서버 의존도를 낮추기 위해 **'Client-side Materialization'** 적용.
 - 사용자가 템플릿을 만들면, 앱이 백그라운드에서 주기적으로 개별 Todo 문서들을 생성.
+- **템플릿 생성 UI:** 일정 화면의 반복 할 일 FAB → 빈도(매일/매주/매월)·간격(N주마다 등)·요일·가계부 연동을 선택하면 `buildRrule`이 RRULE 문자열을 만들고 템플릿을 저장. 활성 템플릿은 목록에서 확인·중지(deactivate) 가능.
+- **인스턴스 생명주기 일원화:** Materializer가 만든 개별 인스턴스도 단발성 Todo와 동일하게 Room 저장 + Firestore 동기화 + 마감일 알람 등록을 거친다(`TodoRepository.upsertMaterialized`). 템플릿 생성 직후 `MaterializationTrigger`로 1회 즉시 생성한다.
 
 ### 2.4. 정산(Settlement) 정책
 

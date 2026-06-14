@@ -9,6 +9,7 @@ import com.lsync.app.data.local.dao.TodoTemplateDao
 import com.lsync.app.data.local.entity.TodoEntity
 import com.lsync.app.data.local.entity.TodoTemplateEntity
 import com.lsync.app.data.repository.AuthRepository
+import com.lsync.app.data.repository.TodoRepository
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import org.dmfs.rfc5545.DateTime
@@ -26,6 +27,7 @@ class TodoMaterializerWorker @AssistedInject constructor(
     private val todoTemplateDao: TodoTemplateDao,
     private val todoDao: TodoDao,
     private val authRepository: AuthRepository,
+    private val todoRepository: TodoRepository,
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
@@ -124,7 +126,7 @@ class TodoMaterializerWorker @AssistedInject constructor(
         }
 
         if (toUpsert.isNotEmpty()) {
-            todoDao.upsertAll(toUpsert)
+            todoRepository.upsertMaterialized(toUpsert)
         }
     }
 

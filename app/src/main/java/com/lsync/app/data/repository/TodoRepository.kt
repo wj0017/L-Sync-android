@@ -31,6 +31,43 @@ class TodoRepository @Inject constructor(
 
     suspend fun upsertTemplate(template: TodoTemplateEntity) = todoTemplateDao.upsert(template)
 
+    // 반복 Todo 템플릿 생성 — 로컬 저장 (원격 템플릿 스키마는 이 task 범위 밖이라 로컬 전용)
+    suspend fun createTemplate(
+        userId: String,
+        title: String,
+        rrule: String,
+        financeIsLinked: Boolean = false,
+        financeType: String? = null,
+        financeCategory: String? = null,
+        financeAmount: Long? = null,
+    ): TodoTemplateEntity {
+        val now = System.currentTimeMillis()
+        val template = TodoTemplateEntity(
+            id = UUID.randomUUID().toString(),
+            userId = userId,
+            title = title,
+            rrule = rrule,
+            financeIsLinked = financeIsLinked,
+            financeType = financeType,
+            financeCategory = financeCategory,
+            financeAmount = financeAmount,
+            isActive = true,
+            createdAt = now,
+            updatedAt = now,
+        )
+        todoTemplateDao.upsert(template)
+        return template
+    }
+
+    // Materializer가 생성한 인스턴스 일괄 반영 — 로컬(SSOT) → 알람 → 동기화 순서
+    suspend fun upsertMaterialized(todos: List<TodoEntity>) {
+        todoDao.upsertAll(todos)
+        todos.forEach { todo ->
+            alarmScheduler.scheduleForTodo(todo)
+            syncSafe { remote.upsertTodo(todo) }
+        }
+    }
+
     suspend fun deactivateTemplate(id: String) = todoTemplateDao.deactivate(id, System.currentTimeMillis())
 
     fun observeByDate(date: String): Flow<List<TodoEntity>> = todoDao.observeByDate(date)
