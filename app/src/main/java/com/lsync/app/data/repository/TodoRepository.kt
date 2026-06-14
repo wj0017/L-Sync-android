@@ -106,6 +106,32 @@ class TodoRepository @Inject constructor(
         return entity
     }
 
+    // Todo 수정 — 편집 가능 필드만 갱신. 완료/가계부 연동/불변 필드는 보존(데이터 무결성)
+    suspend fun update(
+        id: String,
+        title: String,
+        dueDate: String?,
+        financeIsLinked: Boolean,
+        financeType: String?,
+        financeCategory: String?,
+        financeAmount: Long?,
+    ): TodoEntity? {
+        val existing = todoDao.getById(id) ?: return null
+        val updated = existing.copy(
+            title = title,
+            dueDate = dueDate,
+            financeIsLinked = financeIsLinked,
+            financeType = financeType,
+            financeCategory = financeCategory,
+            financeAmount = financeAmount,
+            updatedAt = System.currentTimeMillis(),
+        )
+        todoDao.upsert(updated)
+        alarmScheduler.scheduleForTodo(updated)
+        syncSafe { remote.upsertTodo(updated) }
+        return updated
+    }
+
     // Todo 완료 처리 — Finance 연동 시 Batch Write로 원자적 처리
     suspend fun complete(todo: TodoEntity, amount: Long? = null): Result<Unit> = runCatching {
         val now = System.currentTimeMillis()

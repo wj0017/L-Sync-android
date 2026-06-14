@@ -2,8 +2,31 @@
   "project": "L-Sync",
   "phase": "11-event-todo-edit",
   "steps": [
-    { "step": 0, "name": "repository-update", "status": "pending" },
-    { "step": 1, "name": "viewmodel-update", "status": "pending" },
-    { "step": 2, "name": "compose-edit-ui", "status": "pending" }
-  ]
+    {
+      "step": 0,
+      "name": "repository-update",
+      "status": "completed",
+      "summary": "EventRepository.update(save 재사용)·TodoRepository.update(편집필드만 갱신, 완료/연동/createdAt 보존, 알람 재등록) 추가. ViewModel(step1)이 호출",
+      "started_at": "2026-06-14T18:33:53+0900",
+      "completed_at": "2026-06-14T18:35:34+0900"
+    },
+    {
+      "step": 1,
+      "name": "viewmodel-update",
+      "status": "completed",
+      "summary": "ScheduleViewModel.updateEvent/updateTodo 추가 — Repository update 호출 + 위젯 갱신. UI(step2)가 편집 다이얼로그에서 호출",
+      "started_at": "2026-06-14T18:35:34+0900",
+      "completed_at": "2026-06-14T18:36:52+0900"
+    },
+    {
+      "step": 2,
+      "name": "compose-edit-ui",
+      "status": "completed",
+      "summary": "ScheduleScreen: 카드 롱프레스로 편집 진입(탭 토글 유지), 생성 다이얼로그 prefill 재사용으로 일정·할일 편집. updateEvent/updateTodo 연결. edit 기능 end-to-end 완성",
+      "started_at": "2026-06-14T18:36:52+0900",
+      "completed_at": "2026-06-14T18:40:30+0900"
+    }
+  ],
+  "created_at": "2026-06-14T18:33:53+0900",
+  "completed_at": "2026-06-14T18:40:30+0900"
 }

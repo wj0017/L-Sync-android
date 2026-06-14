@@ -57,6 +57,29 @@ class EventRepository @Inject constructor(
         return entity
     }
 
+    // 일정 수정 — 불변 필드(id/userId/createdAt) 보존 후 save 재사용(upsert+동기화+알람 재등록)
+    suspend fun update(
+        id: String,
+        title: String,
+        isAllDay: Boolean,
+        startDate: String,
+        rrule: String? = null,
+        hasAlarm: Boolean = false,
+    ): EventEntity? {
+        val existing = dao.getById(id) ?: return null
+        val updated = existing.copy(
+            title = title,
+            isAllDay = isAllDay,
+            startDate = startDate,
+            timezone = if (isAllDay) null else (existing.timezone ?: "Asia/Seoul"),
+            rrule = rrule,
+            hasAlarm = hasAlarm,
+            updatedAt = System.currentTimeMillis(),
+        )
+        save(updated)
+        return updated
+    }
+
     suspend fun delete(id: String) {
         dao.deleteById(id)
         syncSafe { remote.deleteEvent(id) }

@@ -5,9 +5,11 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -56,6 +58,8 @@ fun ScheduleScreen(viewModel: ScheduleViewModel = hiltViewModel()) {
     var showTodoDialog   by remember { mutableStateOf(false) }
     var showRepeatDialog by remember { mutableStateOf(false) }
     var fabExpanded      by remember { mutableStateOf(false) }
+    var editingEvent     by remember { mutableStateOf<EventEntity?>(null) }
+    var editingTodo      by remember { mutableStateOf<TodoEntity?>(null) }
 
     Scaffold(
         containerColor = BgPrimary,
@@ -152,11 +156,13 @@ fun ScheduleScreen(viewModel: ScheduleViewModel = hiltViewModel()) {
                         when (item) {
                             is ScheduleItem.Event -> EventCard(
                                 event = item.entity,
+                                onEdit = { editingEvent = item.entity },
                                 onDelete = { viewModel.deleteEvent(item.entity.id) },
                             )
                             is ScheduleItem.Todo -> TodoItemCard(
                                 todo = item.entity,
                                 onToggle = { viewModel.toggleComplete(item.entity) },
+                                onEdit = { editingTodo = item.entity },
                                 onDelete = { viewModel.deleteTodo(item.entity) },
                             )
                         }
@@ -207,6 +213,31 @@ fun ScheduleScreen(viewModel: ScheduleViewModel = hiltViewModel()) {
             },
             onDelete = { id -> viewModel.deleteTemplate(id) },
             onDismiss = { showRepeatDialog = false },
+        )
+    }
+
+    // 편집 다이얼로그 — 생성 다이얼로그를 prefill하여 재사용
+    editingEvent?.let { event ->
+        CreateEventDialog(
+            selectedDate = LocalDate.parse(event.startDate.take(10)),
+            initial = event,
+            onConfirm = { title, isAllDay, startDate, rrule, hasAlarm ->
+                viewModel.updateEvent(event.id, title, isAllDay, startDate, rrule, hasAlarm)
+                editingEvent = null
+            },
+            onDismiss = { editingEvent = null },
+        )
+    }
+
+    editingTodo?.let { todo ->
+        CreateTodoDialog(
+            defaultDate = todo.dueDate ?: uiState.selectedDate.toString(),
+            initial = todo,
+            onConfirm = { title, dueDate, linked, type, category, amount ->
+                viewModel.updateTodo(todo.id, title, dueDate, linked, type, category, amount)
+                editingTodo = null
+            },
+            onDismiss = { editingTodo = null },
         )
     }
 }
@@ -313,8 +344,9 @@ private fun ScheduleDayCell(
 
 // ── 아이템 카드 ───────────────────────────────────────────────────────────────
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun EventCard(event: EventEntity, onDelete: () -> Unit) {
+private fun EventCard(event: EventEntity, onEdit: () -> Unit, onDelete: () -> Unit) {
     var showConfirm by remember { mutableStateOf(false) }
     val timeText = if (event.isAllDay) "종일" else event.startDate.substringAfter("T").take(5)
 
@@ -323,7 +355,8 @@ private fun EventCard(event: EventEntity, onDelete: () -> Unit) {
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .background(BgCard)
-            .border(1.dp, HairlineWhite, RoundedCornerShape(14.dp)),
+            .border(1.dp, HairlineWhite, RoundedCornerShape(14.dp))
+            .combinedClickable(onClick = {}, onLongClick = onEdit),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
@@ -353,8 +386,9 @@ private fun EventCard(event: EventEntity, onDelete: () -> Unit) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun TodoItemCard(todo: TodoEntity, onToggle: () -> Unit, onDelete: () -> Unit) {
+private fun TodoItemCard(todo: TodoEntity, onToggle: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit) {
     var showConfirm by remember { mutableStateOf(false) }
 
     Row(
@@ -363,6 +397,7 @@ private fun TodoItemCard(todo: TodoEntity, onToggle: () -> Unit, onDelete: () ->
             .clip(RoundedCornerShape(14.dp))
             .background(BgCard)
             .border(1.dp, HairlineWhite, RoundedCornerShape(14.dp))
+            .combinedClickable(onClick = onToggle, onLongClick = onEdit)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -480,18 +515,27 @@ private fun SmallFabItem(label: String, icon: @Composable () -> Unit, onClick: (
 @Composable
 private fun CreateEventDialog(
     selectedDate: LocalDate,
+    initial: EventEntity? = null,
     onConfirm: (String, Boolean, String, String?, Boolean) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var title    by remember { mutableStateOf("") }
-    var isAllDay by remember { mutableStateOf(true) }
-    var hasAlarm by remember { mutableStateOf(false) }
+    var title    by remember { mutableStateOf(initial?.title ?: "") }
+    var isAllDay by remember { mutableStateOf(initial?.isAllDay ?: true) }
+    var hasAlarm by remember { mutableStateOf(initial?.hasAlarm ?: false) }
 
-    LSyncInputDialog(title = "새 일정", onDismiss = onDismiss,
+    // 편집 시 기존 시간 부분 보존(생성은 09:00 기본)
+    val timePart = initial?.startDate
+        ?.let { if (it.contains("T")) it.substringAfter("T") else null }
+        ?: "09:00:00+09:00"
+
+    LSyncInputDialog(
+        title = if (initial != null) "일정 수정" else "새 일정",
+        confirmLabel = if (initial != null) "수정" else "추가",
+        onDismiss = onDismiss,
         onConfirm = {
             if (title.isNotBlank()) {
-                val startDate = if (isAllDay) selectedDate.toString() else "${selectedDate}T09:00:00+09:00"
-                onConfirm(title, isAllDay, startDate, null, hasAlarm)
+                val startDate = if (isAllDay) selectedDate.toString() else "${selectedDate}T$timePart"
+                onConfirm(title, isAllDay, startDate, initial?.rrule, hasAlarm)
             }
         },
         confirmEnabled = title.isNotBlank(),
@@ -510,17 +554,21 @@ private fun CreateEventDialog(
 @Composable
 private fun CreateTodoDialog(
     defaultDate: String,
+    initial: TodoEntity? = null,
     onConfirm: (String, String?, Boolean, String?, String?, Long?) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var title           by remember { mutableStateOf("") }
-    var dueDate         by remember { mutableStateOf(defaultDate) }
-    var financeLinked   by remember { mutableStateOf(false) }
-    var financeType     by remember { mutableStateOf("EXPENSE") }
-    var financeCategory by remember { mutableStateOf("") }
-    var financeAmount   by remember { mutableStateOf("") }
+    var title           by remember { mutableStateOf(initial?.title ?: "") }
+    var dueDate         by remember { mutableStateOf(initial?.dueDate ?: defaultDate) }
+    var financeLinked   by remember { mutableStateOf(initial?.financeIsLinked ?: false) }
+    var financeType     by remember { mutableStateOf(initial?.financeType ?: "EXPENSE") }
+    var financeCategory by remember { mutableStateOf(initial?.financeCategory ?: "") }
+    var financeAmount   by remember { mutableStateOf(initial?.financeAmount?.toString() ?: "") }
 
-    LSyncInputDialog(title = "새 할 일", confirmEnabled = title.isNotBlank(),
+    LSyncInputDialog(
+        title = if (initial != null) "할 일 수정" else "새 할 일",
+        confirmLabel = if (initial != null) "수정" else "추가",
+        confirmEnabled = title.isNotBlank(),
         onConfirm = {
             onConfirm(title, dueDate.ifBlank { null }, financeLinked,
                 if (financeLinked) financeType else null,
@@ -756,6 +804,7 @@ fun LSyncDialog(
 fun LSyncInputDialog(
     title: String,
     confirmEnabled: Boolean = true,
+    confirmLabel: String = "추가",
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
     content: @Composable ColumnScope.() -> Unit,
@@ -768,7 +817,7 @@ fun LSyncInputDialog(
         text  = { Column(verticalArrangement = Arrangement.spacedBy(0.dp)) { content() } },
         confirmButton = {
             TextButton(onClick = onConfirm, enabled = confirmEnabled) {
-                Text("추가", fontFamily = Pretendard, fontWeight = FontWeight.Medium, fontSize = 14.sp, color = if (confirmEnabled) AccentBlue else FgDisabled)
+                Text(confirmLabel, fontFamily = Pretendard, fontWeight = FontWeight.Medium, fontSize = 14.sp, color = if (confirmEnabled) AccentBlue else FgDisabled)
             }
         },
         dismissButton = {
