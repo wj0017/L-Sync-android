@@ -52,7 +52,7 @@ app/src/main/java/com/lsync/app/
 │   │   └── FirestoreDataSource.kt
 │   └── repository/
 │       ├── EventRepository.kt
-│       ├── TodoRepository.kt
+│       ├── TodoRepository.kt          # createTemplate, upsertMaterialized(로컬+알람+동기화), create/complete/uncheck/delete
 │       ├── FinanceRepository.kt
 │       ├── ReadingPlanRepository.kt  # 1년 통독 시퀀스 계산, 설정(SharedPreferences), getStreak/getWeeklyHeatmap
 │       ├── AuthRepository.kt         # Firebase Auth 래퍼. currentUserId, authState, signInWithGoogle, signOut
@@ -73,8 +73,9 @@ app/src/main/java/com/lsync/app/
 │   ├── schedule/
 │   │   ├── ScheduleScreen.kt       # 단일 LazyColumn 통스크롤(헤더·캘린더·구분선·목록) + ExpandableFab
 │   │   │                           # 위로 스크롤하면 캘린더가 밀려 사라지고 목록만 남음
-│   │   │                           # LSyncDialog, CreateEventDialog, CreateTodoDialog 포함
-│   │   └── ScheduleViewModel.kt    # CalendarViewModel + TodoViewModel 통합
+│   │   │                           # LSyncDialog, CreateEventDialog, CreateTodoDialog, CreateRepeatTodoDialog(반복 템플릿), 활성 템플릿 목록 포함
+│   │   ├── RecurrenceOptions.kt    # RecurrenceOption 모델 + buildRrule(FREQ/INTERVAL/BYDAY)·describeRrule(한국어 요약)
+│   │   └── ScheduleViewModel.kt    # CalendarViewModel + TodoViewModel 통합. templates 상태·createTemplate·deleteTemplate
 │   ├── finance/
 │   │   ├── FinanceScreen.kt
 │   │   ├── FinanceViewModel.kt
@@ -90,7 +91,8 @@ app/src/main/java/com/lsync/app/
 │   └── PaymentNotificationService.kt
 ├── worker/
 │   ├── AlarmRestoreWorker.kt
-│   ├── TodoMaterializerWorker.kt
+│   ├── TodoMaterializerWorker.kt     # 반복 인스턴스 생성 → TodoRepository.upsertMaterialized(동기화·알람 포함)
+│   ├── MaterializationTrigger.kt     # 템플릿 생성 직후 1회 즉시 materialization (OneTimeWork)
 │   └── WidgetRefreshWorker.kt        # 30분 주기 위젯 갱신 (비-Hilt CoroutineWorker)
 └── ui/widget/
     ├── LSyncWidget.kt                # GlanceAppWidget — 4개 섹션 UI + loadWidgetState()

@@ -162,6 +162,9 @@ service cloud.firestore {
 - **Idempotency:** Todo ID = `${templateId}_${dueDate}`. Upsert로 중복 방지.
 - **Materialization Window:** 현재일 기준 +14일치 인스턴스 미리 생성.
 - **템플릿 Update 정책:** 미완료 미래 인스턴스 덮어쓰기, 완료된 과거 인스턴스 변경 무시.
+- **RRULE 생성:** `ui/schedule/RecurrenceOptions.kt`의 `RecurrenceOption(frequency, interval, weekdays)` → `buildRrule`(`FREQ`/`INTERVAL`/`BYDAY` 정렬)로 RRULE 문자열 생성, `describeRrule`로 한국어 요약 표시.
+- **인스턴스 동기화·알람:** `TodoMaterializerWorker`는 `todoDao.upsertAll`이 아닌 `TodoRepository.upsertMaterialized`를 호출 → 생성된 인스턴스가 Firestore 동기화·마감일 알람 등록까지 거친다(단발성 Todo와 동일 경로).
+- **즉시 생성 트리거:** `MaterializationTrigger`(`@Singleton`)가 템플릿 생성 직후 `OneTimeWork`(`ExistingWorkPolicy.REPLACE`)로 Materializer를 1회 즉시 실행.
 
 ---
 
