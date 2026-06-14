@@ -52,7 +52,8 @@
     },
     {
       "dir": "11-event-todo-edit",
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-06-14T18:40:30+0900"
     },
     {
       "dir": "12-finance-dashboard",

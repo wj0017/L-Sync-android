@@ -155,6 +155,30 @@ class ScheduleViewModel @Inject constructor(
         }
     }
 
+    fun updateEvent(
+        id: String,
+        title: String,
+        isAllDay: Boolean,
+        startDate: String,
+        rrule: String? = null,
+        hasAlarm: Boolean = false,
+    ) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
+            runCatching {
+                eventRepository.update(
+                    id = id,
+                    title = title,
+                    isAllDay = isAllDay,
+                    startDate = startDate,
+                    rrule = rrule,
+                    hasAlarm = hasAlarm,
+                )
+            }.onFailure { e -> _uiState.update { it.copy(error = e.message, isLoading = false) } }
+             .onSuccess { _uiState.update { it.copy(isLoading = false) }; widgetRefreshHelper.requestUpdate() }
+        }
+    }
+
     fun deleteEvent(id: String) = viewModelScope.launch { eventRepository.delete(id); widgetRefreshHelper.requestUpdate() }
 
     // ── 투두 CRUD ─────────────────────────────────────────────────────────────
@@ -171,6 +195,31 @@ class ScheduleViewModel @Inject constructor(
             runCatching {
                 todoRepository.create(
                     userId = currentUserId,
+                    title = title,
+                    dueDate = dueDate,
+                    financeIsLinked = financeIsLinked,
+                    financeType = financeType,
+                    financeCategory = financeCategory,
+                    financeAmount = financeAmount,
+                )
+            }.onSuccess { widgetRefreshHelper.requestUpdate() }
+             .onFailure { e -> _uiState.update { it.copy(error = e.message) } }
+        }
+    }
+
+    fun updateTodo(
+        id: String,
+        title: String,
+        dueDate: String?,
+        financeIsLinked: Boolean = false,
+        financeType: String? = null,
+        financeCategory: String? = null,
+        financeAmount: Long? = null,
+    ) {
+        viewModelScope.launch {
+            runCatching {
+                todoRepository.update(
+                    id = id,
                     title = title,
                     dueDate = dueDate,
                     financeIsLinked = financeIsLinked,
