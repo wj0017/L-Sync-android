@@ -19,6 +19,7 @@ import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Repeat
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -39,6 +40,7 @@ import com.kizitonwose.calendar.core.DayPosition
 import com.kizitonwose.calendar.core.firstDayOfWeekFromLocale
 import com.lsync.app.data.local.entity.EventEntity
 import com.lsync.app.data.local.entity.TodoEntity
+import com.lsync.app.data.local.entity.TodoTemplateEntity
 import com.lsync.app.ui.theme.*
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -50,9 +52,10 @@ import java.util.Locale
 fun ScheduleScreen(viewModel: ScheduleViewModel = hiltViewModel()) {
     val uiState by viewModel.uiState.collectAsState()
 
-    var showEventDialog by remember { mutableStateOf(false) }
-    var showTodoDialog  by remember { mutableStateOf(false) }
-    var fabExpanded     by remember { mutableStateOf(false) }
+    var showEventDialog  by remember { mutableStateOf(false) }
+    var showTodoDialog   by remember { mutableStateOf(false) }
+    var showRepeatDialog by remember { mutableStateOf(false) }
+    var fabExpanded      by remember { mutableStateOf(false) }
 
     Scaffold(
         containerColor = BgPrimary,
@@ -60,8 +63,9 @@ fun ScheduleScreen(viewModel: ScheduleViewModel = hiltViewModel()) {
             ExpandableFab(
                 expanded = fabExpanded,
                 onToggle = { fabExpanded = !fabExpanded },
-                onAddEvent = { fabExpanded = false; showEventDialog = true },
-                onAddTodo  = { fabExpanded = false; showTodoDialog  = true },
+                onAddEvent  = { fabExpanded = false; showEventDialog  = true },
+                onAddTodo   = { fabExpanded = false; showTodoDialog   = true },
+                onAddRepeat = { fabExpanded = false; showRepeatDialog = true },
             )
         },
     ) { innerPadding ->
@@ -191,6 +195,18 @@ fun ScheduleScreen(viewModel: ScheduleViewModel = hiltViewModel()) {
                 showTodoDialog = false
             },
             onDismiss = { showTodoDialog = false },
+        )
+    }
+
+    if (showRepeatDialog) {
+        CreateRepeatTodoDialog(
+            templates = uiState.templates,
+            onConfirm = { title, rrule, linked, type, category, amount ->
+                viewModel.createTemplate(title, rrule, linked, type, category, amount)
+                showRepeatDialog = false
+            },
+            onDelete = { id -> viewModel.deleteTemplate(id) },
+            onDismiss = { showRepeatDialog = false },
         )
     }
 }
@@ -416,6 +432,7 @@ private fun ExpandableFab(
     onToggle: () -> Unit,
     onAddEvent: () -> Unit,
     onAddTodo: () -> Unit,
+    onAddRepeat: () -> Unit,
 ) {
     Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         AnimatedVisibility(
@@ -424,6 +441,7 @@ private fun ExpandableFab(
             exit  = fadeOut() + slideOutVertically { it },
         ) {
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                SmallFabItem(label = "반복 할 일", icon = { Icon(Icons.Outlined.Repeat, null, modifier = Modifier.size(18.dp)) }, onClick = onAddRepeat)
                 SmallFabItem(label = "할 일 추가", icon = { Icon(Icons.Outlined.CheckCircle, null, modifier = Modifier.size(18.dp)) }, onClick = onAddTodo)
                 SmallFabItem(label = "일정 추가", icon = { Icon(Icons.Outlined.CalendarMonth, null, modifier = Modifier.size(18.dp)) }, onClick = onAddEvent)
             }
@@ -546,6 +564,147 @@ private fun CreateTodoDialog(
             LSyncField(label = "금액 (미정이면 비워두세요)", value = financeAmount, onValueChange = { financeAmount = it.filter(Char::isDigit) })
         }
     }
+}
+
+@Composable
+private fun CreateRepeatTodoDialog(
+    templates: List<TodoTemplateEntity>,
+    onConfirm: (title: String, rrule: String, financeIsLinked: Boolean, financeType: String?, financeCategory: String?, financeAmount: Long?) -> Unit,
+    onDelete: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var title           by remember { mutableStateOf("") }
+    var frequency       by remember { mutableStateOf(Frequency.WEEKLY) }
+    var intervalText    by remember { mutableStateOf("1") }
+    var weekdays        by remember { mutableStateOf(emptySet<Weekday>()) }
+    var financeLinked   by remember { mutableStateOf(false) }
+    var financeType     by remember { mutableStateOf("EXPENSE") }
+    var financeCategory by remember { mutableStateOf("") }
+    var financeAmount   by remember { mutableStateOf("") }
+
+    val interval = intervalText.toIntOrNull()?.coerceAtLeast(1) ?: 1
+    val option = RecurrenceOption(
+        frequency = frequency,
+        interval = interval,
+        weekdays = if (frequency == Frequency.WEEKLY) weekdays else emptySet(),
+    )
+
+    LSyncInputDialog(title = "반복 할 일", confirmEnabled = title.isNotBlank(),
+        onConfirm = {
+            if (title.isNotBlank()) {
+                onConfirm(title, buildRrule(option), financeLinked,
+                    if (financeLinked) financeType else null,
+                    if (financeLinked) financeCategory.ifBlank { null } else null,
+                    if (financeLinked) financeAmount.toLongOrNull() else null)
+            }
+        },
+        onDismiss = onDismiss,
+    ) {
+        // 활성 템플릿 목록 + 반복 중지(soft delete). 이미 생성된 인스턴스는 유지된다.
+        if (templates.isNotEmpty()) {
+            Text("반복 중", fontFamily = Pretendard, fontWeight = FontWeight.Medium, fontSize = 11.sp, letterSpacing = 0.12.em, color = FgTertiary)
+            Spacer(Modifier.height(8.dp))
+            templates.forEach { template ->
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(template.title, fontFamily = Pretendard, fontWeight = FontWeight.Medium, fontSize = 14.sp, color = FgPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Spacer(Modifier.height(2.dp))
+                        Text(describeRrule(template.rrule), fontFamily = Pretendard, fontSize = 12.sp, color = FgSecondary)
+                    }
+                    TextButton(onClick = { onDelete(template.id) }) {
+                        Text("반복 중지", fontFamily = Pretendard, fontWeight = FontWeight.Medium, fontSize = 13.sp, color = FgSecondary)
+                    }
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(Divider))
+            Spacer(Modifier.height(14.dp))
+        }
+
+        LSyncField(label = "제목", value = title, onValueChange = { title = it })
+        Spacer(Modifier.height(12.dp))
+
+        // 빈도: 매일/매주/매월/매년 — ghost chip (active = FgPrimary solid)
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            listOf(
+                Frequency.DAILY to "매일", Frequency.WEEKLY to "매주",
+                Frequency.MONTHLY to "매월", Frequency.YEARLY to "매년",
+            ).forEach { (freq, label) ->
+                val sel = frequency == freq
+                Box(
+                    modifier = Modifier.clip(CircleShape)
+                        .background(if (sel) FgPrimary else Color.Transparent)
+                        .border(1.dp, if (sel) FgPrimary else Divider, CircleShape)
+                        .clickable { frequency = freq }
+                        .padding(horizontal = 13.dp, vertical = 7.dp),
+                    contentAlignment = Alignment.Center,
+                ) { Text(label, fontFamily = Pretendard, fontWeight = FontWeight.Medium, fontSize = 12.sp, color = if (sel) BgPrimary else FgSecondary) }
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+
+        // 간격(INTERVAL): N마다
+        LSyncField(label = "간격 (N마다 반복)", value = intervalText, onValueChange = { intervalText = it.filter(Char::isDigit) })
+
+        // 요일(BYDAY): 매주일 때만 노출. 멀티선택, 미선택 시 BYDAY 생략
+        if (frequency == Frequency.WEEKLY) {
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
+                Weekday.values().forEach { wd ->
+                    val sel = wd in weekdays
+                    Box(
+                        modifier = Modifier.weight(1f).clip(CircleShape)
+                            .background(if (sel) FgPrimary else Color.Transparent)
+                            .border(1.dp, if (sel) FgPrimary else Divider, CircleShape)
+                            .clickable { weekdays = if (sel) weekdays - wd else weekdays + wd }
+                            .padding(vertical = 8.dp),
+                        contentAlignment = Alignment.Center,
+                    ) { Text(weekdayLabel(wd), fontFamily = Pretendard, fontWeight = FontWeight.Medium, fontSize = 12.sp, color = if (sel) BgPrimary else FgSecondary) }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(10.dp))
+        Text(describeRrule(buildRrule(option)), fontFamily = Pretendard, fontSize = 12.sp, color = FgSecondary)
+
+        // 가계부 연동 (CreateTodoDialog와 동일 패턴)
+        Spacer(Modifier.height(12.dp))
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { financeLinked = !financeLinked }) {
+            Box(
+                modifier = Modifier.size(18.dp).clip(RoundedCornerShape(3.dp))
+                    .background(if (financeLinked) AccentBlue else Color.Transparent)
+                    .then(if (!financeLinked) Modifier.border(1.5.dp, FgSecondary, RoundedCornerShape(3.dp)) else Modifier),
+                contentAlignment = Alignment.Center,
+            ) { if (financeLinked) Text("✓", fontSize = 11.sp, color = Color.White, fontFamily = Pretendard) }
+            Spacer(Modifier.width(8.dp))
+            Text("가계부 연동", fontFamily = Pretendard, fontSize = 13.sp, color = FgPrimary)
+        }
+        if (financeLinked) {
+            Spacer(Modifier.height(12.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf("EXPENSE" to "지출", "INCOME" to "수입").forEach { (type, label) ->
+                    val sel = financeType == type
+                    Box(
+                        modifier = Modifier.clip(CircleShape)
+                            .background(if (sel) FgPrimary else Color.Transparent)
+                            .border(1.dp, if (sel) FgPrimary else Divider, CircleShape)
+                            .clickable { financeType = type }
+                            .padding(horizontal = 14.dp, vertical = 7.dp),
+                        contentAlignment = Alignment.Center,
+                    ) { Text(label, fontFamily = Pretendard, fontWeight = FontWeight.Medium, fontSize = 12.sp, letterSpacing = 0.005.em, color = if (sel) BgPrimary else FgSecondary) }
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            LSyncField(label = "카테고리", value = financeCategory, onValueChange = { financeCategory = it })
+            Spacer(Modifier.height(10.dp))
+            LSyncField(label = "금액 (미정이면 비워두세요)", value = financeAmount, onValueChange = { financeAmount = it.filter(Char::isDigit) })
+        }
+    }
+}
+
+private fun weekdayLabel(wd: Weekday): String = when (wd) {
+    Weekday.MON -> "월"; Weekday.TUE -> "화"; Weekday.WED -> "수"; Weekday.THU -> "목"
+    Weekday.FRI -> "금"; Weekday.SAT -> "토"; Weekday.SUN -> "일"
 }
 
 @Composable

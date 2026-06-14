@@ -4,10 +4,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.lsync.app.data.local.entity.EventEntity
 import com.lsync.app.data.local.entity.TodoEntity
+import com.lsync.app.data.local.entity.TodoTemplateEntity
 import com.lsync.app.data.repository.AuthRepository
 import com.lsync.app.data.repository.EventRepository
 import com.lsync.app.data.repository.TodoRepository
 import com.lsync.app.ui.widget.WidgetRefreshHelper
+import com.lsync.app.worker.MaterializationTrigger
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
@@ -28,6 +30,7 @@ data class ScheduleUiState(
     val monthEvents: List<EventEntity> = emptyList(),
     val todoDateSet: Set<String> = emptySet(),
     val dayItems: List<ScheduleItem> = emptyList(),
+    val templates: List<TodoTemplateEntity> = emptyList(),
     val pendingFinanceTodo: TodoEntity? = null,
     val isLoading: Boolean = false,
     val error: String? = null,
@@ -41,6 +44,7 @@ class ScheduleViewModel @Inject constructor(
     private val todoRepository: TodoRepository,
     private val authRepository: AuthRepository,
     private val widgetRefreshHelper: WidgetRefreshHelper,
+    private val materializationTrigger: MaterializationTrigger,
 ) : ViewModel() {
     private val currentUserId: String
         get() = authRepository.currentUserId ?: error("User not signed in")
@@ -56,6 +60,15 @@ class ScheduleViewModel @Inject constructor(
         val today = LocalDate.now()
         loadMonthData(YearMonth.now())
         observeDayItems(today)
+        observeTemplates()
+    }
+
+    private fun observeTemplates() {
+        viewModelScope.launch {
+            todoRepository.observeActiveTemplates(currentUserId)
+                .catch { e -> _uiState.update { it.copy(error = e.message) } }
+                .collect { templates -> _uiState.update { it.copy(templates = templates) } }
+        }
     }
 
     fun onMonthChange(month: YearMonth) {
@@ -200,6 +213,42 @@ class ScheduleViewModel @Inject constructor(
     fun dismissFinancePopup() = _uiState.update { it.copy(pendingFinanceTodo = null) }
 
     fun deleteTodo(todo: TodoEntity) = viewModelScope.launch { todoRepository.delete(todo); widgetRefreshHelper.requestUpdate() }
+
+    // ── 반복 Todo 템플릿 ───────────────────────────────────────────────────────
+    // rrule은 호출자(UI)가 buildRrule로 만들어 넘긴다.
+
+    fun createTemplate(
+        title: String,
+        rrule: String,
+        financeIsLinked: Boolean = false,
+        financeType: String? = null,
+        financeCategory: String? = null,
+        financeAmount: Long? = null,
+    ) {
+        viewModelScope.launch {
+            runCatching {
+                todoRepository.createTemplate(
+                    userId = currentUserId,
+                    title = title,
+                    rrule = rrule,
+                    financeIsLinked = financeIsLinked,
+                    financeType = financeType,
+                    financeCategory = financeCategory,
+                    financeAmount = financeAmount,
+                )
+            }.onSuccess {
+                // 일 1회 주기 실행과 별개로 즉시 1회 인스턴스 생성
+                materializationTrigger.runNow()
+                widgetRefreshHelper.requestUpdate()
+            }.onFailure { e -> _uiState.update { it.copy(error = e.message) } }
+        }
+    }
+
+    // 데이터 영속성 정책: hard delete가 아닌 비활성화(soft)
+    fun deleteTemplate(id: String) = viewModelScope.launch {
+        todoRepository.deactivateTemplate(id)
+        widgetRefreshHelper.requestUpdate()
+    }
 
     fun clearError() = _uiState.update { it.copy(error = null) }
 }
