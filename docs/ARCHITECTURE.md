@@ -49,13 +49,14 @@ app/src/main/java/com/lsync/app/
 │   │       ├── BibleDao.kt
 │   │       └── EsvDao.kt
 │   ├── remote/
-│   │   └── FirestoreDataSource.kt
+│   │   └── FirestoreDataSource.kt    # push(upsert/batch) + fetchEvents/fetchTodos/fetchFinance(복원 pull)
 │   └── repository/
 │       ├── EventRepository.kt
 │       ├── TodoRepository.kt          # createTemplate, upsertMaterialized(로컬+알람+동기화), create/complete/uncheck/delete
 │       ├── FinanceRepository.kt
 │       ├── ReadingPlanRepository.kt  # 1년 통독 시퀀스 계산, 설정(SharedPreferences), getStreak/getWeeklyHeatmap
-│       ├── AuthRepository.kt         # Firebase Auth 래퍼. currentUserId, authState, signInWithGoogle, signOut
+│       ├── SyncRepository.kt         # pullAll(userId) — Firestore→Room last-write-wins 복원(upsert-only)
+│       ├── AuthRepository.kt         # Firebase Auth 래퍼. currentUserId, authState, signInWithGoogle, signOut. 로그인·자동로그인 시 pullAll 트리거
 │       └── AuthMigrationHelper.kt    # "local_user" → Firebase UID Room 일괄 마이그레이션 (멱등)
 ├── ui/
 │   ├── theme/
@@ -105,8 +106,14 @@ app/src/main/java/com/lsync/app/
 ## 핵심 설계 결정
 
 ### Offline-First
-Room이 SSOT. 모든 쓰기는 Room에 먼저 저장하고, 이후 Firestore에 비동기 동기화.
-UI는 Room Flow를 구독하므로 네트워크 없이도 즉각 반응.
+Room이 SSOT. 모든 쓰기는 Room에 먼저 저장하고, 이후 Firestore에 비동기 동기화(push).
+UI는 Room Flow를 구독하므로 네트워크 없이도 즉각 반응. UI는 Firestore를 직접 구독하지 않는다.
+
+### Firestore 복원 동기화 (pull)
+- **목적:** 재설치·기기 변경 시 원격 데이터를 Room으로 되돌린다(기존엔 push 전용이라 복원 경로가 없었음).
+- **`SyncRepository.pullAll(userId)`:** `FirestoreDataSource.fetchEvents/fetchTodos/fetchFinance`로 원격 문서를 받아 **last-write-wins**로 머지 — 항목별 `updatedAt`이 로컬보다 클 때만 upsert(로컬이 같거나 최신이면 보존). **upsert-only**라 로컬 전용 데이터를 삭제하지 않음.
+- **삭제 반영:** Event/Finance는 원격 hard delete라 fetch에 없고, Todo는 `deletedAt`이 채워진 채 와서 upsert로 soft delete가 복원된다.
+- **트리거 시점:** `AuthRepository`가 로그인(백그라운드)·자동로그인(앱 재실행) 시 `AuthMigrationHelper.migrate` **직후** `pullAll` 실행. UI는 Room Flow로 자동 반영. 실패는 `syncSafe`로 Crashlytics(`sync_failed`)에 기록하고 흐름을 막지 않음. (Auth↔Sync 순환 의존 없음 — Sync는 Auth를 모름)
 
 ### 성경 데이터 — 완전 오프라인
 - `BibleDatabase` (bible_v3.db): 개역개정 4판 31,024절
