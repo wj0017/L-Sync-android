@@ -20,6 +20,7 @@ import com.lsync.app.notification.AlarmScheduler
 import com.lsync.app.data.repository.EventRepository
 import com.lsync.app.data.repository.FinanceRepository
 import com.lsync.app.data.repository.ReadingPlanRepository
+import com.lsync.app.data.repository.SyncRepository
 import com.lsync.app.data.repository.TodoRepository
 import dagger.Module
 import dagger.Provides
@@ -103,6 +104,15 @@ object AppModule {
         remote: FirestoreDataSource,
         authRepository: com.lsync.app.data.repository.AuthRepository,
     ) = FinanceRepository(dao, remote, authRepository)
+
+    @Provides
+    @Singleton
+    fun provideSyncRepository(
+        remote: FirestoreDataSource,
+        eventDao: EventDao,
+        todoDao: TodoDao,
+        financeDao: FinanceDao,
+    ) = SyncRepository(remote, eventDao, todoDao, financeDao)
 
     @Provides
     @Singleton

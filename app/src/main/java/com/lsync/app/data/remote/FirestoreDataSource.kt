@@ -1,5 +1,6 @@
 package com.lsync.app.data.remote
 
+import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import com.lsync.app.data.local.entity.EventEntity
@@ -70,6 +71,21 @@ class FirestoreDataSource @Inject constructor(
         finance().document(id).delete().await()
     }
 
+    // ── 복원 동기화(pull): 원격 컬렉션을 userId로 필터해 엔티티로 복원 ──
+    // 개별 문서 매핑 실패는 건너뛰어(전체 복원이 한 문서 스키마 불일치로 막히지 않게) 한다.
+
+    suspend fun fetchEvents(userId: String): List<EventEntity> =
+        events().whereEqualTo("userId", userId).get().await()
+            .documents.mapNotNull { it.toEventEntity() }
+
+    suspend fun fetchTodos(userId: String): List<TodoEntity> =
+        todos().whereEqualTo("userId", userId).get().await()
+            .documents.mapNotNull { it.toTodoEntity() }
+
+    suspend fun fetchFinance(userId: String): List<FinanceEntity> =
+        finance().whereEqualTo("userId", userId).get().await()
+            .documents.mapNotNull { it.toFinanceEntity() }
+
     private fun EventEntity.toMap() = mapOf(
         "id" to id, "userId" to userId, "title" to title, "isAllDay" to isAllDay,
         "startDate" to startDate, "endDate" to endDate, "timezone" to timezone,
@@ -94,4 +110,61 @@ class FirestoreDataSource @Inject constructor(
         "settlementGroupId" to settlementGroupId,
         "createdAt" to createdAt, "updatedAt" to updatedAt,
     )
+
+    // toMap()과 1:1 대응하는 역방향(문서→엔티티) 매핑.
+    private fun DocumentSnapshot.toEventEntity(): EventEntity? = runCatching {
+        EventEntity(
+            id = getString("id") ?: return null,
+            userId = getString("userId") ?: return null,
+            title = getString("title") ?: "",
+            isAllDay = getBoolean("isAllDay") ?: false,
+            startDate = getString("startDate") ?: "",
+            endDate = getString("endDate"),
+            timezone = getString("timezone"),
+            rrule = getString("rrule"),
+            exdatesJson = getString("exdatesJson"),
+            overridesJson = getString("overridesJson"),
+            hasAlarm = getBoolean("hasAlarm") ?: false,
+            createdAt = getLong("createdAt") ?: 0L,
+            updatedAt = getLong("updatedAt") ?: 0L,
+            deletedAt = getLong("deletedAt"),
+        )
+    }.getOrNull()
+
+    private fun DocumentSnapshot.toTodoEntity(): TodoEntity? = runCatching {
+        TodoEntity(
+            id = getString("id") ?: return null,
+            userId = getString("userId") ?: return null,
+            templateId = getString("templateId"),
+            title = getString("title") ?: "",
+            isCompleted = getBoolean("isCompleted") ?: false,
+            dueDate = getString("dueDate"),
+            completedAt = getLong("completedAt"),
+            financeIsLinked = getBoolean("financeIsLinked") ?: false,
+            financeType = getString("financeType"),
+            financeCategory = getString("financeCategory"),
+            financeAmount = getLong("financeAmount"),
+            linkedFinanceId = getString("linkedFinanceId"),
+            createdAt = getLong("createdAt") ?: 0L,
+            updatedAt = getLong("updatedAt") ?: 0L,
+            deletedAt = getLong("deletedAt"),
+        )
+    }.getOrNull()
+
+    private fun DocumentSnapshot.toFinanceEntity(): FinanceEntity? = runCatching {
+        FinanceEntity(
+            id = getString("id") ?: return null,
+            userId = getString("userId") ?: return null,
+            type = getString("type") ?: "",
+            amount = getLong("amount") ?: 0L,
+            category = getString("category") ?: "",
+            date = getString("date") ?: "",
+            note = getString("note"),
+            sourceTodoId = getString("sourceTodoId"),
+            isExcluded = getBoolean("isExcluded") ?: false,
+            settlementGroupId = getString("settlementGroupId"),
+            createdAt = getLong("createdAt") ?: 0L,
+            updatedAt = getLong("updatedAt") ?: 0L,
+        )
+    }.getOrNull()
 }

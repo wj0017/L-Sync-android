@@ -15,7 +15,7 @@
 
 ### 핵심 동작
 
-- **Offline-First** — Room이 SSOT. 네트워크 없이도 모든 기능 동작. Firestore는 백그라운드 동기화 전용.
+- **Offline-First** — Room이 SSOT. 네트워크 없이도 모든 기능 동작. Firestore는 백그라운드 동기화 전용(push). 로그인 시 원격 데이터를 last-write-wins로 Room에 복원(pull).
 - **Todo ↔ 가계부 연동** — Todo 완료 시 가계부 항목 자동 생성. 미완료 시 통계 제외(soft delete). 삭제 시 가계부 유지.
 - **반복 할 일 템플릿** — 빈도·간격(N주마다)·요일을 지정해 템플릿을 만들면 앱이 개별 Todo를 client-side materialization으로 생성. 생성된 인스턴스도 Firestore 동기화·마감일 알람을 동일하게 거친다.
 - **정산 추적** — 공동 결제 후 돌려받는 흐름을 추적. 정산 입금은 수입에 섞지 않고 별도 집계해 잔액만 정확히 반영.
@@ -91,3 +91,4 @@ app/src/main/java/com/lsync/app/
 - [x] **Phase 6** — 통독 고급화 (BibleScreen 연동, 연속 읽기 streak, 주간 히트맵)
 - [x] **Phase 7** — 알람 라이프사이클 (생성·수정·삭제 시 AlarmManager 연동, 마감일 09:00 리마인더, 정확 알람 폴백)
 - [x] **Phase 8** — 반복 할 일 템플릿 (RRULE 빌더, 인스턴스 동기화·알람 일원화, 즉시 materialization 트리거)
+- [x] **Phase 9** — Firestore 복원 동기화 (pull) (로그인 시 last-write-wins upsert, 재설치·기기 변경 복원)

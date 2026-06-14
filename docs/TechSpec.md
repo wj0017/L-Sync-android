@@ -245,6 +245,7 @@ EntryPointAccessors.fromApplication(context.applicationContext, WidgetEntryPoint
 
 - **원자성:** Todo 완료 → Finance 생성은 Firestore Batch Write로 묶음.
 - **Crashlytics:** 네트워크 연결 상태에서 Exception 발생 시 `sync_failed` 이벤트 기록.
+- **복원 동기화(pull):** `SyncRepository.pullAll(userId)`가 `FirestoreDataSource.fetchEvents/fetchTodos/fetchFinance`로 원격을 받아 **last-write-wins upsert-only** 머지(항목별 `updatedAt > local.updatedAt`일 때만 덮어씀, 로컬 전용 데이터 미삭제). `AuthRepository`가 로그인·자동로그인 시 마이그레이션 직후 백그라운드 실행. 재설치·기기 변경 복원 경로. 엔티티 그룹별 `syncSafe`로 부분 실패 격리.
 
 ---
 
