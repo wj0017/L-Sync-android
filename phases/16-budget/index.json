@@ -1,0 +1,11 @@
+{
+  "project": "L-Sync",
+  "phase": "16-budget",
+  "steps": [
+    { "step": 0, "name": "budget-entity", "status": "pending" },
+    { "step": 1, "name": "budget-repository", "status": "pending" },
+    { "step": 2, "name": "budget-viewmodel", "status": "pending" },
+    { "step": 3, "name": "budget-display", "status": "pending" },
+    { "step": 4, "name": "budget-edit-ui", "status": "pending" }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "project": "L-Sync",
+  "phase": "14-notification-deeplink",
+  "steps": [
+    { "step": 0, "name": "deeplink-infra", "status": "pending" },
+    { "step": 1, "name": "notification-tap", "status": "pending" },
+    { "step": 2, "name": "widget-deeplink", "status": "pending" },
+    { "step": 3, "name": "notification-action", "status": "pending" }
+  ]
+}

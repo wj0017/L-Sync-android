@@ -64,6 +64,18 @@
       "dir": "13-permission-entry",
       "status": "completed",
       "completed_at": "2026-06-17T13:43:40+0900"
+    },
+    {
+      "dir": "14-notification-deeplink",
+      "status": "pending"
+    },
+    {
+      "dir": "15-recurring-event",
+      "status": "pending"
+    },
+    {
+      "dir": "16-budget",
+      "status": "pending"
     }
   ]
 }

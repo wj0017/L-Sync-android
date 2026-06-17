@@ -1,0 +1,13 @@
+{
+  "project": "L-Sync",
+  "phase": "15-recurring-event",
+  "steps": [
+    { "step": 0, "name": "recurrence-expansion", "status": "pending" },
+    { "step": 1, "name": "schedule-display", "status": "pending" },
+    { "step": 2, "name": "create-recurrence-ui", "status": "pending" },
+    { "step": 3, "name": "delete-scope", "status": "pending" },
+    { "step": 4, "name": "edit-scope", "status": "pending" },
+    { "step": 5, "name": "recurrence-alarm", "status": "pending" },
+    { "step": 6, "name": "home-widget-display", "status": "pending" }
+  ]
+}
