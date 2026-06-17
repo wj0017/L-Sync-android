@@ -2,6 +2,15 @@
   "project": "L-Sync",
   "phase": "13-permission-entry",
   "steps": [
-    { "step": 0, "name": "permission-entry", "status": "pending" }
-  ]
+    {
+      "step": 0,
+      "name": "permission-entry",
+      "status": "completed",
+      "summary": "HomeScreen 메뉴에 알림·정확알람 권한 재진입 추가(PermissionHelper 사용, 필요 시 openAppNotificationSettings 추가). 신규 화면 없이 경량 처리",
+      "started_at": "2026-06-17T13:41:56+0900",
+      "completed_at": "2026-06-17T13:43:40+0900"
+    }
+  ],
+  "created_at": "2026-06-17T13:41:56+0900",
+  "completed_at": "2026-06-17T13:43:40+0900"
 }

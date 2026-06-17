@@ -69,7 +69,7 @@ app/src/main/java/com/lsync/app/
 │   ├── navigation/
 │   │   └── NavGraph.kt             # 4-tab: Home / Schedule / Finance / Bible. 미로그인 시 LoginScreen early return
 │   ├── home/
-│   │   ├── HomeScreen.kt           # 오늘 날짜·통독·일정 미리보기·가계부 요약. 연속 읽기 streak + 주간 히트맵. 헤더 로그아웃 메뉴 포함
+│   │   ├── HomeScreen.kt           # 오늘 날짜·통독·일정 미리보기·가계부 요약. 연속 읽기 streak + 주간 히트맵. 헤더 메뉴(미허용 권한 재진입 + 로그아웃)
 │   │   └── HomeViewModel.kt        # EventRepo + TodoRepo + FinanceRepo + ReadingPlanRepo 조합 (streak/heatmap 포함)
 │   ├── schedule/
 │   │   ├── ScheduleScreen.kt       # 단일 LazyColumn 통스크롤(헤더·캘린더·구분선·목록) + ExpandableFab
@@ -170,6 +170,7 @@ UI는 Room Flow를 구독하므로 네트워크 없이도 즉각 반응. UI는 F
 - **라이브 연결:** Event는 `save()`에서 등록·`delete()`에서 취소. Todo는 `create`/`uncheck`에서 등록, `complete`/`delete`에서 취소. → 생성 시점부터 알람이 실제 발화(재부팅 불필요).
 - **게이팅:** Event는 `hasAlarm` 플래그(false면 cancel). Todo는 별도 플래그 없이 *마감일 있는 모든 미완료 Todo = 자동 리마인더*(완료·`dueDate==null`이면 cancel).
 - **정확 알람 권한 폴백:** Android 12+에서 정확 알람 권한이 없으면 `setExactAndAllowWhileIdle` 대신 `setAndAllowWhileIdle`(inexact)로 폴백 — 권한 미허용 시 알람이 조용히 사라지지 않게. 트리거 계산·등록은 `runCatching`으로 감싸 한 항목 실패가 복원 루프를 막지 않음.
+- **권한 재진입(경량):** 신규 화면 없이 `HomeScreen` 헤더 메뉴에서 처리. `PermissionHelper`의 `needsNotificationPermission`/`needsExactAlarmPermission`/`needsNotificationListenerPermission`로 **미허용 권한이 있을 때만** 해당 메뉴 항목(알림 권한·정확한 알람·결제 알림 접근)을 노출하고, 각자 시스템 설정 화면으로 이동(`openAppNotificationSettings`/`openExactAlarmSettings`/`openNotificationListenerSettings`). 모두 허용 상태면 항목이 사라져 메뉴가 깔끔하게 유지.
 
 ### 결제 알림 자동 가계부
 - `PaymentNotificationService` → `PaymentNotificationParser` → `FinanceRepository.create()`

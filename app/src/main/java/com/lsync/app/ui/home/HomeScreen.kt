@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
@@ -27,6 +28,7 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.lsync.app.data.local.entity.ReadingPlanEntity
+import com.lsync.app.ui.PermissionHelper
 import com.lsync.app.ui.auth.AuthViewModel
 import com.lsync.app.data.repository.ReadingOrder
 import com.lsync.app.data.repository.ReadingPlanRepository
@@ -83,6 +85,7 @@ fun HomeScreen(
     authViewModel: AuthViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
     var menuExpanded by remember { mutableStateOf(false) }
 
     if (uiState.showSetupSheet) {
@@ -152,6 +155,41 @@ fun HomeScreen(
                             expanded = menuExpanded,
                             onDismissRequest = { menuExpanded = false },
                         ) {
+                            val needsNotification = PermissionHelper.needsNotificationPermission(context)
+                            val needsExactAlarm = PermissionHelper.needsExactAlarmPermission(context)
+                            val needsListener = PermissionHelper.needsNotificationListenerPermission(context)
+
+                            if (needsNotification) {
+                                PermissionMenuItem(
+                                    label = "알림 권한 허용",
+                                    onClick = {
+                                        PermissionHelper.openAppNotificationSettings(context)
+                                        menuExpanded = false
+                                    },
+                                )
+                            }
+                            if (needsExactAlarm) {
+                                PermissionMenuItem(
+                                    label = "정확한 알람 권한",
+                                    onClick = {
+                                        PermissionHelper.openExactAlarmSettings(context)
+                                        menuExpanded = false
+                                    },
+                                )
+                            }
+                            if (needsListener) {
+                                PermissionMenuItem(
+                                    label = "결제 알림 접근 허용",
+                                    onClick = {
+                                        PermissionHelper.openNotificationListenerSettings(context)
+                                        menuExpanded = false
+                                    },
+                                )
+                            }
+                            if (needsNotification || needsExactAlarm || needsListener) {
+                                HorizontalDivider(color = Divider, thickness = 0.5.dp)
+                            }
+
                             DropdownMenuItem(
                                 text = {
                                     Text(
@@ -238,6 +276,21 @@ fun HomeScreen(
             )
         }
     }
+}
+
+@Composable
+private fun PermissionMenuItem(label: String, onClick: () -> Unit) {
+    DropdownMenuItem(
+        text = {
+            Text(
+                label,
+                fontFamily = Pretendard,
+                fontSize = 14.sp,
+                color = FgPrimary,
+            )
+        },
+        onClick = onClick,
+    )
 }
 
 // ── 통독 설정 시트 ─────────────────────────────────────────────────────────────

@@ -32,6 +32,18 @@ object PermissionHelper {
         context.startActivity(intent)
     }
 
+    fun openAppNotificationSettings(context: Context) {
+        val intent = if (Build.VERSION.SDK_INT >= 26) {
+            Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+        } else {
+            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                .setData(Uri.parse("package:${context.packageName}"))
+        }
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(intent)
+    }
+
     fun needsNotificationListenerPermission(context: Context): Boolean {
         return !NotificationManagerCompat
             .getEnabledListenerPackages(context)

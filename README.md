@@ -94,3 +94,4 @@ app/src/main/java/com/lsync/app/
 - [x] **Phase 9** — Firestore 복원 동기화 (pull) (로그인 시 last-write-wins upsert, 재설치·기기 변경 복원)
 - [x] **Phase 10** — 일정·할 일 수정 (카드 롱프레스 편집, 완료·연동 필드 보존, 다이얼로그 prefill 재사용)
 - [x] **Phase 11** — 가계부 통계 대시보드 (최근 6개월 추세·카테고리별 지출 Canvas 차트, 정산 규칙 일관)
+- [x] **Phase 12** — 권한 재진입 (홈 메뉴에서 미허용 알림·정확알람·결제알림 접근 권한 바로가기, 경량)

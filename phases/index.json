@@ -62,7 +62,8 @@
     },
     {
       "dir": "13-permission-entry",
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-06-17T13:43:40+0900"
     }
   ]
 }
