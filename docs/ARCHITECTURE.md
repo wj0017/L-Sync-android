@@ -79,8 +79,10 @@ app/src/main/java/com/lsync/app/
 │   │   ├── RecurrenceOptions.kt    # RecurrenceOption 모델 + buildRrule(FREQ/INTERVAL/BYDAY)·describeRrule(한국어 요약)
 │   │   └── ScheduleViewModel.kt    # CalendarViewModel + TodoViewModel 통합. templates·createTemplate·deleteTemplate, updateEvent·updateTodo
 │   ├── finance/
-│   │   ├── FinanceScreen.kt
+│   │   ├── FinanceScreen.kt             # 거래 목록 ↔ 통계 대시보드 ghost chip 토글
 │   │   ├── FinanceViewModel.kt
+│   │   ├── FinanceDashboard.kt          # 월별 추세·카테고리별 지출 Canvas 차트(차트 라이브러리 미사용)
+│   │   ├── FinanceDashboardViewModel.kt # observeByDateRange 구독, 최근 6개월 추세·카테고리·합계 집계
 │   │   └── TransactionFormSheet.kt
 │   └── bible/
 │       ├── BibleScreen.kt          # HorizontalPager, ESV/개역개정 교차, 목차, 검색, 절 묵상 메모, PlanChapterBanner(오늘 통독 장 읽음 토글)
@@ -147,6 +149,12 @@ UI는 Room Flow를 구독하므로 네트워크 없이도 즉각 반응. UI는 F
 - **지출 표시는 순지출**(`expense − reimbursed`, 음수 방지)로 노출 — 정산으로 돌려받은 금액을 미리 차감해 체감 지출과 일치(FinanceScreen·위젯 공통).
 - 반자동 연결: 미완료 정산이 있고 `잔액 ≥ 수입액 AND 지출일 ≤ 수입일`인 INCOME에만 "정산에 연결" 노출.
 - 월별 거래는 Room Flow(`observeByMonth`) 단일 구독. 저장/연결 후 재조회하지 않고 Flow 자동 재방출에 의존(`monthJob`으로 이전 구독 취소).
+
+### 통계 대시보드 (Finance Dashboard)
+- `FinanceScreen`에서 ghost chip(거래 ↔ 통계)으로 전환. 대시보드는 `FinanceDashboard` Composable + `FinanceDashboardViewModel`로 분리.
+- **데이터 원천:** `FinanceRepository.observeByDateRange(from, to)`(= `FinanceDao.observeByDateRange`, `isExcluded=0` 필터) — `observeByMonth`와 동일 패턴으로 최근 6개월 범위 거래를 Room Flow로 노출. UI는 Firestore 직접 구독 안 함.
+- **집계(정산 규칙 일관):** 월별 추세는 각 달 *순지출*(`expense − reimbursed`, 음수 방지)·수입(정산 입금 `settlementGroupId != null` 제외), 거래 없는 달도 0으로 채움. 카테고리별은 EXPENSE 원금 기준 내림차순. 합계는 순지출·수입·정산 받음.
+- **시각화:** 차트 라이브러리 없이 Canvas로 직접 그림. 지출에 `AccentRed`를 쓰지 않음(체감 부담 완화, 디자인 의도).
 
 ### 성경 묵상 메모
 - `MemoDao.observeForChapter(book, chapter)`를 구독해 현재 장의 절별 메모를 표시. 로컬 전용(Firestore 미사용).

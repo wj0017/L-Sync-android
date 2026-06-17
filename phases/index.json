@@ -57,7 +57,8 @@
     },
     {
       "dir": "12-finance-dashboard",
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-06-17T13:39:23+0900"
     },
     {
       "dir": "13-permission-entry",

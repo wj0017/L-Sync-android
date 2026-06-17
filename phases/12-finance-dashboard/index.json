@@ -2,8 +2,31 @@
   "project": "L-Sync",
   "phase": "12-finance-dashboard",
   "steps": [
-    { "step": 0, "name": "range-source", "status": "pending" },
-    { "step": 1, "name": "dashboard-viewmodel", "status": "pending" },
-    { "step": 2, "name": "dashboard-ui", "status": "pending" }
-  ]
+    {
+      "step": 0,
+      "name": "range-source",
+      "status": "completed",
+      "started_at": "2026-06-17T13:33:17+0900",
+      "summary": "FinanceRepository.observeByDateRange(from,to) Flow 추가 — 기존 FinanceDao.observeByDateRange Flow(isExcluded=0 필터) 재사용해 다월 범위 거래 원천 노출, observeByMonth와 동일 방식. Step1 VM이 집계",
+      "completed_at": "2026-06-17T13:35:24+0900"
+    },
+    {
+      "step": 1,
+      "name": "dashboard-viewmodel",
+      "status": "completed",
+      "started_at": "2026-06-17T13:35:24+0900",
+      "summary": "FinanceDashboardViewModel 추가 — observeByDateRange 구독, 최근 N개월 추세·카테고리별 순지출·정산 합계 집계(기존 정산 규칙 일관). Step2 UI가 렌더",
+      "completed_at": "2026-06-17T13:36:52+0900"
+    },
+    {
+      "step": 2,
+      "name": "dashboard-ui",
+      "status": "completed",
+      "started_at": "2026-06-17T13:36:52+0900",
+      "summary": "FinanceScreen에 통계 대시보드(월별 추세·카테고리별 순지출·합계) Compose 시각화 + 진입점 추가. 차트는 Canvas 직접 구현. dashboard end-to-end 완성",
+      "completed_at": "2026-06-17T13:39:23+0900"
+    }
+  ],
+  "created_at": "2026-06-17T13:33:17+0900",
+  "completed_at": "2026-06-17T13:39:23+0900"
 }
