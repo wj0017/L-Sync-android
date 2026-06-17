@@ -44,6 +44,7 @@ fun FinanceScreen(viewModel: FinanceViewModel = hiltViewModel()) {
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    var showDashboard by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         viewModel.exportedCsv.collect { csv ->
@@ -113,6 +114,38 @@ fun FinanceScreen(viewModel: FinanceViewModel = hiltViewModel()) {
                         Icon(Icons.Outlined.Add, contentDescription = "추가", tint = FgPrimary, modifier = Modifier.size(20.dp))
                     }
                 }
+            }
+
+            // View toggle: 거래 목록 | 통계 대시보드 (ghost chip)
+            Row(
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                listOf(false to "거래", true to "통계").forEach { (isDash, label) ->
+                    val sel = showDashboard == isDash
+                    Box(
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .background(if (sel) FgPrimary else Color.Transparent)
+                            .border(1.dp, if (sel) FgPrimary else Divider, CircleShape)
+                            .clickable { showDashboard = isDash }
+                            .padding(horizontal = 16.dp, vertical = 7.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            label,
+                            fontFamily = Pretendard,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 12.sp,
+                            color = if (sel) BgPrimary else FgSecondary,
+                        )
+                    }
+                }
+            }
+
+            if (showDashboard) {
+                FinanceDashboard(modifier = Modifier.fillMaxSize())
+                return@Column
             }
 
             LazyColumn(

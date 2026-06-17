@@ -21,6 +21,10 @@ class FinanceRepository @Inject constructor(
     fun observeByMonth(yearMonth: String): Flow<List<FinanceEntity>> =
         dao.observeByDateRange("$yearMonth-01", "$yearMonth-31")
 
+    // 다월 범위 거래 원천 (대시보드용). observeByMonth와 동일하게 DAO Flow를 그대로 노출.
+    fun observeByDateRange(from: String, to: String): Flow<List<FinanceEntity>> =
+        dao.observeByDateRange(from, to)
+
     fun observeAllSettlementItems(): Flow<List<FinanceEntity>> =
         dao.observeAllSettlementItems()
 
