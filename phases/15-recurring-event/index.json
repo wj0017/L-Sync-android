@@ -2,12 +2,63 @@
   "project": "L-Sync",
   "phase": "15-recurring-event",
   "steps": [
-    { "step": 0, "name": "recurrence-expansion", "status": "pending" },
-    { "step": 1, "name": "schedule-display", "status": "pending" },
-    { "step": 2, "name": "create-recurrence-ui", "status": "pending" },
-    { "step": 3, "name": "delete-scope", "status": "pending" },
-    { "step": 4, "name": "edit-scope", "status": "pending" },
-    { "step": 5, "name": "recurrence-alarm", "status": "pending" },
-    { "step": 6, "name": "home-widget-display", "status": "pending" }
-  ]
+    {
+      "step": 0,
+      "name": "recurrence-expansion",
+      "status": "completed",
+      "summary": "data/recurrence/EventRecurrence.kt 순수 Kotlin 전개 엔진 — expandEvent/expandEvents/nextOccurrence + exdates/overrides JSON 헬퍼(parse/with). lib-recur 사용, 시간지정 시각보존·종일 Floating·무한방어·예외흡수. EventOccurrence/EventOverride 모델. org.json 미사용 소형 JSON 파서 내장(JVM 테스트 가능), 18개 단위 테스트 통과",
+      "started_at": "2026-06-18T11:44:25+0900",
+      "completed_at": "2026-06-18T11:50:41+0900"
+    },
+    {
+      "step": 1,
+      "name": "schedule-display",
+      "status": "completed",
+      "summary": "ScheduleViewModel이 EventRecurrence.expandEvents로 월/일 전개 — 캘린더 점·일 목록에 반복 발생 표시. EventDao.observeForExpansion(과거 시작 반복 마스터 포함) 추가, ScheduleItem.Event가 masterId+발생일 식별. 비반복 회귀 없음",
+      "started_at": "2026-06-18T11:50:41+0900",
+      "completed_at": "2026-06-18T11:53:48+0900"
+    },
+    {
+      "step": 2,
+      "name": "create-recurrence-ui",
+      "status": "completed",
+      "summary": "CreateEventDialog에 반복 피커 추가 — RecurrenceOption/buildRrule/describeRrule 재사용(CreateRepeatTodoDialog 패턴). 반복 켜면 buildRrule(option), 끄면 null. 수정 prefill 처리(RecurrenceOptions.kt에 parseRrule 추가). ViewModel/Repo 무변경",
+      "started_at": "2026-06-18T11:53:48+0900",
+      "completed_at": "2026-06-18T11:55:06+0900"
+    },
+    {
+      "step": 3,
+      "name": "delete-scope",
+      "status": "completed",
+      "summary": "삭제 범위 구현 — EventRepository.deleteOccurrence(exdate 추가)/deleteFollowing(rrule UNTIL 절단)/deleteSeries(=기존 hard delete). 삭제 범위 다이얼로그(반복만), ViewModel deleteEvent(scope,date) 확장. 동기화는 save 위임",
+      "started_at": "2026-06-18T11:55:06+0900",
+      "completed_at": "2026-06-18T11:58:05+0900"
+    },
+    {
+      "step": 4,
+      "name": "edit-scope",
+      "status": "completed",
+      "summary": "수정 범위 구현 — EventRepository.editOccurrence(override 병합, 날짜 불변)/editFollowing(원본 UNTIL 절단+새 마스터)/editSeries(=기존 update). 수정 범위 다이얼로그(반복만), ViewModel updateEvent(scope,date) 확장. 동기화 save 위임",
+      "started_at": "2026-06-19T01:39:54+0900",
+      "completed_at": "2026-06-19T01:45:00+0900"
+    },
+    {
+      "step": 5,
+      "name": "recurrence-alarm",
+      "status": "completed",
+      "summary": "반복 알람 — scheduleForEvent가 rrule!=null이면 EventRecurrence.nextOccurrence로 다음 1개 발생 등록(없으면 cancel), 기존 트리거식 재사용. getFutureAlarmedEvents에 rrule IS NOT NULL 포함, 일1회 EventAlarmRefreshWorker로 다음 발생 갱신(LSyncApplication 등록). inexact 폴백 유지",
+      "started_at": "2026-06-19T01:45:00+0900",
+      "completed_at": "2026-06-19T01:47:30+0900"
+    },
+    {
+      "step": 6,
+      "name": "home-widget-display",
+      "status": "completed",
+      "summary": "홈·위젯 오늘 일정에 반복 발생 전개 — HomeViewModel·LSyncWidget이 EventRecurrence.expandEvents 적용(과거 시작 반복 포함 조회). 위젯 Room 전용 유지, 비반복 회귀 없음. Phase 15 완료",
+      "started_at": "2026-06-19T01:47:30+0900",
+      "completed_at": "2026-06-19T01:49:54+0900"
+    }
+  ],
+  "created_at": "2026-06-18T11:44:25+0900",
+  "completed_at": "2026-06-19T01:49:54+0900"
 }

@@ -48,6 +48,44 @@ fun buildRrule(option: RecurrenceOption): String {
     return sb.toString()
 }
 
+private val TOKEN_TO_FREQ = mapOf(
+    "DAILY" to Frequency.DAILY,
+    "WEEKLY" to Frequency.WEEKLY,
+    "MONTHLY" to Frequency.MONTHLY,
+    "YEARLY" to Frequency.YEARLY,
+)
+
+private val TOKEN_TO_WEEKDAY = mapOf(
+    "MO" to Weekday.MON, "TU" to Weekday.TUE, "WE" to Weekday.WED, "TH" to Weekday.THU,
+    "FR" to Weekday.FRI, "SA" to Weekday.SAT, "SU" to Weekday.SUN,
+)
+
+// rrule → RecurrenceOption 역파싱 (편집 prefill용). buildRrule의 역연산.
+// 알 수 없는/깨진 입력은 null 반환 (UI는 "반복 없음"으로 처리).
+fun parseRrule(rrule: String): RecurrenceOption? {
+    return try {
+        val parts = rrule.removePrefix("RRULE:")
+            .split(";")
+            .mapNotNull { part ->
+                val idx = part.indexOf('=')
+                if (idx <= 0) null else part.substring(0, idx).uppercase() to part.substring(idx + 1)
+            }
+            .toMap()
+
+        val freq = TOKEN_TO_FREQ[parts["FREQ"]?.uppercase()] ?: return null
+        val interval = (parts["INTERVAL"]?.toIntOrNull() ?: 1).coerceAtLeast(1)
+        val weekdays = parts["BYDAY"]
+            ?.split(",")
+            ?.mapNotNull { TOKEN_TO_WEEKDAY[it.trim().uppercase()] }
+            ?.toSet()
+            ?: emptySet()
+
+        RecurrenceOption(frequency = freq, interval = interval, weekdays = weekdays)
+    } catch (e: Exception) {
+        null
+    }
+}
+
 private val FREQ_UNIT = mapOf(
     "DAILY" to "일",
     "WEEKLY" to "주",

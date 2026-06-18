@@ -59,6 +59,8 @@ fun ScheduleScreen(viewModel: ScheduleViewModel = hiltViewModel()) {
     var showRepeatDialog by remember { mutableStateOf(false) }
     var fabExpanded      by remember { mutableStateOf(false) }
     var editingEvent     by remember { mutableStateOf<EventEntity?>(null) }
+    var editingEventDate by remember { mutableStateOf<String?>(null) }   // 편집 중 발생일(반복 범위 위임용)
+    var pendingEventEdit by remember { mutableStateOf<PendingEventEdit?>(null) }
     var editingTodo      by remember { mutableStateOf<TodoEntity?>(null) }
 
     Scaffold(
@@ -156,8 +158,11 @@ fun ScheduleScreen(viewModel: ScheduleViewModel = hiltViewModel()) {
                         when (item) {
                             is ScheduleItem.Event -> EventCard(
                                 event = item.entity,
-                                onEdit = { editingEvent = item.entity },
-                                onDelete = { viewModel.deleteEvent(item.entity.id) },
+                                isRecurring = item.entity.rrule != null,
+                                onEdit = { editingEvent = item.entity; editingEventDate = item.occurrenceDate },
+                                onDelete = { scope ->
+                                    viewModel.deleteEvent(item.entity.id, scope, item.occurrenceDate)
+                                },
                             )
                             is ScheduleItem.Todo -> TodoItemCard(
                                 todo = item.entity,
@@ -218,14 +223,33 @@ fun ScheduleScreen(viewModel: ScheduleViewModel = hiltViewModel()) {
 
     // 편집 다이얼로그 — 생성 다이얼로그를 prefill하여 재사용
     editingEvent?.let { event ->
+        val occDate = editingEventDate
         CreateEventDialog(
             selectedDate = LocalDate.parse(event.startDate.take(10)),
             initial = event,
             onConfirm = { title, isAllDay, startDate, rrule, hasAlarm ->
-                viewModel.updateEvent(event.id, title, isAllDay, startDate, rrule, hasAlarm)
+                if (event.rrule != null) {
+                    // 반복 일정 — 확정 후 수정 범위를 물어 위임(이 일정만/이후 모든/전체)
+                    pendingEventEdit = PendingEventEdit(event.id, occDate, title, isAllDay, startDate, rrule, hasAlarm)
+                } else {
+                    // 비반복 — 기존 update 경로(범위 없음)
+                    viewModel.updateEvent(event.id, title, isAllDay, startDate, rrule, hasAlarm)
+                }
                 editingEvent = null
             },
             onDismiss = { editingEvent = null },
+        )
+    }
+
+    // 반복 일정 수정 범위 다이얼로그(반복 발생 편집 확정 후)
+    pendingEventEdit?.let { req ->
+        EditScopeDialog(
+            title = req.title,
+            onSelect = { scope ->
+                viewModel.updateEvent(req.masterId, scope, req.occurrenceDate, req.title, req.isAllDay, req.startDate, req.rrule, req.hasAlarm)
+                pendingEventEdit = null
+            },
+            onDismiss = { pendingEventEdit = null },
         )
     }
 
@@ -346,7 +370,12 @@ private fun ScheduleDayCell(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun EventCard(event: EventEntity, onEdit: () -> Unit, onDelete: () -> Unit) {
+private fun EventCard(
+    event: EventEntity,
+    isRecurring: Boolean,
+    onEdit: () -> Unit,
+    onDelete: (DeleteScope) -> Unit,
+) {
     var showConfirm by remember { mutableStateOf(false) }
     val timeText = if (event.isAllDay) "종일" else event.startDate.substringAfter("T").take(5)
 
@@ -377,13 +406,109 @@ private fun EventCard(event: EventEntity, onEdit: () -> Unit, onDelete: () -> Un
     }
 
     if (showConfirm) {
-        LSyncDialog(
-            title = "일정 삭제", body = "'${event.title}'을(를) 삭제할까요?",
-            confirmLabel = "삭제", isDanger = true,
-            onConfirm = { onDelete(); showConfirm = false },
-            onDismiss = { showConfirm = false },
-        )
+        if (isRecurring) {
+            // 반복 일정 — 삭제 범위 선택(이 일정만 / 이후 모든 / 전체)
+            DeleteScopeDialog(
+                title = event.title,
+                onSelect = { scope -> onDelete(scope); showConfirm = false },
+                onDismiss = { showConfirm = false },
+            )
+        } else {
+            LSyncDialog(
+                title = "일정 삭제", body = "'${event.title}'을(를) 삭제할까요?",
+                confirmLabel = "삭제", isDanger = true,
+                onConfirm = { onDelete(DeleteScope.ALL); showConfirm = false },
+                onDismiss = { showConfirm = false },
+            )
+        }
     }
+}
+
+// 반복 일정 삭제 범위 선택 다이얼로그(이 일정만 / 이후 모든 일정 / 전체 일정)
+@Composable
+private fun DeleteScopeDialog(
+    title: String,
+    onSelect: (DeleteScope) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = BgCard,
+        shape = RoundedCornerShape(24.dp),
+        title = { Text("반복 일정 삭제", fontFamily = Pretendard, fontWeight = FontWeight.SemiBold, fontSize = 19.sp, letterSpacing = (-0.018).em, color = FgPrimary) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("'${title}'", fontFamily = Pretendard, fontSize = 13.sp, color = FgSecondary, lineHeight = (13 * 1.55).sp)
+                Spacer(Modifier.height(8.dp))
+                DeleteScopeRow("이 일정만") { onSelect(DeleteScope.THIS) }
+                DeleteScopeRow("이후 모든 일정") { onSelect(DeleteScope.FOLLOWING) }
+                DeleteScopeRow("전체 일정", isDanger = true) { onSelect(DeleteScope.ALL) }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("취소", fontFamily = Pretendard, fontWeight = FontWeight.Medium, fontSize = 14.sp, color = FgSecondary)
+            }
+        },
+    )
+}
+
+// 반복 일정 편집 확정값 보관 — 범위 선택까지 잠시 들고 있다가 ViewModel로 위임.
+private data class PendingEventEdit(
+    val masterId: String,
+    val occurrenceDate: String?,
+    val title: String,
+    val isAllDay: Boolean,
+    val startDate: String,
+    val rrule: String?,
+    val hasAlarm: Boolean,
+)
+
+// 반복 일정 수정 범위 선택 다이얼로그(이 일정만 / 이후 모든 일정 / 전체 일정)
+@Composable
+private fun EditScopeDialog(
+    title: String,
+    onSelect: (EditScope) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = BgCard,
+        shape = RoundedCornerShape(24.dp),
+        title = { Text("반복 일정 수정", fontFamily = Pretendard, fontWeight = FontWeight.SemiBold, fontSize = 19.sp, letterSpacing = (-0.018).em, color = FgPrimary) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("'${title}'", fontFamily = Pretendard, fontSize = 13.sp, color = FgSecondary, lineHeight = (13 * 1.55).sp)
+                Spacer(Modifier.height(8.dp))
+                DeleteScopeRow("이 일정만") { onSelect(EditScope.THIS) }
+                DeleteScopeRow("이후 모든 일정") { onSelect(EditScope.FOLLOWING) }
+                DeleteScopeRow("전체 일정") { onSelect(EditScope.ALL) }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("취소", fontFamily = Pretendard, fontWeight = FontWeight.Medium, fontSize = 14.sp, color = FgSecondary)
+            }
+        },
+    )
+}
+
+@Composable
+private fun DeleteScopeRow(label: String, isDanger: Boolean = false, onClick: () -> Unit) {
+    Text(
+        text = label,
+        fontFamily = Pretendard,
+        fontWeight = FontWeight.Medium,
+        fontSize = 15.sp,
+        color = if (isDanger) AccentRed else FgPrimary,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 4.dp, vertical = 12.dp),
+    )
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -523,6 +648,20 @@ private fun CreateEventDialog(
     var isAllDay by remember { mutableStateOf(initial?.isAllDay ?: true) }
     var hasAlarm by remember { mutableStateOf(initial?.hasAlarm ?: false) }
 
+    // 반복 설정 — 편집 진입 시 기존 rrule을 역파싱해 prefill
+    val initialOption = remember(initial) { initial?.rrule?.let { parseRrule(it) } }
+    var repeatEnabled by remember { mutableStateOf(initialOption != null) }
+    var frequency     by remember { mutableStateOf(initialOption?.frequency ?: Frequency.WEEKLY) }
+    var intervalText  by remember { mutableStateOf((initialOption?.interval ?: 1).toString()) }
+    var weekdays      by remember { mutableStateOf(initialOption?.weekdays ?: emptySet()) }
+
+    val interval = intervalText.toIntOrNull()?.coerceAtLeast(1) ?: 1
+    val option = RecurrenceOption(
+        frequency = frequency,
+        interval = interval,
+        weekdays = if (frequency == Frequency.WEEKLY) weekdays else emptySet(),
+    )
+
     // 편집 시 기존 시간 부분 보존(생성은 09:00 기본)
     val timePart = initial?.startDate
         ?.let { if (it.contains("T")) it.substringAfter("T") else null }
@@ -535,7 +674,8 @@ private fun CreateEventDialog(
         onConfirm = {
             if (title.isNotBlank()) {
                 val startDate = if (isAllDay) selectedDate.toString() else "${selectedDate}T$timePart"
-                onConfirm(title, isAllDay, startDate, initial?.rrule, hasAlarm)
+                val rrule = if (repeatEnabled) buildRrule(option) else null
+                onConfirm(title, isAllDay, startDate, rrule, hasAlarm)
             }
         },
         confirmEnabled = title.isNotBlank(),
@@ -548,6 +688,55 @@ private fun CreateEventDialog(
         }
         Spacer(Modifier.height(10.dp))
         Text(selectedDate.format(DateTimeFormatter.ofPattern("yyyy년 M월 d일")), fontSize = 12.sp, color = FgSecondary, fontFamily = Pretendard)
+
+        // 반복 설정 — 켜면 CreateRepeatTodoDialog와 동일한 빈도/간격/요일 피커 노출
+        Spacer(Modifier.height(12.dp))
+        LSyncCheckbox(label = "반복", checked = repeatEnabled, onCheckedChange = { repeatEnabled = it })
+        if (repeatEnabled) {
+            Spacer(Modifier.height(12.dp))
+            // 빈도: 매일/매주/매월/매년 — ghost chip (active = FgPrimary solid)
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf(
+                    Frequency.DAILY to "매일", Frequency.WEEKLY to "매주",
+                    Frequency.MONTHLY to "매월", Frequency.YEARLY to "매년",
+                ).forEach { (freq, label) ->
+                    val sel = frequency == freq
+                    Box(
+                        modifier = Modifier.clip(CircleShape)
+                            .background(if (sel) FgPrimary else Color.Transparent)
+                            .border(1.dp, if (sel) FgPrimary else Divider, CircleShape)
+                            .clickable { frequency = freq }
+                            .padding(horizontal = 13.dp, vertical = 7.dp),
+                        contentAlignment = Alignment.Center,
+                    ) { Text(label, fontFamily = Pretendard, fontWeight = FontWeight.Medium, fontSize = 12.sp, color = if (sel) BgPrimary else FgSecondary) }
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+
+            // 간격(INTERVAL): N마다
+            LSyncField(label = "간격 (N마다 반복)", value = intervalText, onValueChange = { intervalText = it.filter(Char::isDigit) })
+
+            // 요일(BYDAY): 매주일 때만 노출. 멀티선택, 미선택 시 BYDAY 생략
+            if (frequency == Frequency.WEEKLY) {
+                Spacer(Modifier.height(10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
+                    Weekday.values().forEach { wd ->
+                        val sel = wd in weekdays
+                        Box(
+                            modifier = Modifier.weight(1f).clip(CircleShape)
+                                .background(if (sel) FgPrimary else Color.Transparent)
+                                .border(1.dp, if (sel) FgPrimary else Divider, CircleShape)
+                                .clickable { weekdays = if (sel) weekdays - wd else weekdays + wd }
+                                .padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center,
+                        ) { Text(weekdayLabel(wd), fontFamily = Pretendard, fontWeight = FontWeight.Medium, fontSize = 12.sp, color = if (sel) BgPrimary else FgSecondary) }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(10.dp))
+            Text(describeRrule(buildRrule(option)), fontFamily = Pretendard, fontSize = 12.sp, color = FgSecondary)
+        }
     }
 }
 
