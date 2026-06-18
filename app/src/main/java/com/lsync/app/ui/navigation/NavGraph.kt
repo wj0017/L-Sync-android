@@ -10,6 +10,7 @@ import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.MenuBook
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -43,7 +44,11 @@ sealed class Screen(val route: String, val label: String, val icon: ImageVector)
 private val bottomNavItems = listOf(Screen.Home, Screen.Schedule, Screen.Finance, Screen.Bible)
 
 @Composable
-fun NavGraph(authViewModel: AuthViewModel = hiltViewModel()) {
+fun NavGraph(
+    authViewModel: AuthViewModel = hiltViewModel(),
+    navTarget: String? = null,
+    onTargetConsumed: () -> Unit = {},
+) {
     val authState by authViewModel.uiState.collectAsState()
 
     if (!authState.isSignedIn) {
@@ -98,6 +103,18 @@ fun NavGraph(authViewModel: AuthViewModel = hiltViewModel()) {
             }
         }
     ) { innerPadding ->
+        // 외부 딥링크 타깃 탭으로 이동. 로그인 완료(authState 변경) 시점에 트리거되므로
+        // 콜드 스타트/미로그인에서도 target이 보존됐다가 로그인 후 소비된다.
+        LaunchedEffect(authState.isSignedIn, navTarget) {
+            if (!authState.isSignedIn) return@LaunchedEffect
+            if (navTarget == null || bottomNavItems.none { it.route == navTarget }) return@LaunchedEffect
+            navController.navigate(navTarget) {
+                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                launchSingleTop = true
+                restoreState = true
+            }
+            onTargetConsumed()
+        }
         NavHost(
             navController = navController,
             startDestination = Screen.Home.route,

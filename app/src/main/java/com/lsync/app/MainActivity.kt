@@ -1,5 +1,6 @@
 package com.lsync.app
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -28,10 +29,15 @@ import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    // 알림·위젯 탭 등 외부 인텐트가 지정한 딥링크 타깃 탭. Compose가 읽고 재구성되도록 mutableStateOf.
+    private var navTarget by mutableStateOf<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        navTarget = intent?.getStringExtra(EXTRA_NAV_TARGET)
         setContent {
             LSyncTheme {
                 val authViewModel: AuthViewModel = hiltViewModel()
@@ -115,8 +121,23 @@ class MainActivity : ComponentActivity() {
                     )
                 }
 
-                NavGraph(authViewModel = authViewModel)
+                NavGraph(
+                    authViewModel = authViewModel,
+                    navTarget = navTarget,
+                    onTargetConsumed = { navTarget = null },
+                )
             }
         }
+    }
+
+    // singleTop이라 앱이 떠 있을 때 재진입은 onCreate가 아닌 onNewIntent로 들어온다.
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        navTarget = intent.getStringExtra(EXTRA_NAV_TARGET)
+    }
+
+    companion object {
+        const val EXTRA_NAV_TARGET = "nav_target"
     }
 }

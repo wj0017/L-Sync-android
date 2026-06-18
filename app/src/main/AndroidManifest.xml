@@ -23,6 +23,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTop"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -33,6 +34,11 @@
         <!-- 알람 수신 (정확한 알림 발화) -->
         <receiver
             android:name=".notification.AlarmReceiver"
+            android:exported="false" />
+
+        <!-- 할 일 알림 "완료" 액션 수신 -->
+        <receiver
+            android:name=".notification.TodoActionReceiver"
             android:exported="false" />
 
         <!-- 재부팅 수신 (AlarmManager 재등록) -->

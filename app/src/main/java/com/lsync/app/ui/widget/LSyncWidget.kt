@@ -1,13 +1,18 @@
 package com.lsync.app.ui.widget
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
+import androidx.glance.LocalContext
+import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
+import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
@@ -61,6 +66,13 @@ private val BOOK_NAMES = arrayOf(
     "베드로전서", "베드로후서", "요한일서", "요한이서", "요한삼서",
     "유다서", "요한계시록"
 )
+
+// 위젯 카드 탭 → MainActivity 딥링크. target별 고유 data Uri로 PendingIntent filterEquals 충돌 방지.
+private fun navIntent(context: Context, target: String) = Intent(context, com.lsync.app.MainActivity::class.java).apply {
+    putExtra(com.lsync.app.MainActivity.EXTRA_NAV_TARGET, target)
+    data = Uri.parse("lsync://nav/$target")
+    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+}
 
 private fun formatAmount(amount: Long): String = String.format("%,d", amount)
 
@@ -152,6 +164,7 @@ class LSyncWidget : GlanceAppWidget() {
 
 @Composable
 fun WidgetContent(state: WidgetState) {
+    val context = LocalContext.current
     Box(
         modifier = GlanceModifier.fillMaxSize().background(BgPrimary).padding(12.dp),
         contentAlignment = Alignment.TopStart,
@@ -160,9 +173,17 @@ fun WidgetContent(state: WidgetState) {
             WidgetHeader(state.dateLabel)
             Spacer(modifier = GlanceModifier.height(18.dp))
             Row(modifier = GlanceModifier.fillMaxWidth()) {
-                TodoCard(state.todos, GlanceModifier.defaultWeight())
+                TodoCard(
+                    state.todos,
+                    GlanceModifier.defaultWeight()
+                        .clickable(actionStartActivity(navIntent(context, "schedule"))),
+                )
                 Spacer(modifier = GlanceModifier.width(8.dp))
-                EventCard(state.events, GlanceModifier.defaultWeight())
+                EventCard(
+                    state.events,
+                    GlanceModifier.defaultWeight()
+                        .clickable(actionStartActivity(navIntent(context, "schedule"))),
+                )
             }
             Spacer(modifier = GlanceModifier.height(8.dp))
             Row(modifier = GlanceModifier.fillMaxWidth().height(106.dp)) {
@@ -171,14 +192,16 @@ fun WidgetContent(state: WidgetState) {
                     monthIncome = state.monthIncome,
                     dailyExpenses = state.dailyExpenses,
                     dailyIncomes = state.dailyIncomes,
-                    modifier = GlanceModifier.defaultWeight(),
+                    modifier = GlanceModifier.defaultWeight()
+                        .clickable(actionStartActivity(navIntent(context, "finance"))),
                 )
                 Spacer(modifier = GlanceModifier.width(8.dp))
                 ReadingCard(
                     todayReadingPlan = state.todayReadingPlan,
                     readCount = state.readCount,
                     totalCount = state.totalCount,
-                    modifier = GlanceModifier.defaultWeight(),
+                    modifier = GlanceModifier.defaultWeight()
+                        .clickable(actionStartActivity(navIntent(context, "bible"))),
                 )
             }
         }
