@@ -75,7 +75,8 @@
     },
     {
       "dir": "16-budget",
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-06-19T10:43:50+0900"
     }
   ]
 }

@@ -8,6 +8,7 @@ import com.lsync.app.data.local.AppDatabase
 import com.lsync.app.data.local.BibleDatabase
 import com.lsync.app.data.local.EsvDatabase
 import com.lsync.app.data.local.dao.BibleDao
+import com.lsync.app.data.local.dao.BudgetDao
 import com.lsync.app.data.local.dao.EsvDao
 import com.lsync.app.data.local.dao.EventDao
 import com.lsync.app.data.local.dao.FinanceDao
@@ -17,6 +18,7 @@ import com.lsync.app.data.local.dao.TodoDao
 import com.lsync.app.data.local.dao.TodoTemplateDao
 import com.lsync.app.data.remote.FirestoreDataSource
 import com.lsync.app.notification.AlarmScheduler
+import com.lsync.app.data.repository.BudgetRepository
 import com.lsync.app.data.repository.EventRepository
 import com.lsync.app.data.repository.FinanceRepository
 import com.lsync.app.data.repository.ReadingPlanRepository
@@ -40,7 +42,7 @@ object AppModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase =
         Room.databaseBuilder(context, AppDatabase::class.java, "lsync.db")
-            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4)
+            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5)
             .build()
 
     @Provides fun provideEventDao(db: AppDatabase): EventDao = db.eventDao()
@@ -48,6 +50,7 @@ object AppModule {
     @Provides @Singleton fun provideTodoTemplateDao(db: AppDatabase): TodoTemplateDao = db.todoTemplateDao()
     @Provides fun provideFinanceDao(db: AppDatabase): FinanceDao = db.financeDao()
     @Provides fun provideReadingPlanDao(db: AppDatabase): ReadingPlanDao = db.readingPlanDao()
+    @Provides fun provideBudgetDao(db: AppDatabase): BudgetDao = db.budgetDao()
 
     @Provides
     @Singleton
@@ -107,12 +110,20 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun provideBudgetRepository(
+        dao: BudgetDao,
+        remote: FirestoreDataSource,
+    ) = BudgetRepository(dao, remote)
+
+    @Provides
+    @Singleton
     fun provideSyncRepository(
         remote: FirestoreDataSource,
         eventDao: EventDao,
         todoDao: TodoDao,
         financeDao: FinanceDao,
-    ) = SyncRepository(remote, eventDao, todoDao, financeDao)
+        budgetDao: BudgetDao,
+    ) = SyncRepository(remote, eventDao, todoDao, financeDao, budgetDao)
 
     @Provides
     @Singleton

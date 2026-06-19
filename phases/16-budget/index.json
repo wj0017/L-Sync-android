@@ -2,10 +2,47 @@
   "project": "L-Sync",
   "phase": "16-budget",
   "steps": [
-    { "step": 0, "name": "budget-entity", "status": "pending" },
-    { "step": 1, "name": "budget-repository", "status": "pending" },
-    { "step": 2, "name": "budget-viewmodel", "status": "pending" },
-    { "step": 3, "name": "budget-display", "status": "pending" },
-    { "step": 4, "name": "budget-edit-ui", "status": "pending" }
-  ]
+    {
+      "step": 0,
+      "name": "budget-entity",
+      "status": "completed",
+      "started_at": "2026-06-19T10:29:26+0900",
+      "summary": "BudgetEntity(id=userId_category 결정론적, deletedAt soft delete, TOTAL_CATEGORY sentinel)·BudgetDao(observeBudgets/upsert/softDelete/migrateUserId)·AppDatabase v5 MIGRATION_4_5·AppModule provideBudgetDao+addMigrations 추가",
+      "completed_at": "2026-06-19T10:31:56+0900"
+    },
+    {
+      "step": 1,
+      "name": "budget-repository",
+      "status": "completed",
+      "started_at": "2026-06-19T10:31:56+0900",
+      "summary": "BudgetRepository(setBudget 멱등 upsert+syncSafe, deleteBudget soft delete 전파)·FirestoreDataSource budgets 컬렉션(upsertBudget/fetchBudgets/toBudgetEntity)·SyncRepository.pullAll budgets 머지(LWW upsert-only)·AppModule provideBudgetRepository 추가",
+      "completed_at": "2026-06-19T10:35:33+0900"
+    },
+    {
+      "step": 2,
+      "name": "budget-viewmodel",
+      "status": "completed",
+      "started_at": "2026-06-19T10:35:33+0900",
+      "summary": "FinanceDashboardViewModel에 예산 대비 실적 추가 — 이번 달 범위 거래 + observeBudgets combine로 BudgetProgress(category/limit/spent/ratio/isOver). 카테고리=EXPENSE원금, TOTAL=순지출, 0나눗셈 가드. 기존 6개월 집계 보존",
+      "completed_at": "2026-06-19T10:37:42+0900"
+    },
+    {
+      "step": 3,
+      "name": "budget-display",
+      "status": "completed",
+      "started_at": "2026-06-19T10:37:42+0900",
+      "summary": "FinanceDashboard에 예산 섹션 추가 — BudgetProgress 진행바(Canvas/Box, 차트 라이브러리 미사용), 정상=AccentBlue/중립(AccentRed 미사용), 초과만 절제된 경고. TOTAL 구분 표시, 미설정 시 섹션 숨김",
+      "completed_at": "2026-06-19T10:39:37+0900"
+    },
+    {
+      "step": 4,
+      "name": "budget-edit-ui",
+      "status": "completed",
+      "started_at": "2026-06-19T10:39:37+0900",
+      "summary": "예산 편집 UI 완성 — FinanceDashboardViewModel setBudget/deleteBudget(currentUserId, Repository 경유), 대시보드 편집 진입점+입력 시트(FinanceCategory.all+전체 월 한도, 금액 prefill). Flow 자동 갱신. Phase 16 완료",
+      "completed_at": "2026-06-19T10:43:50+0900"
+    }
+  ],
+  "created_at": "2026-06-19T10:29:26+0900",
+  "completed_at": "2026-06-19T10:43:50+0900"
 }
