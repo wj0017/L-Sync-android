@@ -72,7 +72,8 @@
     },
     {
       "dir": "15-recurring-event",
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-06-19T01:49:54+0900"
     },
     {
       "dir": "16-budget",

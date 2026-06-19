@@ -8,6 +8,7 @@ import android.content.Intent
 import android.os.Build
 import com.lsync.app.data.local.entity.EventEntity
 import com.lsync.app.data.local.entity.TodoEntity
+import com.lsync.app.data.recurrence.nextOccurrence
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.LocalDate
 import java.time.OffsetDateTime
@@ -29,10 +30,23 @@ class AlarmScheduler @Inject constructor(
                 cancel(event.id)
                 return
             }
-            val triggerAtMillis = if (event.isAllDay) {
-                dateToReminderMillis(event.startDate)
+            // 반복 일정은 항상 "다음 1개" 발생만 등록(AlarmManager는 one-shot).
+            // rrule 직접 파싱 없이 Step 0 엔진(nextOccurrence)으로 다음 발생을 구한다.
+            // 다음 발생이 없으면(UNTIL 지남 등) 취소. 시각 계산은 아래 단일 식 재사용.
+            val effectiveStart = if (event.rrule == null) {
+                event.startDate
             } else {
-                OffsetDateTime.parse(event.startDate).toInstant().toEpochMilli()
+                val next = nextOccurrence(event, afterDate = LocalDate.now().toString())
+                if (next == null) {
+                    cancel(event.id)
+                    return
+                }
+                next.startDate
+            }
+            val triggerAtMillis = if (event.isAllDay) {
+                dateToReminderMillis(effectiveStart)
+            } else {
+                OffsetDateTime.parse(effectiveStart).toInstant().toEpochMilli()
             }
             if (triggerAtMillis <= System.currentTimeMillis()) return
             scheduleEventAlarm(event.id, event.title, triggerAtMillis)

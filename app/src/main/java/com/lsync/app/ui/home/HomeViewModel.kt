@@ -2,7 +2,10 @@ package com.lsync.app.ui.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.lsync.app.data.local.entity.EventEntity
 import com.lsync.app.data.local.entity.ReadingPlanEntity
+import com.lsync.app.data.recurrence.EventOccurrence
+import com.lsync.app.data.recurrence.expandEvents
 import com.lsync.app.data.repository.EventRepository
 import com.lsync.app.data.repository.FinanceRepository
 import com.lsync.app.data.repository.ReadingPlanRepository
@@ -73,12 +76,17 @@ class HomeViewModel @Inject constructor(
 
     private fun observeTodaySchedule(today: LocalDate) {
         viewModelScope.launch {
+            val dateStr = today.toString()
             combine(
-                eventRepository.observeByDateRange(today.toString(), today.toString()),
-                todoRepository.observeByDate(today.toString()),
+                // 과거 시작 반복 마스터까지 포함 조회 → EventRecurrence로 오늘 발생 전개
+                eventRepository.observeForExpansion(dateStr, dateStr),
+                todoRepository.observeByDate(dateStr),
             ) { events, todos ->
                 buildList {
-                    events.forEach { add(ScheduleItem.Event(it)) }
+                    // 오늘 발생을 전개 → 합성 발생 엔티티로 변환(HomeScreen은 item.entity를 읽어 표시)
+                    expandEvents(events, dateStr, dateStr).forEach { occ ->
+                        add(ScheduleItem.Event(occ.toSyntheticEntity(events), occ.date))
+                    }
                     todos.forEach  { add(ScheduleItem.Todo(it)) }
                 }.sortedWith(compareBy(
                     { it is ScheduleItem.Todo && it.entity.isCompleted },
@@ -174,4 +182,15 @@ class HomeViewModel @Inject constructor(
     }
 
     fun clearError() = _uiState.update { it.copy(error = null) }
+}
+
+// 발생(EventOccurrence)을 마스터 copy 기반 "합성 발생 엔티티"로 변환(ScheduleViewModel과 동일 방식).
+// id는 마스터 유지, 표시값(startDate/title/hasAlarm)만 발생 유효값으로 치환.
+private fun EventOccurrence.toSyntheticEntity(masters: List<EventEntity>): EventEntity {
+    val master = masters.first { it.id == masterId }
+    return master.copy(
+        startDate = startDate,
+        title = title,
+        hasAlarm = hasAlarm,
+    )
 }

@@ -34,6 +34,7 @@ import androidx.glance.unit.ColorProvider
 import com.lsync.app.data.local.entity.EventEntity
 import com.lsync.app.data.local.entity.ReadingPlanEntity
 import com.lsync.app.data.local.entity.TodoEntity
+import com.lsync.app.data.recurrence.expandEvents
 import dagger.hilt.android.EntryPointAccessors
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -107,7 +108,12 @@ class LSyncWidget : GlanceAppWidget() {
         val monthEnd = todayStr.substring(0, 7) + "-31"
 
         val todos = entryPoint.todoDao().getIncompleteByDate(todayStr)
-        val events = entryPoint.eventDao().getByDate(todayStr)
+        // 과거 시작 반복 마스터까지 포함 조회 → EventRecurrence로 오늘 발생 전개(합성 엔티티)
+        val eventMasters = entryPoint.eventDao().getForExpansion(todayStr, todayStr)
+        val events = expandEvents(eventMasters, todayStr, todayStr).map { occ ->
+            val master = eventMasters.first { it.id == occ.masterId }
+            master.copy(startDate = occ.startDate, title = occ.title, hasAlarm = occ.hasAlarm)
+        }
 
         val financeItems = entryPoint.financeDao().getAllByDateRange(userId, monthStart, monthEnd)
         val monthReimbursed = financeItems
