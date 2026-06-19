@@ -3,6 +3,7 @@ package com.lsync.app.data.remote
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
+import com.lsync.app.data.local.entity.BudgetEntity
 import com.lsync.app.data.local.entity.EventEntity
 import com.lsync.app.data.local.entity.FinanceEntity
 import com.lsync.app.data.local.entity.TodoEntity
@@ -17,6 +18,7 @@ class FirestoreDataSource @Inject constructor(
     private fun events() = firestore.collection("events")
     private fun todos() = firestore.collection("todos")
     private fun finance() = firestore.collection("finance")
+    private fun budgets() = firestore.collection("budgets")
 
     suspend fun upsertEvent(entity: EventEntity) {
         events().document(entity.id).set(entity.toMap(), SetOptions.merge()).await()
@@ -71,6 +73,11 @@ class FirestoreDataSource @Inject constructor(
         finance().document(id).delete().await()
     }
 
+    // 예산은 soft delete(deletedAt)만 사용 — upsert로 한도 설정·삭제 모두 전파.
+    suspend fun upsertBudget(entity: BudgetEntity) {
+        budgets().document(entity.id).set(entity.toMap(), SetOptions.merge()).await()
+    }
+
     // ── 복원 동기화(pull): 원격 컬렉션을 userId로 필터해 엔티티로 복원 ──
     // 개별 문서 매핑 실패는 건너뛰어(전체 복원이 한 문서 스키마 불일치로 막히지 않게) 한다.
 
@@ -85,6 +92,10 @@ class FirestoreDataSource @Inject constructor(
     suspend fun fetchFinance(userId: String): List<FinanceEntity> =
         finance().whereEqualTo("userId", userId).get().await()
             .documents.mapNotNull { it.toFinanceEntity() }
+
+    suspend fun fetchBudgets(userId: String): List<BudgetEntity> =
+        budgets().whereEqualTo("userId", userId).get().await()
+            .documents.mapNotNull { it.toBudgetEntity() }
 
     private fun EventEntity.toMap() = mapOf(
         "id" to id, "userId" to userId, "title" to title, "isAllDay" to isAllDay,
@@ -109,6 +120,12 @@ class FirestoreDataSource @Inject constructor(
         "sourceTodoId" to sourceTodoId, "isExcluded" to isExcluded,
         "settlementGroupId" to settlementGroupId,
         "createdAt" to createdAt, "updatedAt" to updatedAt,
+    )
+
+    private fun BudgetEntity.toMap() = mapOf(
+        "id" to id, "userId" to userId, "category" to category,
+        "limitAmount" to limitAmount, "createdAt" to createdAt,
+        "updatedAt" to updatedAt, "deletedAt" to deletedAt,
     )
 
     // toMap()과 1:1 대응하는 역방향(문서→엔티티) 매핑.
@@ -165,6 +182,18 @@ class FirestoreDataSource @Inject constructor(
             settlementGroupId = getString("settlementGroupId"),
             createdAt = getLong("createdAt") ?: 0L,
             updatedAt = getLong("updatedAt") ?: 0L,
+        )
+    }.getOrNull()
+
+    private fun DocumentSnapshot.toBudgetEntity(): BudgetEntity? = runCatching {
+        BudgetEntity(
+            id = getString("id") ?: return null,
+            userId = getString("userId") ?: return null,
+            category = getString("category") ?: "",
+            limitAmount = getLong("limitAmount") ?: 0L,
+            createdAt = getLong("createdAt") ?: 0L,
+            updatedAt = getLong("updatedAt") ?: 0L,
+            deletedAt = getLong("deletedAt"),
         )
     }.getOrNull()
 }

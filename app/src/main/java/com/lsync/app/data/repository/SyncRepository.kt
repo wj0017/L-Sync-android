@@ -1,6 +1,7 @@
 package com.lsync.app.data.repository
 
 import com.google.firebase.crashlytics.FirebaseCrashlytics
+import com.lsync.app.data.local.dao.BudgetDao
 import com.lsync.app.data.local.dao.EventDao
 import com.lsync.app.data.local.dao.FinanceDao
 import com.lsync.app.data.local.dao.TodoDao
@@ -14,6 +15,7 @@ class SyncRepository @Inject constructor(
     private val eventDao: EventDao,
     private val todoDao: TodoDao,
     private val financeDao: FinanceDao,
+    private val budgetDao: BudgetDao,
 ) {
     // 원격 전체를 pull해 last-write-wins로 Room에 머지(복원).
     // upsert-only: 로컬이 같거나 더 최신이면 보존, 로컬 전용 데이터는 삭제하지 않는다.
@@ -41,6 +43,15 @@ class SyncRepository @Inject constructor(
                 val local = financeDao.getById(finance.id)
                 if (local == null || finance.updatedAt > local.updatedAt) {
                     financeDao.upsert(finance)
+                }
+            }
+        }
+        syncSafe {
+            // deletedAt이 채워져 오면 upsert로 soft delete 복원.
+            for (budget in remote.fetchBudgets(userId)) {
+                val local = budgetDao.getById(budget.id)
+                if (local == null || budget.updatedAt > local.updatedAt) {
+                    budgetDao.upsert(budget)
                 }
             }
         }
