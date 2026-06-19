@@ -67,7 +67,8 @@
     },
     {
       "dir": "14-notification-deeplink",
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-06-18T11:43:41+0900"
     },
     {
       "dir": "15-recurring-event",

@@ -2,9 +2,39 @@
   "project": "L-Sync",
   "phase": "14-notification-deeplink",
   "steps": [
-    { "step": 0, "name": "deeplink-infra", "status": "pending" },
-    { "step": 1, "name": "notification-tap", "status": "pending" },
-    { "step": 2, "name": "widget-deeplink", "status": "pending" },
-    { "step": 3, "name": "notification-action", "status": "pending" }
-  ]
+    {
+      "step": 0,
+      "name": "deeplink-infra",
+      "status": "completed",
+      "started_at": "2026-06-18T11:35:12+0900",
+      "summary": "MainActivity(singleTop+onNewIntent)가 nav_target extra를 읽어 navTarget 상태로 보존, NavGraph(navTarget, onTargetConsumed)가 LaunchedEffect(isSignedIn,navTarget)로 해당 탭 이동·소비. EXTRA_NAV_TARGET 상수 정의. 유효값 home/schedule/finance/bible",
+      "completed_at": "2026-06-18T11:38:18+0900"
+    },
+    {
+      "step": 1,
+      "name": "notification-tap",
+      "status": "completed",
+      "started_at": "2026-06-18T11:38:18+0900",
+      "summary": "AlarmReceiver 알림에 contentIntent 추가 — MainActivity로 EXTRA_NAV_TARGET=schedule + 고유 data Uri(lsync://nav/schedule/{id})로 딥링크. requestCode=id.hashCode()(완료 액션용 +1 슬롯 예약). FLAG_IMMUTABLE 사용",
+      "completed_at": "2026-06-18T11:40:00+0900"
+    },
+    {
+      "step": 2,
+      "name": "widget-deeplink",
+      "status": "completed",
+      "started_at": "2026-06-18T11:40:00+0900",
+      "summary": "LSyncWidget 4개 카드에 actionStartActivity 딥링크 추가 — Todo/Event→schedule, Finance→finance, Reading→bible. 각 인텐트 고유 data(lsync://nav/{target})로 filterEquals 충돌 방지. EXTRA_NAV_TARGET 사용",
+      "completed_at": "2026-06-18T11:41:39+0900"
+    },
+    {
+      "step": 3,
+      "name": "notification-action",
+      "status": "completed",
+      "started_at": "2026-06-18T11:41:39+0900",
+      "summary": "Todo 알림에 완료 액션 추가 — @AndroidEntryPoint TodoActionReceiver(goAsync+ApplicationScope)가 getById로 로드 후 complete(). 가계부연동+금액미정은 complete 금지하고 schedule 딥링크로 유도, 중복완료 가드(null/완료 no-op). 완료 후 알림 cancel(id.hashCode())+WidgetRefreshHelper. requestCode id.hashCode()+1, data lsync://complete/{id}. Manifest 등록",
+      "completed_at": "2026-06-18T11:43:41+0900"
+    }
+  ],
+  "created_at": "2026-06-18T11:35:12+0900",
+  "completed_at": "2026-06-18T11:43:41+0900"
 }
