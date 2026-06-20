@@ -79,6 +79,11 @@
       "dir": "16-budget",
       "status": "completed",
       "completed_at": "2026-06-19T10:43:50+0900"
+    },
+    {
+      "dir": "17-global-search",
+      "status": "completed",
+      "completed_at": "2026-06-20T12:23:18+0900"
     }
   ]
 }
