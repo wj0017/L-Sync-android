@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -81,6 +82,7 @@ private val BOOK_NAMES_KO = mapOf(
 fun HomeScreen(
     onNavigateToSchedule: () -> Unit,
     onNavigateToBible: () -> Unit,
+    onNavigateToSearch: () -> Unit,
     viewModel: HomeViewModel = hiltViewModel(),
     authViewModel: AuthViewModel = hiltViewModel(),
 ) {
@@ -137,6 +139,17 @@ fun HomeScreen(
                             text = uiState.today.format(DateTimeFormatter.ofPattern("MMM d, EEEE", Locale.ENGLISH)),
                             fontFamily = Pretendard, fontWeight = FontWeight.Medium,
                             fontSize = 14.sp, letterSpacing = (-0.01).em, color = FgSecondary,
+                        )
+                    }
+                    IconButton(
+                        onClick = onNavigateToSearch,
+                        modifier = Modifier.size(24.dp),
+                    ) {
+                        Icon(
+                            Icons.Outlined.Search,
+                            contentDescription = "검색",
+                            tint = FgSecondary,
+                            modifier = Modifier.size(20.dp),
                         )
                     }
                     Box {

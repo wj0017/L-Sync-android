@@ -32,6 +32,7 @@ import com.lsync.app.ui.bible.BibleScreen
 import com.lsync.app.ui.finance.FinanceScreen
 import com.lsync.app.ui.home.HomeScreen
 import com.lsync.app.ui.schedule.ScheduleScreen
+import com.lsync.app.ui.search.SearchScreen
 import com.lsync.app.ui.theme.*
 
 sealed class Screen(val route: String, val label: String, val icon: ImageVector) {
@@ -136,12 +137,32 @@ fun NavGraph(
                             restoreState = true
                         }
                     },
+                    onNavigateToSearch = { navController.navigate("search") },
                     authViewModel = authViewModel,
                 )
             }
             composable(Screen.Schedule.route) { ScheduleScreen() }
             composable(Screen.Finance.route)  { FinanceScreen() }
             composable(Screen.Bible.route)    { BibleScreen() }
+            composable("search") {
+                SearchScreen(
+                    onBack = { navController.popBackStack() },
+                    onNavigateToSchedule = {
+                        navController.navigate(Screen.Schedule.route) {
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                    onNavigateToFinance = {
+                        navController.navigate(Screen.Finance.route) {
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                )
+            }
         }
     }
 }

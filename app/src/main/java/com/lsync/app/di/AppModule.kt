@@ -22,6 +22,7 @@ import com.lsync.app.data.repository.BudgetRepository
 import com.lsync.app.data.repository.EventRepository
 import com.lsync.app.data.repository.FinanceRepository
 import com.lsync.app.data.repository.ReadingPlanRepository
+import com.lsync.app.data.repository.SearchRepository
 import com.lsync.app.data.repository.SyncRepository
 import com.lsync.app.data.repository.TodoRepository
 import dagger.Module
@@ -114,6 +115,14 @@ object AppModule {
         dao: BudgetDao,
         remote: FirestoreDataSource,
     ) = BudgetRepository(dao, remote)
+
+    @Provides
+    @Singleton
+    fun provideSearchRepository(
+        eventDao: EventDao,
+        todoDao: TodoDao,
+        financeDao: FinanceDao,
+    ) = SearchRepository(eventDao, todoDao, financeDao)
 
     @Provides
     @Singleton

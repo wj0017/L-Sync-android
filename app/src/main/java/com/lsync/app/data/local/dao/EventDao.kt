@@ -53,6 +53,14 @@ interface EventDao {
     """)
     suspend fun getForExpansion(from: String, to: String): List<EventEntity>
 
+    @Query("""
+        SELECT * FROM events
+        WHERE deletedAt IS NULL
+          AND title LIKE '%' || :query || '%'
+        ORDER BY startDate DESC
+    """)
+    fun searchByTitle(query: String): Flow<List<EventEntity>>
+
     @Upsert
     suspend fun upsert(event: EventEntity)
 

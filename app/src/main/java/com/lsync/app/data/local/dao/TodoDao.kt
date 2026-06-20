@@ -44,6 +44,14 @@ interface TodoDao {
     """)
     suspend fun getIncompleteByDate(date: String): List<TodoEntity>
 
+    @Query("""
+        SELECT * FROM todos
+        WHERE deletedAt IS NULL
+          AND title LIKE '%' || :query || '%'
+        ORDER BY dueDate DESC, createdAt DESC
+    """)
+    fun searchByTitle(query: String): Flow<List<TodoEntity>>
+
     @Upsert
     suspend fun upsert(todo: TodoEntity)
 

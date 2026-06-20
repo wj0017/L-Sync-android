@@ -1,0 +1,48 @@
+{
+  "project": "L-Sync",
+  "phase": "17-global-search",
+  "steps": [
+    {
+      "step": 0,
+      "name": "search-dao",
+      "status": "completed",
+      "started_at": "2026-06-20T12:15:16+0900",
+      "summary": "EventDao.searchByTitle / TodoDao.searchByTitle / FinanceDao.search 추가 (LIKE, Flow 반환)",
+      "completed_at": "2026-06-20T12:17:20+0900"
+    },
+    {
+      "step": 1,
+      "name": "search-repository",
+      "status": "completed",
+      "started_at": "2026-06-20T12:17:20+0900",
+      "summary": "SearchRepository(SearchResults 모델, combine 3 DAO Flow, blank 가드) + AppModule provideSearchRepository 등록",
+      "completed_at": "2026-06-20T12:18:05+0900"
+    },
+    {
+      "step": 2,
+      "name": "search-viewmodel",
+      "status": "completed",
+      "started_at": "2026-06-20T12:18:05+0900",
+      "summary": "SearchViewModel(@HiltViewModel, SearchUiState{query,results,hasSearched}, debounce(200)+flatMapLatest, onQueryChange/clearQuery)",
+      "completed_at": "2026-06-20T12:19:01+0900"
+    },
+    {
+      "step": 3,
+      "name": "search-screen",
+      "status": "completed",
+      "started_at": "2026-06-20T12:19:01+0900",
+      "summary": "SearchScreen(상단 검색바+자동포커스, 섹션별 LazyColumn[일정/할일/가계부], 빈/결과없음 상태, 결과 탭→onNavigateToSchedule/Finance)",
+      "completed_at": "2026-06-20T12:21:36+0900"
+    },
+    {
+      "step": 4,
+      "name": "search-nav",
+      "status": "completed",
+      "started_at": "2026-06-20T12:21:36+0900",
+      "summary": "NavGraph composable(\"search\")+SearchScreen 배선, HomeScreen onNavigateToSearch+헤더 검색 아이콘. 통합 검색 task 완료",
+      "completed_at": "2026-06-20T12:23:18+0900"
+    }
+  ],
+  "created_at": "2026-06-20T12:15:16+0900",
+  "completed_at": "2026-06-20T12:23:18+0900"
+}

@@ -23,6 +23,14 @@ interface FinanceDao {
     @Query("SELECT * FROM finance WHERE sourceTodoId = :todoId")
     suspend fun getBySourceTodo(todoId: String): FinanceEntity?
 
+    @Query("""
+        SELECT * FROM finance
+        WHERE isExcluded = 0
+          AND (category LIKE '%' || :query || '%' OR note LIKE '%' || :query || '%')
+        ORDER BY date DESC
+    """)
+    fun search(query: String): Flow<List<FinanceEntity>>
+
     @Upsert
     suspend fun upsert(finance: FinanceEntity)
 
