@@ -52,5 +52,10 @@ class AuthRepository @Inject constructor(
         return user
     }
 
-    suspend fun signOut() { firebaseAuth.signOut() }
+    suspend fun signOut() {
+        // 로컬 정리를 firebaseAuth.signOut() 전에 — 동기화 대상 데이터를 비워 계정 전환 시
+        // 이전 사용자 데이터 노출을 차단한다. 재로그인 시 pullAll로 복원되므로 손실 없음.
+        syncRepository.clearLocalUserData()
+        firebaseAuth.signOut()
+    }
 }

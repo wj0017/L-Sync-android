@@ -5,7 +5,10 @@ import com.lsync.app.data.local.dao.BudgetDao
 import com.lsync.app.data.local.dao.EventDao
 import com.lsync.app.data.local.dao.FinanceDao
 import com.lsync.app.data.local.dao.TodoDao
+import com.lsync.app.data.local.dao.TodoTemplateDao
 import com.lsync.app.data.remote.FirestoreDataSource
+import com.lsync.app.notification.AlarmScheduler
+import java.time.LocalDate
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -16,6 +19,8 @@ class SyncRepository @Inject constructor(
     private val todoDao: TodoDao,
     private val financeDao: FinanceDao,
     private val budgetDao: BudgetDao,
+    private val todoTemplateDao: TodoTemplateDao,
+    private val alarmScheduler: AlarmScheduler,
 ) {
     // 원격 전체를 pull해 last-write-wins로 Room에 머지(복원).
     // upsert-only: 로컬이 같거나 더 최신이면 보존, 로컬 전용 데이터는 삭제하지 않는다.
@@ -55,6 +60,25 @@ class SyncRepository @Inject constructor(
                 }
             }
         }
+    }
+
+    // 로그아웃 시 동기화 대상 로컬 데이터를 비운다(계정 전환 시 이전 사용자 데이터 노출 차단).
+    // Offline-First라 재로그인 시 pullAll(uid)로 Firestore에서 복원되므로 데이터 손실이 없다.
+    // reading_plan/memos는 로컬 전용(미동기화·복원 불가)이라 절대 비우지 않는다.
+    suspend fun clearLocalUserData() {
+        // 삭제보다 먼저 예약된 알람을 취소한다 — 삭제 후엔 ID를 조회할 수 없어 알람이 영구 누수된다.
+        // 한 항목 실패가 전체 정리를 막지 않도록 runCatching으로 감싼다.
+        runCatching {
+            val today = LocalDate.now().toString()
+            eventDao.getFutureAlarmedEvents(today).forEach { alarmScheduler.cancel(it.id) }
+            todoDao.getFutureAlarmedTodos(today).forEach { alarmScheduler.cancel(it.id) }
+        }
+        // 동기화로 복원 가능한 테이블만 비운다.
+        eventDao.clearAll()
+        todoDao.clearAll()
+        financeDao.clearAll()
+        budgetDao.clearAll()
+        todoTemplateDao.clearAll()
     }
 
     // 네트워크/권한 에러는 Crashlytics에 기록하고 조용히 통과 (앱 흐름을 막지 않음).

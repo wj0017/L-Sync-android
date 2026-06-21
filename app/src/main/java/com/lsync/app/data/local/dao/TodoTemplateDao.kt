@@ -20,4 +20,8 @@ interface TodoTemplateDao {
 
     @Query("UPDATE todo_templates SET userId = :newId WHERE userId = :oldId")
     suspend fun migrateUserId(oldId: String, newId: String)
+
+    // 로그아웃 시 동기화 대상 테이블 전체 비움 (계정 전환 데이터 격리)
+    @Query("DELETE FROM todo_templates")
+    suspend fun clearAll()
 }

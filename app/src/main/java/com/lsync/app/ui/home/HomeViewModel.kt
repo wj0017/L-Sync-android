@@ -108,10 +108,18 @@ class HomeViewModel @Inject constructor(
             financeRepository.observeByMonth(monthKey)
                 .catch { e -> _uiState.update { it.copy(error = e.message) } }
                 .collect { list ->
+                    // 정산 정책(PRD 2.4) — 위젯·가계부 화면과 동일 공식
+                    val monthReimbursed = list
+                        .filter { f -> f.type == "INCOME" && f.settlementGroupId != null }
+                        .sumOf { f -> f.amount }
                     _uiState.update {
                         it.copy(
-                            monthIncome  = list.filter { f -> f.type == "INCOME" }.sumOf { f -> f.amount },
-                            monthExpense = list.filter { f -> f.type == "EXPENSE" }.sumOf { f -> f.amount },
+                            monthIncome  = list
+                                .filter { f -> f.type == "INCOME" && f.settlementGroupId == null }
+                                .sumOf { f -> f.amount },
+                            monthExpense = (list
+                                .filter { f -> f.type == "EXPENSE" }
+                                .sumOf { f -> f.amount } - monthReimbursed).coerceAtLeast(0),
                         )
                     }
                 }
@@ -166,7 +174,6 @@ class HomeViewModel @Inject constructor(
         }
         viewModelScope.launch {
             readingPlanRepository.resetFromToday()
-            observeReadingPlan(today)
             widgetRefreshHelper.requestUpdate()
         }
         _uiState.update { it.copy(showSetupSheet = false) }
