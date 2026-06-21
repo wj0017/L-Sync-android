@@ -84,6 +84,11 @@
       "dir": "17-global-search",
       "status": "completed",
       "completed_at": "2026-06-20T12:23:18+0900"
+    },
+    {
+      "dir": "18-stabilization",
+      "status": "completed",
+      "completed_at": "2026-06-21T14:07:49+0900"
     }
   ]
 }

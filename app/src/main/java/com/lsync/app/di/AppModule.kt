@@ -132,7 +132,9 @@ object AppModule {
         todoDao: TodoDao,
         financeDao: FinanceDao,
         budgetDao: BudgetDao,
-    ) = SyncRepository(remote, eventDao, todoDao, financeDao, budgetDao)
+        todoTemplateDao: TodoTemplateDao,
+        alarmScheduler: AlarmScheduler,
+    ) = SyncRepository(remote, eventDao, todoDao, financeDao, budgetDao, todoTemplateDao, alarmScheduler)
 
     @Provides
     @Singleton

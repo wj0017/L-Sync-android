@@ -79,4 +79,8 @@ interface EventDao {
     // Soft delete 대신 실제 삭제 (이벤트는 가계부 연동 없으므로 Hard delete 허용)
     @Query("DELETE FROM events WHERE id = :id")
     suspend fun deleteById(id: String)
+
+    // 로그아웃 시 동기화 대상 테이블 전체 비움 (계정 전환 데이터 격리)
+    @Query("DELETE FROM events")
+    suspend fun clearAll()
 }
