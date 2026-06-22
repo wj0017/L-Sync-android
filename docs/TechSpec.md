@@ -1,4 +1,4 @@
-# L-Sync Technical Spec (v0.6)
+# L-Sync Technical Spec (v0.7)
 
 **목적:** 데이터베이스 구조, 보안 규칙, 안드로이드 권한·알림, 백그라운드 엔진 등 구현에 직접 필요한 기술 명세.
 
@@ -19,9 +19,17 @@
   "startDate": "2024-05-01T09:00:00+09:00",
   "timezone": "Asia/Seoul",
   "rrule": "FREQ=WEEKLY;BYDAY=MO",
+  "exdatesJson": "[\"2024-05-08\"]",
+  "overridesJson": "{...}",
   "hasAlarm": true
 }
 ```
+
+**반복 일정 (iCal 읽기-전개)**
+- 마스터 한 행만 저장하고 발생(occurrence)은 런타임에 전개(`data/recurrence/EventRecurrence.kt` 순수 Kotlin 엔진). 시각 보존·종일 Floating·`MAX_ITERATIONS` 가드.
+- `exdatesJson`(제외 날짜 JSON 배열)·`overridesJson`(발생별 수정 JSON)로 예외 처리.
+- 범위 삭제: `deleteOccurrence`=exdate / `deleteFollowing`=UNTIL−1 절단 / `deleteSeries`=hard delete. 범위 수정: `editOccurrence`=override / `editFollowing`=원본 절단+새 마스터 / `editSeries`=update.
+- 알람: `scheduleForEvent`가 `nextOccurrence`로 다음 발생 등록 + 일1회 `EventAlarmRefreshWorker`로 재계산.
 
 ### 1.2. `todos` & `todo_templates`
 
@@ -95,7 +103,25 @@
 | text | TEXT | 메모 본문 |
 | date | TEXT | YYYY-MM-DD |
 
-### 1.6. 성경 데이터 (로컬 SQLite — Firestore 미사용)
+### 1.6. `budgets` (AppDatabase v5 추가)
+
+가계부 월 예산. 카테고리별·전체 월 한도를 저장하며 매월 반복 적용. Firestore `budgets` 컬렉션 동기화.
+
+| 컬럼 | 타입 | 설명 |
+|------|------|------|
+| id | TEXT PK | `"${userId}_${category}"` 결정론적 — 카테고리당 1행, 멱등 upsert |
+| userId | TEXT | |
+| category | TEXT | FinanceCategory 값. 전체 한도는 sentinel `TOTAL_CATEGORY = "__TOTAL__"` |
+| limitAmount | INTEGER | 매월 반복 한도(원) |
+| createdAt / updatedAt | INTEGER | |
+| deletedAt | INTEGER? | soft delete — pull(upsert-only) 삭제 전파용 |
+
+**예산 집계·표시**
+- `FinanceDashboardViewModel.budgets` — 이번 달만. 카테고리 예산 사용액 = 해당 카테고리 EXPENSE 원금, TOTAL 예산 사용액 = 순지출(`expense − reimbursed`). 0나눗셈 가드.
+- 진행바: 정상 막대 `AccentBlue`, 초과 시에만 `AccentRed`(절제 = 디자인 의도).
+- `BudgetRepository.setBudget`(멱등 upsert + `syncSafe`), `deleteBudget`(soft delete 원격 전파). `SyncRepository.pullAll`이 LWW upsert-only로 복원.
+
+### 1.7. 성경 데이터 (로컬 SQLite — Firestore 미사용)
 
 #### bible_verses (개역개정 4판)
 - DB 파일: `assets/bible.db` → 내부 `bible_v3.db` (콘텐츠 버전 2)
@@ -131,6 +157,7 @@
 | 2 | reading_plan 테이블 추가 (MIGRATION_1_2) |
 | 3 | memos 테이블 추가 (MIGRATION_2_3) |
 | 4 | finance.settlementGroupId 컬럼 추가 (MIGRATION_3_4) |
+| 5 | budgets 테이블 추가 (MIGRATION_4_5) |
 
 ---
 
@@ -177,6 +204,7 @@ service cloud.firestore {
 - **재부팅 복원:** `RECEIVE_BOOT_COMPLETED` → `BootReceiver` → `AlarmRestoreWorker` → `getFutureAlarmedEvents`/`getFutureAlarmedTodos` 조회 → 동일한 `scheduleForEvent`/`scheduleForTodo` 재사용(라이브와 시각 로직 일치).
 - **정확 알람 권한:** Android 12+(API 31)에서 `canScheduleExactAlarms()` false면 `setExactAndAllowWhileIdle` 대신 `setAndAllowWhileIdle`(inexact) 폴백. 권한 요청은 `PermissionHelper`.
 - Android 13+: 첫 실행 시 `POST_NOTIFICATIONS` 요청.
+- **딥링크·완료 액션:** `AlarmReceiver` contentIntent는 고유 data `lsync://nav/schedule/$id`(rc=`id.hashCode`) → `MainActivity`(singleTop + `onNewIntent`, `EXTRA_NAV_TARGET`) → `NavGraph`가 해당 탭으로 이동(콜드스타트 보존). `TYPE_TODO` 알림은 완료 액션(rc=+1, `lsync://complete/$id`) → `TodoActionReceiver`(@AndroidEntryPoint, `goAsync`)가 완료 처리(금액 미정 연동 Todo는 앱 유도로 ₩0 가드, 중복 완료 가드, 알림 cancel). 위젯 4카드도 `actionStartActivity`로 동일 딥링크 진입.
 
 ### 5.2 결제 알림 자동 가계부
 - **서비스:** `PaymentNotificationService` (NotificationListenerService)
@@ -245,19 +273,29 @@ EntryPointAccessors.fromApplication(context.applicationContext, WidgetEntryPoint
 
 - **원자성:** Todo 완료 → Finance 생성은 Firestore Batch Write로 묶음.
 - **Crashlytics:** 네트워크 연결 상태에서 Exception 발생 시 `sync_failed` 이벤트 기록.
-- **복원 동기화(pull):** `SyncRepository.pullAll(userId)`가 `FirestoreDataSource.fetchEvents/fetchTodos/fetchFinance`로 원격을 받아 **last-write-wins upsert-only** 머지(항목별 `updatedAt > local.updatedAt`일 때만 덮어씀, 로컬 전용 데이터 미삭제). `AuthRepository`가 로그인·자동로그인 시 마이그레이션 직후 백그라운드 실행. 재설치·기기 변경 복원 경로. 엔티티 그룹별 `syncSafe`로 부분 실패 격리.
+- **복원 동기화(pull):** `SyncRepository.pullAll(userId)`가 `FirestoreDataSource.fetchEvents/fetchTodos/fetchFinance/fetchBudgets`로 원격을 받아 **last-write-wins upsert-only** 머지(항목별 `updatedAt > local.updatedAt`일 때만 덮어씀, 로컬 전용 데이터 미삭제). `AuthRepository`가 로그인·자동로그인 시 마이그레이션 직후 백그라운드 실행. 재설치·기기 변경 복원 경로. 엔티티 그룹별 `syncSafe`로 부분 실패 격리.
+- **로그아웃 데이터 격리(계정 전환):** `AuthRepository.signOut()`은 `clear → firebaseAuth.signOut()` 순서. `SyncRepository.clearLocalUserData()`가 동기화 5테이블(events / todos / finance / budgets / todo_templates)을 `clearAll()`하되 **알람을 선취소한 뒤 삭제**. `reading_plan` / `memos`는 로컬 전용·복원 불가라 **보존**. `AppModule.provideSyncRepository`에 `todoTemplateDao`·`alarmScheduler` 주입.
 
 ---
 
-## 8. Room Entity 현황
+## 8. 통합 검색 (Global Search)
+
+- **횡단 LIKE 검색:** `EventDao.searchByTitle`·`TodoDao.searchByTitle`·`FinanceDao.search`(LIKE, Flow). `SearchRepository`가 `SearchResults{events, todos, finances}`를 3 Flow `combine`(blank 가드).
+- **ViewModel:** `SearchViewModel`(@HiltViewModel) `debounce(200)` + `flatMapLatest`, `onQueryChange`/`clearQuery`.
+- **진입·이동:** `NavGraph` `composable("search")`(하단탭 아님) + `HomeScreen` 헤더 검색 아이콘. 결과 탭 → 해당 탭으로 이동만(인라인 편집 없음).
+
+---
+
+## 9. Room Entity 현황
 
 | Entity | DB | 주요 필드 |
 |--------|-----|-----------|
-| EventEntity | AppDatabase | id, userId, title, isAllDay, startDate, endDate, timezone, rrule, hasAlarm, deletedAt? |
+| EventEntity | AppDatabase | id, userId, title, isAllDay, startDate, endDate, timezone, rrule, exdatesJson?, overridesJson?, hasAlarm, deletedAt? |
 | TodoEntity | AppDatabase | id, userId, templateId?, title, isCompleted, dueDate?, financeIsLinked, financeType?, financeCategory?, financeAmount?, linkedFinanceId?, deletedAt? |
 | FinanceEntity | AppDatabase | id, userId, type, amount, category, date, note?, sourceTodoId?, isExcluded, settlementGroupId? |
 | TodoTemplateEntity | AppDatabase | id, userId, title, rrule, financeIsLinked, financeType?, financeCategory?, financeAmount?, isActive |
 | ReadingPlanEntity | AppDatabase | id, date, book, chapter, isRead |
 | MemoEntity | AppDatabase | id, book, chapter, verse, text, date |
+| BudgetEntity | AppDatabase | id(`userId_category`), userId, category, limitAmount, createdAt, updatedAt, deletedAt? |
 | BibleVerseEntity | BibleDatabase | idx, book, chapter, verse, text, testament, book_name, book_short |
 | EsvVerseEntity | EsvDatabase | idx, book, chapter, verse, text |

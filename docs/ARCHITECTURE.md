@@ -19,14 +19,14 @@ Room (SSOT)         FirestoreDataSource
 ```
 app/src/main/java/com/lsync/app/
 ├── LSyncApplication.kt
-├── MainActivity.kt
+├── MainActivity.kt                 # singleTop + onNewIntent, EXTRA_NAV_TARGET 파싱 → NavGraph로 딥링크 탭 이동(콜드스타트 보존)
 ├── di/
 │   └── AppModule.kt                # Hilt SingletonComponent
-│                                   # AppDatabase(v4), BibleDatabase, EsvDatabase,
+│                                   # AppDatabase(v5), BibleDatabase, EsvDatabase,
 │                                   # 모든 DAO, Repository, Firestore 포함
 ├── data/
 │   ├── local/
-│   │   ├── AppDatabase.kt          # v4 — Event, Todo, Finance, TodoTemplate, ReadingPlan, Memo
+│   │   ├── AppDatabase.kt          # v5 — Event, Todo, Finance, TodoTemplate, ReadingPlan, Memo, Budget
 │   │   ├── BibleDatabase.kt        # 읽기 전용, assets/bible.db 번들
 │   │   ├── EsvDatabase.kt          # 읽기 전용, assets/esv.db 번들
 │   │   ├── FinanceCategory.kt
@@ -37,26 +37,32 @@ app/src/main/java/com/lsync/app/
 │   │   │   ├── FinanceEntity.kt
 │   │   │   ├── ReadingPlanEntity.kt  # reading_plan 테이블 (date, book, chapter, isRead)
 │   │   │   ├── MemoEntity.kt          # memos 테이블 (book, chapter, verse, text, date)
+│   │   │   ├── BudgetEntity.kt        # budgets 테이블 (id="userId_category" 결정론적, limitAmount, deletedAt). TOTAL_CATEGORY="__TOTAL__"
 │   │   │   ├── BibleVerseEntity.kt
 │   │   │   └── EsvVerseEntity.kt
 │   │   └── dao/
 │   │       ├── EventDao.kt
 │   │       ├── TodoDao.kt
 │   │       ├── TodoTemplateDao.kt
-│   │       ├── FinanceDao.kt          # 정산: observeAllSettlementItems, getBySettlementGroup
+│   │       ├── FinanceDao.kt          # 정산: observeAllSettlementItems, getBySettlementGroup / search(LIKE)
 │   │       ├── ReadingPlanDao.kt     # observeForDate, markRead, deleteFromDate, getReadDates
 │   │       ├── MemoDao.kt             # observeForChapter, insert, deleteById
+│   │       ├── BudgetDao.kt           # observeActive, upsert, getById (soft delete = deletedAt)
 │   │       ├── BibleDao.kt
 │   │       └── EsvDao.kt
+│   ├── recurrence/
+│   │   └── EventRecurrence.kt        # 순수 Kotlin RRULE 전개 엔진. expandEvent/expandEvents/nextOccurrence + exdates/overrides JSON 헬퍼
 │   ├── remote/
-│   │   └── FirestoreDataSource.kt    # push(upsert/batch) + fetchEvents/fetchTodos/fetchFinance(복원 pull)
+│   │   └── FirestoreDataSource.kt    # push(upsert/batch) + fetchEvents/fetchTodos/fetchFinance/fetchBudgets(복원 pull), budgets 컬렉션
 │   └── repository/
-│       ├── EventRepository.kt         # create/save/update(save 재사용)/delete
+│       ├── EventRepository.kt         # create/save/update(save 재사용)/delete + 반복 범위 삭제·수정(deleteOccurrence/Following/Series, editOccurrence/Following/Series)
 │       ├── TodoRepository.kt          # createTemplate, upsertMaterialized(로컬+알람+동기화), create/update/complete/uncheck/delete
 │       ├── FinanceRepository.kt
+│       ├── BudgetRepository.kt        # setBudget(멱등 upsert+syncSafe), deleteBudget(soft delete 원격전파)
+│       ├── SearchRepository.kt        # SearchResults{events,todos,finances} — 3 Flow combine, blank 가드
 │       ├── ReadingPlanRepository.kt  # 1년 통독 시퀀스 계산, 설정(SharedPreferences), getStreak/getWeeklyHeatmap
-│       ├── SyncRepository.kt         # pullAll(userId) — Firestore→Room last-write-wins 복원(upsert-only)
-│       ├── AuthRepository.kt         # Firebase Auth 래퍼. currentUserId, authState, signInWithGoogle, signOut. 로그인·자동로그인 시 pullAll 트리거
+│       ├── SyncRepository.kt         # pullAll(userId) — Firestore→Room LWW 복원(upsert-only) + clearLocalUserData(로그아웃 시 동기화 테이블 정리·알람 선취소)
+│       ├── AuthRepository.kt         # Firebase Auth 래퍼. currentUserId, authState, signInWithGoogle, signOut(clear→firebaseAuth.signOut). 로그인·자동로그인 시 pullAll 트리거
 │       └── AuthMigrationHelper.kt    # "local_user" → Firebase UID Room 일괄 마이그레이션 (멱등)
 ├── ui/
 │   ├── theme/
@@ -67,10 +73,14 @@ app/src/main/java/com/lsync/app/
 │   │   ├── LoginScreen.kt          # Google 로그인 버튼·로딩·에러 UI
 │   │   └── AuthViewModel.kt        # AuthUiState(isSignedIn/isLoading/error/userId), signInWithGoogle, signOut
 │   ├── navigation/
-│   │   └── NavGraph.kt             # 4-tab: Home / Schedule / Finance / Bible. 미로그인 시 LoginScreen early return
+│   │   └── NavGraph.kt             # 4-tab: Home / Schedule / Finance / Bible + composable("search")(하단탭 아님)
+│   │                               # 미로그인 시 LoginScreen early return. navTarget/onTargetConsumed로 딥링크 탭 이동(LaunchedEffect)
+│   ├── search/
+│   │   ├── SearchScreen.kt         # 상단 검색바(자동 포커스) + 섹션별 LazyColumn(일정·할일·가계부) + 빈/결과없음 상태, 결과 탭→해당 탭 이동
+│   │   └── SearchViewModel.kt      # @HiltViewModel, debounce(200)+flatMapLatest, onQueryChange/clearQuery
 │   ├── home/
-│   │   ├── HomeScreen.kt           # 오늘 날짜·통독·일정 미리보기·가계부 요약. 연속 읽기 streak + 주간 히트맵. 헤더 메뉴(미허용 권한 재진입 + 로그아웃)
-│   │   └── HomeViewModel.kt        # EventRepo + TodoRepo + FinanceRepo + ReadingPlanRepo 조합 (streak/heatmap 포함)
+│   │   ├── HomeScreen.kt           # 오늘 날짜·통독·일정 미리보기·가계부 요약. 연속 읽기 streak + 주간 히트맵. 헤더: 검색 아이콘 + 메뉴(미허용 권한 재진입 + 로그아웃)
+│   │   └── HomeViewModel.kt        # EventRepo + TodoRepo + FinanceRepo + ReadingPlanRepo 조합 (streak/heatmap 포함). observeMonthFinance=순지출·정산입금 제외(위젯·가계부와 정산정책 통일)
 │   ├── schedule/
 │   │   ├── ScheduleScreen.kt       # 단일 LazyColumn 통스크롤(헤더·캘린더·구분선·목록) + ExpandableFab
 │   │   │                           # 위로 스크롤하면 캘린더가 밀려 사라지고 목록만 남음
@@ -81,15 +91,16 @@ app/src/main/java/com/lsync/app/
 │   ├── finance/
 │   │   ├── FinanceScreen.kt             # 거래 목록 ↔ 통계 대시보드 ghost chip 토글
 │   │   ├── FinanceViewModel.kt
-│   │   ├── FinanceDashboard.kt          # 월별 추세·카테고리별 지출 Canvas 차트(차트 라이브러리 미사용)
-│   │   ├── FinanceDashboardViewModel.kt # observeByDateRange 구독, 최근 6개월 추세·카테고리·합계 집계
+│   │   ├── FinanceDashboard.kt          # 월별 추세·카테고리별 지출 Canvas 차트(차트 라이브러리 미사용) + 예산 진행바(정상=AccentBlue, 초과만 AccentRed) + 예산 편집 시트
+│   │   ├── FinanceDashboardViewModel.kt # observeByDateRange 구독, 최근 6개월 추세·카테고리·합계 집계 + budgets(이번달 한도/사용률, 0나눗셈 가드)
 │   │   └── TransactionFormSheet.kt
 │   └── bible/
 │       ├── BibleScreen.kt          # HorizontalPager, ESV/개역개정 교차, 목차, 검색, 절 묵상 메모, PlanChapterBanner(오늘 통독 장 읽음 토글)
 │       └── BibleViewModel.kt       # 개역개정 보조 텍스트 기본 표시(showKorean=true), ReadingPlanRepository 주입 → isPlanChapter/isPlanChapterRead
 ├── notification/
-│   ├── AlarmScheduler.kt              # scheduleForEvent/scheduleForTodo(트리거 계산 단일화), 정확알람 권한 폴백
-│   ├── AlarmReceiver.kt
+│   ├── AlarmScheduler.kt              # scheduleForEvent(nextOccurrence)/scheduleForTodo(트리거 계산 단일화), 정확알람 권한 폴백
+│   ├── AlarmReceiver.kt               # contentIntent 딥링크(lsync://nav/schedule/$id) + TYPE_TODO 완료 액션(lsync://complete/$id)
+│   ├── TodoActionReceiver.kt          # @AndroidEntryPoint, goAsync — 알림 완료 액션 처리(금액미정 연동Todo 앱유도 ₩0 가드, 중복완료 가드, 알림 cancel)
 │   ├── BootReceiver.kt
 │   ├── PaymentNotificationParser.kt  # title 정규식 단독 게이트 (바디 폴백 제거)
 │   └── PaymentNotificationService.kt
@@ -97,6 +108,7 @@ app/src/main/java/com/lsync/app/
 │   ├── AlarmRestoreWorker.kt
 │   ├── TodoMaterializerWorker.kt     # 반복 인스턴스 생성 → TodoRepository.upsertMaterialized(동기화·알람 포함)
 │   ├── MaterializationTrigger.kt     # 템플릿 생성 직후 1회 즉시 materialization (OneTimeWork)
+│   ├── EventAlarmRefreshWorker.kt    # 반복 일정 알람 일1회 재계산(다음 발생 등록)
 │   └── WidgetRefreshWorker.kt        # 30분 주기 위젯 갱신 (비-Hilt CoroutineWorker)
 └── ui/widget/
     ├── LSyncWidget.kt                # GlanceAppWidget — 4개 섹션 UI + loadWidgetState()
@@ -141,6 +153,35 @@ UI는 Room Flow를 구독하므로 네트워크 없이도 즉각 반응. UI는 F
 - **진입:** ScheduleScreen 카드 **롱프레스**로 편집(탭은 Todo 완료 토글 유지). 생성 다이얼로그를 기존 값으로 prefill해 재사용.
 - **EventRepository.update:** 불변 필드(`id`/`userId`/`createdAt`) 보존 후 `save()` 재사용 → upsert + 동기화 + 알람 재등록 일원화.
 - **TodoRepository.update:** *편집 가능 필드(제목·마감일·가계부 연동)만* 갱신. **완료 상태(`isCompleted`/`completedAt`)·연결 가계부(`linkedFinanceId`)·`createdAt`·`templateId`는 보존**(데이터 무결성). 갱신 후 `scheduleForTodo`로 알람 재등록.
+
+### 반복 일정 (iCal 읽기-전개)
+- **순수 Kotlin 전개 엔진:** `data/recurrence/EventRecurrence.kt`가 마스터 이벤트의 RRULE을 읽어 발생(occurrence)을 전개. `expandEvent`/`expandEvents`(범위 내 발생)·`nextOccurrence`(알람용 다음 발생) + `exdates`/`overrides` JSON 헬퍼. 시각 보존·종일 Floating·`MAX_ITERATIONS` 가드·예외 흡수. 라이브러리(lib-recur) 미사용, 단위 테스트 보유.
+- **저장 모델(읽기-전개):** 마스터 한 행만 저장하고 발생은 런타임에 전개. `ScheduleItem.Event(entity, occurrenceDate=null)`로 하위 호환, 합성 발생 엔티티(`toSyntheticEntity`, id=마스터)로 표시.
+- **범위 삭제:** `deleteOccurrence`=exdate 추가 / `deleteFollowing`=UNTIL−1로 절단 / `deleteSeries`=hard delete.
+- **범위 수정:** `editOccurrence`=override / `editFollowing`=원본 절단 + 새 마스터 / `editSeries`=update.
+- **DAO·알람:** `EventDao.observeForExpansion/getForExpansion`(과거 시작 반복 포함)·`getFutureAlarmedEvents`(rrule 포함). `scheduleForEvent`는 `nextOccurrence`로 다음 발생 등록 + 일1회 `EventAlarmRefreshWorker`로 재계산. 홈·위젯도 오늘 분량을 전개해 표시.
+
+### 가계부 월 예산 (Budget)
+- **결정론적 ID:** `BudgetEntity.id = "${userId}_${category}"` — 카테고리당 1행 멱등 upsert. `deletedAt` soft delete(pull upsert-only 삭제 전파용). 전체 한도는 sentinel `TOTAL_CATEGORY="__TOTAL__"`.
+- **마이그레이션:** **AppDatabase v5 + `MIGRATION_4_5`**(`budgets` CREATE TABLE, 스키마 정확 일치).
+- **Repository:** `BudgetRepository.setBudget`(멱등 upsert + `syncSafe`), `deleteBudget`(soft delete 원격 전파). `FirestoreDataSource` `budgets` 컬렉션, `SyncRepository.pullAll` LWW upsert-only.
+- **집계·표시:** `FinanceDashboardViewModel.budgets`(이번달만, 카테고리=EXPENSE 원금 / TOTAL=순지출 `expense − reimbursed`, 0나눗셈 가드). 대시보드 진행바는 **정상 막대 `AccentBlue`, 초과만 `AccentRed`**(절제 = 디자인 의도). 편집 시트(전체 = `전체 월 한도`). `AppModule` 4곳 등록(DAO·Repo·Firestore·Sync).
+
+### 통합 검색 (Global Search)
+- **횡단 LIKE 검색:** `EventDao.searchByTitle`·`TodoDao.searchByTitle`·`FinanceDao.search`(LIKE, Flow). `SearchRepository`가 `SearchResults{events, todos, finances}`를 3 Flow `combine`(blank 가드).
+- **ViewModel:** `SearchViewModel`(@HiltViewModel) `debounce(200)` + `flatMapLatest`, `onQueryChange`/`clearQuery`.
+- **UI·진입:** `ui/search/SearchScreen.kt`(상단 검색바 자동 포커스, 섹션별 LazyColumn, 빈/결과없음 상태). `NavGraph` `composable("search")`(하단탭 아님) + `HomeScreen` 헤더 검색 아이콘. 결과 탭 → 해당 탭으로 이동만(인라인 편집 없음).
+
+### 알림·위젯 딥링크 + 알림 완료 액션
+- **탭 이동:** `MainActivity`(singleTop + `onNewIntent`, `EXTRA_NAV_TARGET`) → `NavGraph(navTarget, onTargetConsumed)`가 `LaunchedEffect(isSignedIn, navTarget)`로 탭 이동(콜드스타트 시에도 보존).
+- **알림 인텐트:** `AlarmReceiver` contentIntent는 고유 data `lsync://nav/schedule/$id`(rc=`id.hashCode`). `TYPE_TODO`는 완료 액션(rc=+1, `lsync://complete/$id`) 추가.
+- **완료 처리:** `TodoActionReceiver`(@AndroidEntryPoint, `goAsync`) — **금액 미정 연동 Todo는 앱 유도로 ₩0 가드**, 중복 완료 가드, 처리 후 알림 cancel.
+- **위젯:** `LSyncWidget` 4카드가 `actionStartActivity`로 동일 딥링크 진입.
+
+### 로그아웃 데이터 격리 (계정 전환)
+- **목적:** 계정 전환 시 이전 사용자의 동기화 데이터가 남지 않도록 격리.
+- **정리 범위:** 동기화 5테이블(events / todos / finance / budgets / todo_templates) `clearAll()` + `SyncRepository.clearLocalUserData()`. **알람을 선취소한 뒤 삭제**하고, **reading_plan / memos는 보존**(로컬 전용·복원 불가).
+- **순서:** `AuthRepository.signOut()`은 `clear → firebaseAuth.signOut()` 순서로 실행해 인증 해제 전에 로컬을 비운다. `AppModule.provideSyncRepository`에 `todoTemplateDao`·`alarmScheduler` 주입.
 
 ### 정산 추적 (Finance Settlement)
 - 별도 테이블 없이 `FinanceEntity.settlementGroupId` 단일 컬럼으로 그룹화. EXPENSE가 리더, INCOME이 정산 입금.
