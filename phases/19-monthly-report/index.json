@@ -1,0 +1,10 @@
+{
+  "project": "L-Sync",
+  "phase": "19-monthly-report",
+  "steps": [
+    { "step": 0, "name": "data-layer", "status": "pending" },
+    { "step": 1, "name": "report-viewmodel", "status": "pending" },
+    { "step": 2, "name": "report-screen", "status": "pending" },
+    { "step": 3, "name": "navigation-entry", "status": "pending" }
+  ]
+}

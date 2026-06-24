@@ -89,6 +89,10 @@
       "dir": "18-stabilization",
       "status": "completed",
       "completed_at": "2026-06-21T14:07:49+0900"
+    },
+    {
+      "dir": "19-monthly-report",
+      "status": "pending"
     }
   ]
 }
