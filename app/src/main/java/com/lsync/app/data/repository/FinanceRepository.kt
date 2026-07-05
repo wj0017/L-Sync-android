@@ -5,7 +5,10 @@ import com.lsync.app.data.local.FinanceCategory
 import com.lsync.app.data.local.dao.FinanceDao
 import com.lsync.app.data.local.entity.FinanceEntity
 import com.lsync.app.data.remote.FirestoreDataSource
+import com.lsync.app.di.ApplicationScope
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.launch
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -15,6 +18,7 @@ class FinanceRepository @Inject constructor(
     private val dao: FinanceDao,
     private val remote: FirestoreDataSource,
     private val authRepository: AuthRepository,
+    @ApplicationScope private val appScope: CoroutineScope,
 ) {
     private val currentUserId: String
         get() = authRepository.currentUserId ?: error("User not signed in")
@@ -116,12 +120,14 @@ class FinanceRepository @Inject constructor(
     }
 
     // Todo 연동 항목(sourceTodoId != null)은 직접 삭제 불가 — excludeByTodoId로만 처리해야 함 (CLAUDE.md CRITICAL)
+    // 삭제는 tombstone(deletedAt)으로 전파 — hard delete는 pull에서 부활하고 다른 기기에 반영되지 않는다.
     suspend fun delete(id: String) {
         val entity = dao.getById(id)
             ?: return
         if (entity.sourceTodoId != null) {
             throw IllegalStateException("Todo-linked finance cannot be deleted directly. Use excludeByTodoId instead.")
         }
+        val now = System.currentTimeMillis()
         // 정산 리더(EXPENSE) 삭제 → 그룹 전체 정리.
         // 정산 입금(INCOME)은 함께 삭제, 단 Todo 연동 입금은 삭제 금지라 그룹 연결만 해제한다.
         val groupId = entity.settlementGroupId
@@ -129,17 +135,19 @@ class FinanceRepository @Inject constructor(
             dao.getBySettlementGroup(groupId).forEach { member ->
                 if (member.id == id) return@forEach
                 if (member.sourceTodoId != null) {
-                    val unlinked = member.copy(settlementGroupId = null, updatedAt = System.currentTimeMillis())
+                    val unlinked = member.copy(settlementGroupId = null, updatedAt = now)
                     dao.upsert(unlinked)
                     syncSafe { remote.upsertFinance(unlinked) }
                 } else {
-                    dao.deleteById(member.id)
-                    syncSafe { remote.deleteFinance(member.id) }
+                    val deletedMember = member.copy(deletedAt = now, updatedAt = now)
+                    dao.upsert(deletedMember)
+                    syncSafe { remote.upsertFinance(deletedMember) }
                 }
             }
         }
-        dao.deleteById(id)
-        syncSafe { remote.deleteFinance(id) }
+        val deleted = entity.copy(deletedAt = now, updatedAt = now)
+        dao.upsert(deleted)
+        syncSafe { remote.upsertFinance(deleted) }
     }
 
     suspend fun exportCsv(yearMonth: String): String {
@@ -148,19 +156,31 @@ class FinanceRepository @Inject constructor(
         sb.appendLine("날짜,유형,카테고리,금액,메모")
         rows.forEach { f ->
             val typeStr = if (f.type == "INCOME") "수입" else "지출"
-            sb.appendLine("${f.date},$typeStr,${f.category},${f.amount},${f.note ?: ""}")
+            sb.appendLine("${f.date},$typeStr,${csvField(f.category)},${f.amount},${csvField(f.note ?: "")}")
         }
         return sb.toString()
     }
 
-    private suspend fun syncSafe(block: suspend () -> Unit) {
-        try {
-            block()
-        } catch (e: Exception) {
-            FirebaseCrashlytics.getInstance().apply {
-                setCustomKey("sync_target", "finance")
-                recordException(e)
-                log("sync_failed")
+    // RFC 4180 — 쉼표·따옴표·줄바꿈이 든 필드는 따옴표로 감싸고 내부 따옴표는 이중화
+    private fun csvField(value: String): String =
+        if (value.any { it == ',' || it == '"' || it == '\n' || it == '\r' }) {
+            "\"${value.replace("\"", "\"\"")}\""
+        } else {
+            value
+        }
+
+    // 원격 push는 앱 스코프에서 비동기 실행 — 오프라인이면 write Task가 서버 ack까지 완료되지
+    // 않으므로 호출부를 막지 않는다. 에러는 Crashlytics 기록 후 조용히 실패(로컬은 이미 저장됨).
+    private fun syncSafe(block: suspend () -> Unit) {
+        appScope.launch {
+            try {
+                block()
+            } catch (e: Exception) {
+                FirebaseCrashlytics.getInstance().apply {
+                    setCustomKey("sync_target", "finance")
+                    recordException(e)
+                    log("sync_failed")
+                }
             }
         }
     }

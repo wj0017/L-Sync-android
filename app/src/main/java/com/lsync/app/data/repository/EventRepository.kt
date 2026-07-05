@@ -7,8 +7,11 @@ import com.lsync.app.data.recurrence.EventOverride
 import com.lsync.app.data.recurrence.withExdate
 import com.lsync.app.data.recurrence.withOverride
 import com.lsync.app.data.remote.FirestoreDataSource
+import com.lsync.app.di.ApplicationScope
 import com.lsync.app.notification.AlarmScheduler
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.UUID
@@ -20,6 +23,7 @@ class EventRepository @Inject constructor(
     private val dao: EventDao,
     private val remote: FirestoreDataSource,
     private val alarmScheduler: AlarmScheduler,
+    @ApplicationScope private val appScope: CoroutineScope,
 ) {
     fun observeAll(): Flow<List<EventEntity>> = dao.observeAll()
 
@@ -32,8 +36,8 @@ class EventRepository @Inject constructor(
 
     suspend fun save(event: EventEntity) {
         dao.upsert(event)
-        syncSafe { remote.upsertEvent(event) }
         alarmScheduler.scheduleForEvent(event)
+        syncSafe { remote.upsertEvent(event) }
     }
 
     suspend fun create(
@@ -89,10 +93,15 @@ class EventRepository @Inject constructor(
         return updated
     }
 
+    // 삭제는 tombstone(soft delete)으로 전파 — 원격 hard delete는 push 실패 시 다음 pull에서
+    // 부활하고, upsert-only pull이라 다른 기기의 로컬에서도 지워지지 않는다.
     suspend fun delete(id: String) {
-        dao.deleteById(id)
-        syncSafe { remote.deleteEvent(id) }
-        alarmScheduler.cancel(id)
+        val existing = dao.getById(id) ?: return
+        val now = System.currentTimeMillis()
+        val deleted = existing.copy(deletedAt = now, updatedAt = now)
+        dao.upsert(deleted)
+        alarmScheduler.cancelEvent(id)
+        syncSafe { remote.upsertEvent(deleted) }
     }
 
     // ── 반복 일정 삭제 범위 ────────────────────────────────────────────────────
@@ -262,15 +271,18 @@ class EventRepository @Inject constructor(
         private val UNTIL_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd")
     }
 
-    // 네트워크 에러는 Crashlytics에 기록하고 로컬은 이미 저장됐으므로 조용히 실패
-    private suspend fun syncSafe(block: suspend () -> Unit) {
-        try {
-            block()
-        } catch (e: Exception) {
-            FirebaseCrashlytics.getInstance().apply {
-                setCustomKey("sync_target", "events")
-                recordException(e)
-                log("sync_failed")
+    // 원격 push는 앱 스코프에서 비동기 실행 — 오프라인이면 write Task가 서버 ack까지 완료되지
+    // 않으므로 호출부를 막지 않는다. 에러는 Crashlytics 기록 후 조용히 실패(로컬은 이미 저장됨).
+    private fun syncSafe(block: suspend () -> Unit) {
+        appScope.launch {
+            try {
+                block()
+            } catch (e: Exception) {
+                FirebaseCrashlytics.getInstance().apply {
+                    setCustomKey("sync_target", "events")
+                    recordException(e)
+                    log("sync_failed")
+                }
             }
         }
     }

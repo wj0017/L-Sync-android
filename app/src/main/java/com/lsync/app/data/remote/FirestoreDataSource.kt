@@ -20,12 +20,9 @@ class FirestoreDataSource @Inject constructor(
     private fun finance() = firestore.collection("finance")
     private fun budgets() = firestore.collection("budgets")
 
+    // 삭제 포함 모든 변경은 upsert로 전파 — hard delete는 pull(upsert-only)에서 부활/잔존 문제를 만든다.
     suspend fun upsertEvent(entity: EventEntity) {
         events().document(entity.id).set(entity.toMap(), SetOptions.merge()).await()
-    }
-
-    suspend fun deleteEvent(id: String) {
-        events().document(id).delete().await()
     }
 
     suspend fun upsertTodo(entity: TodoEntity) {
@@ -67,10 +64,6 @@ class FirestoreDataSource @Inject constructor(
 
     suspend fun upsertFinance(entity: FinanceEntity) {
         finance().document(entity.id).set(entity.toMap(), SetOptions.merge()).await()
-    }
-
-    suspend fun deleteFinance(id: String) {
-        finance().document(id).delete().await()
     }
 
     // 예산은 soft delete(deletedAt)만 사용 — upsert로 한도 설정·삭제 모두 전파.
@@ -120,6 +113,7 @@ class FirestoreDataSource @Inject constructor(
         "sourceTodoId" to sourceTodoId, "isExcluded" to isExcluded,
         "settlementGroupId" to settlementGroupId,
         "createdAt" to createdAt, "updatedAt" to updatedAt,
+        "deletedAt" to deletedAt,
     )
 
     private fun BudgetEntity.toMap() = mapOf(
@@ -182,6 +176,7 @@ class FirestoreDataSource @Inject constructor(
             settlementGroupId = getString("settlementGroupId"),
             createdAt = getLong("createdAt") ?: 0L,
             updatedAt = getLong("updatedAt") ?: 0L,
+            deletedAt = getLong("deletedAt"),
         )
     }.getOrNull()
 

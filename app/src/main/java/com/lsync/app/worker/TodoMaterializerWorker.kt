@@ -16,7 +16,7 @@ import org.dmfs.rfc5545.DateTime
 import org.dmfs.rfc5545.recur.RecurrenceRule
 import java.time.Instant
 import java.time.LocalDate
-import java.time.ZoneOffset
+import java.time.ZoneId
 import java.util.concurrent.TimeUnit
 
 // Client-side Materialization: 반복 Todo 템플릿에서 오늘~+14일 인스턴스 생성 (PRD 2.3)
@@ -61,9 +61,11 @@ class TodoMaterializerWorker @AssistedInject constructor(
     ) {
         val rule = RecurrenceRule(template.rrule.removePrefix("RRULE:"))
 
-        // DTSTART: 템플릿 생성일을 기준 시작일로 사용
+        // DTSTART: 템플릿 생성일을 기준 시작일로 사용.
+        // 로컬 타임존 기준 — UTC로 변환하면 KST 00~09시에 만든 템플릿의 기준일이 하루 앞당겨져
+        // WEEKLY 등의 요일이 어긋난다(Floating Time 원칙).
         val createdDate = Instant.ofEpochMilli(template.createdAt)
-            .atZone(ZoneOffset.UTC)
+            .atZone(ZoneId.systemDefault())
             .toLocalDate()
         val startDt = DateTime(createdDate.toEpochDay() * MS_PER_DAY)
 

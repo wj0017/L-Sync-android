@@ -29,7 +29,7 @@ import com.lsync.app.data.local.entity.TodoTemplateEntity
         MemoEntity::class,
         BudgetEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -76,6 +76,12 @@ abstract class AppDatabase : RoomDatabase() {
         val MIGRATION_3_4 = object : Migration(3, 4) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL("ALTER TABLE finance ADD COLUMN settlementGroupId TEXT")
+            }
+        }
+
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE finance ADD COLUMN deletedAt INTEGER")
             }
         }
 

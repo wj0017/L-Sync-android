@@ -4,7 +4,10 @@ import com.google.firebase.crashlytics.FirebaseCrashlytics
 import com.lsync.app.data.local.dao.BudgetDao
 import com.lsync.app.data.local.entity.BudgetEntity
 import com.lsync.app.data.remote.FirestoreDataSource
+import com.lsync.app.di.ApplicationScope
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -12,6 +15,7 @@ import javax.inject.Singleton
 class BudgetRepository @Inject constructor(
     private val dao: BudgetDao,
     private val remote: FirestoreDataSource,
+    @ApplicationScope private val appScope: CoroutineScope,
 ) {
     fun observeBudgets(userId: String): Flow<List<BudgetEntity>> = dao.observeBudgets(userId)
 
@@ -41,15 +45,18 @@ class BudgetRepository @Inject constructor(
         syncSafe { remote.upsertBudget(deleted) }
     }
 
-    // 네트워크 에러는 Crashlytics에 기록하고 로컬은 이미 저장됐으므로 조용히 실패
-    private suspend fun syncSafe(block: suspend () -> Unit) {
-        try {
-            block()
-        } catch (e: Exception) {
-            FirebaseCrashlytics.getInstance().apply {
-                setCustomKey("sync_target", "budgets")
-                recordException(e)
-                log("sync_failed")
+    // 원격 push는 앱 스코프에서 비동기 실행 — 오프라인이면 write Task가 서버 ack까지 완료되지
+    // 않으므로 호출부를 막지 않는다. 에러는 Crashlytics 기록 후 조용히 실패(로컬은 이미 저장됨).
+    private fun syncSafe(block: suspend () -> Unit) {
+        appScope.launch {
+            try {
+                block()
+            } catch (e: Exception) {
+                FirebaseCrashlytics.getInstance().apply {
+                    setCustomKey("sync_target", "budgets")
+                    recordException(e)
+                    log("sync_failed")
+                }
             }
         }
     }

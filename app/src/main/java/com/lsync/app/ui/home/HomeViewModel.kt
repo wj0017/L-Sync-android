@@ -14,9 +14,13 @@ import com.lsync.app.data.repository.TodoRepository
 import com.lsync.app.ui.schedule.ScheduleItem
 import com.lsync.app.ui.widget.WidgetRefreshHelper
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import java.time.Duration
 import java.time.LocalDate
+import java.time.LocalDateTime
 import javax.inject.Inject
 
 data class ReadingPlanSectionState(
@@ -66,46 +70,68 @@ class HomeViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
+    // 자정 롤오버 대응 — init에 고정된 날짜 대신 이 Flow를 구독해 날짜가 바뀌면 재조회한다.
+    private val todayFlow = MutableStateFlow(LocalDate.now())
+
     init {
-        val today = LocalDate.now()
-        viewModelScope.launch { readingPlanRepository.ensureReadingPlanForDate(today) }
-        observeTodaySchedule(today)
-        observeMonthFinance(today)
-        observeReadingPlan(today)
+        viewModelScope.launch { readingPlanRepository.ensureReadingPlanForDate(todayFlow.value) }
+        startMidnightTicker()
+        observeTodaySchedule()
+        observeMonthFinance()
+        observeReadingPlan()
     }
 
-    private fun observeTodaySchedule(today: LocalDate) {
+    private fun startMidnightTicker() {
         viewModelScope.launch {
-            val dateStr = today.toString()
-            combine(
-                // 과거 시작 반복 마스터까지 포함 조회 → EventRecurrence로 오늘 발생 전개
-                eventRepository.observeForExpansion(dateStr, dateStr),
-                todoRepository.observeByDate(dateStr),
-            ) { events, todos ->
-                buildList {
-                    // 오늘 발생을 전개 → 합성 발생 엔티티로 변환(HomeScreen은 item.entity를 읽어 표시)
-                    expandEvents(events, dateStr, dateStr).forEach { occ ->
-                        add(ScheduleItem.Event(occ.toSyntheticEntity(events), occ.date))
-                    }
-                    todos.forEach  { add(ScheduleItem.Todo(it)) }
-                }.sortedWith(compareBy(
-                    { it is ScheduleItem.Todo && it.entity.isCompleted },
-                    {
-                        when (it) {
-                            is ScheduleItem.Event -> it.entity.startDate
-                            is ScheduleItem.Todo  -> it.entity.dueDate ?: "9999"
+            while (true) {
+                val now = LocalDateTime.now()
+                val nextMidnight = now.toLocalDate().plusDays(1).atStartOfDay()
+                delay(Duration.between(now, nextMidnight).toMillis() + 1_000)
+                val newToday = LocalDate.now()
+                todayFlow.value = newToday
+                _uiState.update { it.copy(today = newToday) }
+                readingPlanRepository.ensureReadingPlanForDate(newToday)
+            }
+        }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private fun observeTodaySchedule() {
+        viewModelScope.launch {
+            todayFlow.flatMapLatest { today ->
+                val dateStr = today.toString()
+                combine(
+                    // 과거 시작 반복 마스터까지 포함 조회 → EventRecurrence로 오늘 발생 전개
+                    eventRepository.observeForExpansion(dateStr, dateStr),
+                    todoRepository.observeByDate(dateStr),
+                ) { events, todos ->
+                    buildList {
+                        // 오늘 발생을 전개 → 합성 발생 엔티티로 변환(HomeScreen은 item.entity를 읽어 표시)
+                        expandEvents(events, dateStr, dateStr).forEach { occ ->
+                            add(ScheduleItem.Event(occ.toSyntheticEntity(events), occ.date))
                         }
-                    }
-                ))
+                        todos.forEach  { add(ScheduleItem.Todo(it)) }
+                    }.sortedWith(compareBy(
+                        { it is ScheduleItem.Todo && it.entity.isCompleted },
+                        {
+                            when (it) {
+                                is ScheduleItem.Event -> it.entity.startDate
+                                is ScheduleItem.Todo  -> it.entity.dueDate ?: "9999"
+                            }
+                        }
+                    ))
+                }
             }.catch { e -> _uiState.update { it.copy(error = e.message) } }
              .collect { items -> _uiState.update { it.copy(todayItems = items) } }
         }
     }
 
-    private fun observeMonthFinance(today: LocalDate) {
-        val monthKey = "%04d-%02d".format(today.year, today.monthValue)
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private fun observeMonthFinance() {
         viewModelScope.launch {
-            financeRepository.observeByMonth(monthKey)
+            todayFlow.flatMapLatest { today ->
+                financeRepository.observeByMonth("%04d-%02d".format(today.year, today.monthValue))
+            }
                 .catch { e -> _uiState.update { it.copy(error = e.message) } }
                 .collect { list ->
                     // 정산 정책(PRD 2.4) — 위젯·가계부 화면과 동일 공식
@@ -126,9 +152,10 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    private fun observeReadingPlan(today: LocalDate) {
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private fun observeReadingPlan() {
         viewModelScope.launch {
-            readingPlanRepository.observeForDate(today.toString())
+            todayFlow.flatMapLatest { today -> readingPlanRepository.observeForDate(today.toString()) }
                 .catch { e -> _uiState.update { it.copy(error = e.message) } }
                 .collect { entries ->
                     val totalRead      = readingPlanRepository.getTotalRead()

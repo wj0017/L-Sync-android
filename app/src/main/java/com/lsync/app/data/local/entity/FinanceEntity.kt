@@ -17,4 +17,5 @@ data class FinanceEntity(
     val settlementGroupId: String? = null,  // 정산 추적 그룹 ID (EXPENSE가 리더, INCOME이 정산 입금)
     val createdAt: Long,
     val updatedAt: Long,
+    val deletedAt: Long? = null,   // tombstone — hard delete 시 pull에서 부활하므로 soft delete로 전파
 )

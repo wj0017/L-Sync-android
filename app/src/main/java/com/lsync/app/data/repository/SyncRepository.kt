@@ -24,8 +24,8 @@ class SyncRepository @Inject constructor(
 ) {
     // 원격 전체를 pull해 last-write-wins로 Room에 머지(복원).
     // upsert-only: 로컬이 같거나 더 최신이면 보존, 로컬 전용 데이터는 삭제하지 않는다.
-    // 삭제는 별도 tombstone 없이 처리된다 — Event/Finance는 원격 hard delete라 fetch에 없고,
-    // Todo는 deletedAt이 채워진 채 와서 그대로 복원되므로 fetch한 것을 upsert하면 삭제도 반영된다.
+    // 삭제는 모든 컬렉션이 tombstone(deletedAt)으로 전파된다 — deletedAt이 채워진 문서를
+    // 그대로 upsert하면 로컬 쿼리(deletedAt IS NULL 필터)에서 사라져 삭제가 반영된다.
     suspend fun pullAll(userId: String) {
         syncSafe {
             for (event in remote.fetchEvents(userId)) {
@@ -70,8 +70,8 @@ class SyncRepository @Inject constructor(
         // 한 항목 실패가 전체 정리를 막지 않도록 runCatching으로 감싼다.
         runCatching {
             val today = LocalDate.now().toString()
-            eventDao.getFutureAlarmedEvents(today).forEach { alarmScheduler.cancel(it.id) }
-            todoDao.getFutureAlarmedTodos(today).forEach { alarmScheduler.cancel(it.id) }
+            eventDao.getFutureAlarmedEvents(today).forEach { alarmScheduler.cancelEvent(it.id) }
+            todoDao.getFutureAlarmedTodos(today).forEach { alarmScheduler.cancelTodo(it.id) }
         }
         // 동기화로 복원 가능한 테이블만 비운다.
         eventDao.clearAll()

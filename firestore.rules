@@ -2,10 +2,7 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /{collection}/{docId} {
-      // local_user 데이터는 인증 없이 접근 허용 (개인 앱, Auth 연동 전)
-      allow read, write: if resource.data.userId == "local_user"
-                        || request.resource.data.userId == "local_user";
-      // 인증된 사용자는 자기 데이터만 접근 (Auth 연동 후)
+      // 인증된 사용자는 자기 데이터만 접근
       allow read, delete: if request.auth != null
                        && request.auth.uid == resource.data.userId;
       allow create: if request.auth != null

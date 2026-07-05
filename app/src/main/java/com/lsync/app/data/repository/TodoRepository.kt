@@ -8,8 +8,11 @@ import com.lsync.app.data.local.entity.TodoTemplateEntity
 import com.lsync.app.data.local.entity.FinanceEntity
 import com.lsync.app.data.local.entity.TodoEntity
 import com.lsync.app.data.remote.FirestoreDataSource
+import com.lsync.app.di.ApplicationScope
 import com.lsync.app.notification.AlarmScheduler
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.launch
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -21,6 +24,7 @@ class TodoRepository @Inject constructor(
     private val financeDao: FinanceDao,
     private val remote: FirestoreDataSource,
     private val alarmScheduler: AlarmScheduler,
+    @ApplicationScope private val appScope: CoroutineScope,
 ) {
     fun observeAll(): Flow<List<TodoEntity>> = todoDao.observeAll()
 
@@ -143,7 +147,14 @@ class TodoRepository @Inject constructor(
         )
 
         if (todo.financeIsLinked) {
-            val finance = FinanceEntity(
+            // Uncheck로 isExcluded 처리된 기존 연동 Finance가 있으면 복구 — 매번 새로 만들면
+            // 체크/언체크 반복 시 excluded 고아 레코드가 누적된다.
+            val existing = todo.linkedFinanceId?.let { financeDao.getById(it) }
+            val finance = existing?.copy(
+                isExcluded = false,
+                amount = completedTodo.financeAmount ?: existing.amount,
+                updatedAt = now,
+            ) ?: FinanceEntity(
                 id = UUID.randomUUID().toString(),
                 userId = todo.userId,
                 type = todo.financeType ?: "EXPENSE",
@@ -170,7 +181,7 @@ class TodoRepository @Inject constructor(
         }
 
         // 완료된 Todo는 리마인더가 필요 없으므로 알람 취소
-        alarmScheduler.cancel(todo.id)
+        alarmScheduler.cancelTodo(todo.id)
     }
 
     // Todo Uncheck — Finance Soft Delete (통계 제외)
@@ -193,8 +204,8 @@ class TodoRepository @Inject constructor(
         val now = System.currentTimeMillis()
         todoDao.softDelete(todo.id, now)
         financeDao.unlinkTodo(todo.id)
+        alarmScheduler.cancelTodo(todo.id)
         syncSafe { remote.deleteTodoUnlinkFinance(todo.id, todo.linkedFinanceId, now) }
-        alarmScheduler.cancel(todo.id)
     }
 
     private fun today(): String {
@@ -202,14 +213,19 @@ class TodoRepository @Inject constructor(
         return "%04d-%02d-%02d".format(c.get(java.util.Calendar.YEAR), c.get(java.util.Calendar.MONTH) + 1, c.get(java.util.Calendar.DAY_OF_MONTH))
     }
 
-    private suspend fun syncSafe(block: suspend () -> Unit) {
-        try {
-            block()
-        } catch (e: Exception) {
-            FirebaseCrashlytics.getInstance().apply {
-                setCustomKey("sync_target", "todos")
-                recordException(e)
-                log("sync_failed")
+    // 원격 push는 앱 스코프에서 비동기 실행 — 오프라인이면 Firestore write Task가 서버 ack까지
+    // 완료되지 않아, 호출부에서 await하면 알람 등록/취소 등 후속 로직이 무기한 지연된다.
+    // Firestore SDK가 쓰기를 디스크에 큐잉하므로 재연결 시 순서대로 서버에 반영된다.
+    private fun syncSafe(block: suspend () -> Unit) {
+        appScope.launch {
+            try {
+                block()
+            } catch (e: Exception) {
+                FirebaseCrashlytics.getInstance().apply {
+                    setCustomKey("sync_target", "todos")
+                    recordException(e)
+                    log("sync_failed")
+                }
             }
         }
     }

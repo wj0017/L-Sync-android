@@ -43,7 +43,7 @@ object AppModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase =
         Room.databaseBuilder(context, AppDatabase::class.java, "lsync.db")
-            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5)
+            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6)
             .build()
 
     @Provides fun provideEventDao(db: AppDatabase): EventDao = db.eventDao()
@@ -89,7 +89,8 @@ object AppModule {
         dao: EventDao,
         remote: FirestoreDataSource,
         alarmScheduler: AlarmScheduler,
-    ) = EventRepository(dao, remote, alarmScheduler)
+        @ApplicationScope appScope: CoroutineScope,
+    ) = EventRepository(dao, remote, alarmScheduler, appScope)
 
     @Provides
     @Singleton
@@ -99,7 +100,8 @@ object AppModule {
         financeDao: FinanceDao,
         remote: FirestoreDataSource,
         alarmScheduler: AlarmScheduler,
-    ) = TodoRepository(todoDao, todoTemplateDao, financeDao, remote, alarmScheduler)
+        @ApplicationScope appScope: CoroutineScope,
+    ) = TodoRepository(todoDao, todoTemplateDao, financeDao, remote, alarmScheduler, appScope)
 
     @Provides
     @Singleton
@@ -107,14 +109,16 @@ object AppModule {
         dao: FinanceDao,
         remote: FirestoreDataSource,
         authRepository: com.lsync.app.data.repository.AuthRepository,
-    ) = FinanceRepository(dao, remote, authRepository)
+        @ApplicationScope appScope: CoroutineScope,
+    ) = FinanceRepository(dao, remote, authRepository, appScope)
 
     @Provides
     @Singleton
     fun provideBudgetRepository(
         dao: BudgetDao,
         remote: FirestoreDataSource,
-    ) = BudgetRepository(dao, remote)
+        @ApplicationScope appScope: CoroutineScope,
+    ) = BudgetRepository(dao, remote, appScope)
 
     @Provides
     @Singleton

@@ -27,7 +27,7 @@ class AlarmScheduler @Inject constructor(
     fun scheduleForEvent(event: EventEntity) {
         runCatching {
             if (!event.hasAlarm) {
-                cancel(event.id)
+                cancelEvent(event.id)
                 return
             }
             // 반복 일정은 항상 "다음 1개" 발생만 등록(AlarmManager는 one-shot).
@@ -38,7 +38,7 @@ class AlarmScheduler @Inject constructor(
             } else {
                 val next = nextOccurrence(event, afterDate = LocalDate.now().toString())
                 if (next == null) {
-                    cancel(event.id)
+                    cancelEvent(event.id)
                     return
                 }
                 next.startDate
@@ -56,7 +56,7 @@ class AlarmScheduler @Inject constructor(
     fun scheduleForTodo(todo: TodoEntity) {
         runCatching {
             if (todo.isCompleted || todo.dueDate == null) {
-                cancel(todo.id)
+                cancelTodo(todo.id)
                 return
             }
             val triggerAtMillis = dateToReminderMillis(todo.dueDate)
@@ -69,7 +69,7 @@ class AlarmScheduler @Inject constructor(
         val intent = buildIntent(eventId, title, TYPE_EVENT)
         val pendingIntent = PendingIntent.getBroadcast(
             context,
-            eventId.hashCode(),
+            requestCode(TYPE_EVENT, eventId),
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
@@ -80,21 +80,31 @@ class AlarmScheduler @Inject constructor(
         val intent = buildIntent(todoId, title, TYPE_TODO)
         val pendingIntent = PendingIntent.getBroadcast(
             context,
-            todoId.hashCode(),
+            requestCode(TYPE_TODO, todoId),
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         setAlarm(triggerAtMillis, pendingIntent)
     }
 
-    fun cancel(id: String) {
+    // 레거시 코드(id.hashCode())도 함께 취소 — 타입 프리픽스 도입 전에 등록된 알람 잔존 방지.
+    fun cancelEvent(id: String) = cancelCodes(requestCode(TYPE_EVENT, id), id.hashCode())
+
+    fun cancelTodo(id: String) = cancelCodes(requestCode(TYPE_TODO, id), id.hashCode())
+
+    // Event/Todo가 같은 requestCode 공간을 쓰면 hashCode 충돌 시 서로의 알람을 덮어쓴다 — 타입 프리픽스로 분리.
+    private fun requestCode(type: String, id: String) = "$type:$id".hashCode()
+
+    private fun cancelCodes(vararg codes: Int) {
         val intent = Intent(context, AlarmReceiver::class.java)
-        val pendingIntent = PendingIntent.getBroadcast(
-            context, id.hashCode(), intent,
-            PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE,
-        ) ?: return
-        alarmManager.cancel(pendingIntent)
-        pendingIntent.cancel()
+        codes.forEach { code ->
+            val pendingIntent = PendingIntent.getBroadcast(
+                context, code, intent,
+                PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE,
+            ) ?: return@forEach
+            alarmManager.cancel(pendingIntent)
+            pendingIntent.cancel()
+        }
     }
 
     // 정확 알람 권한(Android 12+) 미허용 시 inexact 폴백 — 알람이 조용히 사라지는 것을 방지.

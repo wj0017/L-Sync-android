@@ -11,21 +11,23 @@ interface FinanceDao {
     @Query("""
         SELECT * FROM finance
         WHERE isExcluded = 0
+          AND deletedAt IS NULL
           AND date >= :from
           AND date <= :to
         ORDER BY date DESC
     """)
     fun observeByDateRange(from: String, to: String): Flow<List<FinanceEntity>>
 
-    @Query("SELECT * FROM finance WHERE id = :id")
+    @Query("SELECT * FROM finance WHERE id = :id AND deletedAt IS NULL")
     suspend fun getById(id: String): FinanceEntity?
 
-    @Query("SELECT * FROM finance WHERE sourceTodoId = :todoId")
+    @Query("SELECT * FROM finance WHERE sourceTodoId = :todoId AND deletedAt IS NULL")
     suspend fun getBySourceTodo(todoId: String): FinanceEntity?
 
     @Query("""
         SELECT * FROM finance
         WHERE isExcluded = 0
+          AND deletedAt IS NULL
           AND (category LIKE '%' || :query || '%' OR note LIKE '%' || :query || '%')
         ORDER BY date DESC
     """)
@@ -46,16 +48,12 @@ interface FinanceDao {
     @Query("UPDATE finance SET sourceTodoId = NULL, updatedAt = :now WHERE sourceTodoId = :todoId")
     suspend fun unlinkTodo(todoId: String, now: Long = System.currentTimeMillis())
 
-    // 수동 입력 항목 영구 삭제 (Todo 자동 생성 항목에는 사용 금지)
-    @Query("DELETE FROM finance WHERE id = :id")
-    suspend fun deleteById(id: String)
-
     // 정산 추적: settlementGroupId가 있는 모든 항목 (EXPENSE 리더 + INCOME 정산 입금)
-    @Query("SELECT * FROM finance WHERE settlementGroupId IS NOT NULL AND isExcluded = 0")
+    @Query("SELECT * FROM finance WHERE settlementGroupId IS NOT NULL AND isExcluded = 0 AND deletedAt IS NULL")
     fun observeAllSettlementItems(): Flow<List<FinanceEntity>>
 
     // 특정 정산 그룹에 속한 모든 항목 (그룹 삭제·정리용)
-    @Query("SELECT * FROM finance WHERE settlementGroupId = :groupId")
+    @Query("SELECT * FROM finance WHERE settlementGroupId = :groupId AND deletedAt IS NULL")
     suspend fun getBySettlementGroup(groupId: String): List<FinanceEntity>
 
     // CSV 내보내기용: 날짜 범위 조회, isExcluded 항목 제외
@@ -65,6 +63,7 @@ interface FinanceDao {
           AND date >= :from
           AND date <= :to
           AND isExcluded = 0
+          AND deletedAt IS NULL
         ORDER BY date ASC
     """)
     suspend fun getAllByDateRange(userId: String, from: String, to: String): List<FinanceEntity>
