@@ -1,4 +1,4 @@
-# L-Sync Technical Spec (v0.7)
+# L-Sync Technical Spec (v0.8)
 
 **목적:** 데이터베이스 구조, 보안 규칙, 안드로이드 권한·알림, 백그라운드 엔진 등 구현에 직접 필요한 기술 명세.
 
@@ -286,7 +286,27 @@ EntryPointAccessors.fromApplication(context.applicationContext, WidgetEntryPoint
 
 ---
 
-## 9. Room Entity 현황
+## 9. 월간 리포트 (Monthly Report)
+
+- **집계 소스:** `ReportViewModel`(@HiltViewModel)이 Room Flow 4개를 `combine`. 신규 DAO/Repository 클래스 없이 기존 클래스에 메서드만 추가 — 스키마 변경·마이그레이션·`AppModule` 등록 모두 불필요.
+
+| 지표 | 소스 | 규칙 |
+|------|------|------|
+| 일정 건수 | `EventRepository.observeForExpansion(from, to)` | `expandEvents(events, from, to).size` — 반복 마스터를 전개한 **발생 수**(행 수 아님) |
+| 할일 완료율 | `TodoRepository.observeByDueDateRange(from, to)` | `deletedAt IS NULL AND dueDate IS NOT NULL` — 마감일 없는 Todo는 분모에서 제외 |
+| 순지출 | `FinanceRepository.observeByDateRange(from, to)` | `(Σ EXPENSE − Σ 정산입금).coerceAtLeast(0)` |
+| 수입 | 〃 | `type == "INCOME" && settlementGroupId == null`만 합산(정산 입금 제외) |
+| 상위 카테고리 | 〃 | EXPENSE **원금** 기준 groupBy → 내림차순 5개(정산 받음 차감 없음) |
+| 통독 | `ReadingPlanRepository.observeReadInRange(from, to)` | `isRead = 1`. 장 수 = 행 수, 일 수 = distinct `date` |
+
+- **정산 정책 일관성:** 가계부 집계는 `FinanceDashboardViewModel.aggregate`와 동일 공식(PRD 2.4). 어긋나면 홈·가계부 탭·위젯과 수치가 불일치한다.
+- **월 범위:** Floating Date 문자열 `"%04d-%02d-01"` ~ `"%04d-%02d-{lengthOfMonth}"`. 타임존 변환 없음.
+- **월 이동:** `previousMonth`/`nextMonth`(`YearMonth.now()` 초과 시 무시). 변경 시 `monthJob.cancel()` → 상태 초기화 → 새 범위 재구독.
+- **UI:** `ui/report/ReportScreen.kt` — `collectAsState()`만 사용, `Canvas` 직접 드로잉(차트 라이브러리 미사용), 지출에 `AccentRed` 미사용. 진입은 `composable("report")` + `HomeScreen` 헤더 아이콘(하단 4-tab 불변).
+
+---
+
+## 10. Room Entity 현황
 
 | Entity | DB | 주요 필드 |
 |--------|-----|-----------|

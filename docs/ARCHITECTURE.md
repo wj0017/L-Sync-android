@@ -42,10 +42,10 @@ app/src/main/java/com/lsync/app/
 │   │   │   └── EsvVerseEntity.kt
 │   │   └── dao/
 │   │       ├── EventDao.kt
-│   │       ├── TodoDao.kt
+│   │       ├── TodoDao.kt             # observeByDueDateRange(월간 리포트용 마감일 범위, dueDate NOT NULL)
 │   │       ├── TodoTemplateDao.kt
 │   │       ├── FinanceDao.kt          # 정산: observeAllSettlementItems, getBySettlementGroup / search(LIKE)
-│   │       ├── ReadingPlanDao.kt     # observeForDate, markRead, deleteFromDate, getReadDates
+│   │       ├── ReadingPlanDao.kt     # observeForDate, markRead, deleteFromDate, getReadDates, observeReadInRange(isRead=1 범위)
 │   │       ├── MemoDao.kt             # observeForChapter, insert, deleteById
 │   │       ├── BudgetDao.kt           # observeActive, upsert, getById (soft delete = deletedAt)
 │   │       ├── BibleDao.kt
@@ -73,13 +73,16 @@ app/src/main/java/com/lsync/app/
 │   │   ├── LoginScreen.kt          # Google 로그인 버튼·로딩·에러 UI
 │   │   └── AuthViewModel.kt        # AuthUiState(isSignedIn/isLoading/error/userId), signInWithGoogle, signOut
 │   ├── navigation/
-│   │   └── NavGraph.kt             # 4-tab: Home / Schedule / Finance / Bible + composable("search")(하단탭 아님)
+│   │   └── NavGraph.kt             # 4-tab: Home / Schedule / Finance / Bible + composable("search")·composable("report")(하단탭 아님)
 │   │                               # 미로그인 시 LoginScreen early return. navTarget/onTargetConsumed로 딥링크 탭 이동(LaunchedEffect)
 │   ├── search/
 │   │   ├── SearchScreen.kt         # 상단 검색바(자동 포커스) + 섹션별 LazyColumn(일정·할일·가계부) + 빈/결과없음 상태, 결과 탭→해당 탭 이동
 │   │   └── SearchViewModel.kt      # @HiltViewModel, debounce(200)+flatMapLatest, onQueryChange/clearQuery
+│   ├── report/
+│   │   ├── ReportScreen.kt         # 월 선택 헤더(◀ ▶, 현재 월이면 다음 달 비활성) + 4카드(할일 완료율 Canvas 링 / 일정 발생 수 / 가계부 순지출·수입·상위 카테고리 막대 / 통독 장·일수)
+│   │   └── ReportViewModel.kt      # Event·Todo·Finance·ReadingPlan 4 Flow combine. 일정=expandEvents 전개, 가계부=정산 규칙(FinanceDashboardViewModel 일치). 월 이동 시 monthJob.cancel 후 재구독
 │   ├── home/
-│   │   ├── HomeScreen.kt           # 오늘 날짜·통독·일정 미리보기·가계부 요약. 연속 읽기 streak + 주간 히트맵. 헤더: 검색 아이콘 + 메뉴(미허용 권한 재진입 + 로그아웃)
+│   │   ├── HomeScreen.kt           # 오늘 날짜·통독·일정 미리보기·가계부 요약. 연속 읽기 streak + 주간 히트맵. 헤더: 검색·리포트 아이콘 + 메뉴(미허용 권한 재진입 + 로그아웃)
 │   │   └── HomeViewModel.kt        # EventRepo + TodoRepo + FinanceRepo + ReadingPlanRepo 조합 (streak/heatmap 포함). observeMonthFinance=순지출·정산입금 제외(위젯·가계부와 정산정책 통일)
 │   ├── schedule/
 │   │   ├── ScheduleScreen.kt       # 단일 LazyColumn 통스크롤(헤더·캘린더·구분선·목록) + ExpandableFab
@@ -171,6 +174,14 @@ UI는 Room Flow를 구독하므로 네트워크 없이도 즉각 반응. UI는 F
 - **횡단 LIKE 검색:** `EventDao.searchByTitle`·`TodoDao.searchByTitle`·`FinanceDao.search`(LIKE, Flow). `SearchRepository`가 `SearchResults{events, todos, finances}`를 3 Flow `combine`(blank 가드).
 - **ViewModel:** `SearchViewModel`(@HiltViewModel) `debounce(200)` + `flatMapLatest`, `onQueryChange`/`clearQuery`.
 - **UI·진입:** `ui/search/SearchScreen.kt`(상단 검색바 자동 포커스, 섹션별 LazyColumn, 빈/결과없음 상태). `NavGraph` `composable("search")`(하단탭 아님) + `HomeScreen` 헤더 검색 아이콘. 결과 탭 → 해당 탭으로 이동만(인라인 편집 없음).
+
+### 월간 리포트 (Monthly Report)
+- **횡단 집계:** `ReportViewModel`(@HiltViewModel)이 Room Flow 4개를 `combine` — `EventRepository.observeForExpansion` / `TodoRepository.observeByDueDateRange` / `FinanceRepository.observeByDateRange` / `ReadingPlanRepository.observeReadInRange`. 새 DAO·Repository **클래스는 추가하지 않고** 기존 클래스에 메서드만 더해 `AppModule` 변경이 없다.
+- **일정 건수:** 반복 마스터는 1행이므로 행 개수가 아니라 `expandEvents(events, from, to).size`로 **월 발생 수**를 센다(§ 반복 일정).
+- **가계부 집계:** `FinanceDashboardViewModel.aggregate`와 동일 공식 — 순지출 `= (EXPENSE 합 − 정산입금 합).coerceAtLeast(0)`, 수입은 `settlementGroupId == null`인 INCOME만, 상위 카테고리는 EXPENSE 원금 기준 내림차순 5개. 화면 간 수치 불일치 방지.
+- **할일·통독:** 마감일 있는 Todo만 완료율 분모(`dueDate IS NOT NULL`). 통독은 읽은 챕터 수(행 수)와 읽은 날 수(distinct date).
+- **월 이동:** `previousMonth`/`nextMonth`(`YearMonth.now()` 초과 가드). 월이 바뀌면 `monthJob.cancel()` 후 새 `YYYY-MM-DD` 범위로 재구독하고 상태를 초기화해 이전 월 값이 남지 않게 한다.
+- **UI·진입:** `ui/report/ReportScreen.kt` — 차트 라이브러리 없이 `Canvas`(`drawArc`/`drawRoundRect`) 직접 드로잉, **지출 수치·막대에 `AccentRed` 미사용**(체감 부담 완화 = 디자인 의도). `NavGraph` `composable("report")` + `HomeScreen` 헤더 리포트 아이콘 — `search`와 동일한 홈 진입 별도 화면이며 하단 4-tab은 유지.
 
 ### 알림·위젯 딥링크 + 알림 완료 액션
 - **탭 이동:** `MainActivity`(singleTop + `onNewIntent`, `EXTRA_NAV_TARGET`) → `NavGraph(navTarget, onTargetConsumed)`가 `LaunchedEffect(isSignedIn, navTarget)`로 탭 이동(콜드스타트 시에도 보존).
