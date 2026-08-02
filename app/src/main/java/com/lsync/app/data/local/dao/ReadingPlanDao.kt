@@ -32,4 +32,14 @@ interface ReadingPlanDao {
 
     @Query("SELECT DISTINCT date FROM reading_plan WHERE isRead = 1 ORDER BY date DESC LIMIT 400")
     suspend fun getReadDates(): List<String>
+
+    // 월간 리포트 집계용 — 범위 내 읽은 챕터 수 / 읽은 날 수(distinct date) 계산
+    @Query("""
+        SELECT * FROM reading_plan
+        WHERE isRead = 1
+          AND date >= :from
+          AND date <= :to
+        ORDER BY date ASC
+    """)
+    fun observeReadInRange(from: String, to: String): Flow<List<ReadingPlanEntity>>
 }

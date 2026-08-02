@@ -76,6 +76,9 @@ class TodoRepository @Inject constructor(
 
     fun observeByDate(date: String): Flow<List<TodoEntity>> = todoDao.observeByDate(date)
 
+    fun observeByDueDateRange(from: String, to: String): Flow<List<TodoEntity>> =
+        todoDao.observeByDueDateRange(from, to)
+
     suspend fun create(
         userId: String,
         title: String,
