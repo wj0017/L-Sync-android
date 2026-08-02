@@ -31,6 +31,7 @@ import com.lsync.app.ui.auth.LoginScreen
 import com.lsync.app.ui.bible.BibleScreen
 import com.lsync.app.ui.finance.FinanceScreen
 import com.lsync.app.ui.home.HomeScreen
+import com.lsync.app.ui.report.ReportScreen
 import com.lsync.app.ui.schedule.ScheduleScreen
 import com.lsync.app.ui.search.SearchScreen
 import com.lsync.app.ui.theme.*
@@ -138,12 +139,16 @@ fun NavGraph(
                         }
                     },
                     onNavigateToSearch = { navController.navigate("search") },
+                    onNavigateToReport = { navController.navigate("report") },
                     authViewModel = authViewModel,
                 )
             }
             composable(Screen.Schedule.route) { ScheduleScreen() }
             composable(Screen.Finance.route)  { FinanceScreen() }
             composable(Screen.Bible.route)    { BibleScreen() }
+            composable("report") {
+                ReportScreen(onBack = { navController.popBackStack() })
+            }
             composable("search") {
                 SearchScreen(
                     onBack = { navController.popBackStack() },

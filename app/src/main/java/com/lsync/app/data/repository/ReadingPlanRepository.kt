@@ -135,6 +135,9 @@ class ReadingPlanRepository @Inject constructor(
 
     fun observeForDate(date: String): Flow<List<ReadingPlanEntity>> = dao.observeForDate(date)
 
+    fun observeReadInRange(from: String, to: String): Flow<List<ReadingPlanEntity>> =
+        dao.observeReadInRange(from, to)
+
     suspend fun markRead(date: String, book: Int, chapter: Int, isRead: Boolean) =
         dao.markRead(date, book, chapter, isRead)
 

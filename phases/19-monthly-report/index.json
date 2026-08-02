@@ -2,9 +2,39 @@
   "project": "L-Sync",
   "phase": "19-monthly-report",
   "steps": [
-    { "step": 0, "name": "data-layer", "status": "pending" },
-    { "step": 1, "name": "report-viewmodel", "status": "pending" },
-    { "step": 2, "name": "report-screen", "status": "pending" },
-    { "step": 3, "name": "navigation-entry", "status": "pending" }
-  ]
+    {
+      "step": 0,
+      "name": "data-layer",
+      "status": "completed",
+      "started_at": "2026-08-02T18:56:22+0900",
+      "summary": "월간 집계용 Room Flow 쿼리·pass-through 4개 추가 — TodoDao.observeByDueDateRange(from,to): Flow<List<TodoEntity>>(deletedAt IS NULL + dueDate NOT NULL 범위), ReadingPlanDao.observeReadInRange(from,to): Flow<List<ReadingPlanEntity>>(isRead=1 범위), TodoRepository.observeByDueDateRange(from,to), ReadingPlanRepository.observeReadInRange(from,to). 스키마 변경 없음(SELECT만) → AppDatabase 버전·AppModule 변경 불필요",
+      "completed_at": "2026-08-02T18:58:25+0900"
+    },
+    {
+      "step": 1,
+      "name": "report-viewmodel",
+      "status": "completed",
+      "started_at": "2026-08-02T18:58:25+0900",
+      "summary": "ui/report/ReportViewModel.kt 생성 — ReportUiState(yearMonth, todoTotal/todoCompleted+todoCompletionRate, eventCount, expense/income/net, topCategories, chaptersRead/daysRead) + CategorySlice(ui.report 별도 정의). @HiltViewModel로 Event·Todo·Finance·ReadingPlan Repository 4개 Room Flow를 combine — 일정은 observeForExpansion+expandEvents로 월 발생 전개(PRD 2.5), 가계부는 정산 규칙(순지출=expense−reimbursed coerceAtLeast(0), 정산입금 제외 수입, EXPENSE 원금 카테고리 상위 5개)으로 FinanceDashboardViewModel과 일치. previousMonth/nextMonth(현재 월 초과 가드) 시 monthJob.cancel 후 새 범위 재구독. Floating Date 문자열 범위만 사용, AppModule 변경 없음",
+      "completed_at": "2026-08-02T19:00:57+0900"
+    },
+    {
+      "step": 2,
+      "name": "report-screen",
+      "status": "completed",
+      "started_at": "2026-08-02T19:00:57+0900",
+      "summary": "ui/report/ReportScreen.kt 생성 — onBack 상단바 + 월 선택 헤더(◀ YYYY년 M월 ▶, 현재 월이면 다음 달 버튼 FgDisabled·클릭 차단)와 4개 카드(할일 완료율 Canvas 링 72dp+n/m 완료, 빈 상태 '마감일 있는 할 일 없음' / 일정 eventCount 큰 숫자 / 가계부 순지출 대형 표기+수입·잔액 스탯+상위 카테고리 Canvas 비율 막대 / 통독 N장·N일 읽음)를 LazyColumn으로 구성. collectAsState()만 사용, 차트 라이브러리 없이 Canvas(drawArc/drawRoundRect) 직접 드로잉, 지출 수치·막대는 FgPrimary/FgSecondary(AccentRed 미사용), NavGraph·HomeScreen 미수정",
+      "completed_at": "2026-08-02T19:04:40+0900"
+    },
+    {
+      "step": 3,
+      "name": "navigation-entry",
+      "status": "completed",
+      "started_at": "2026-08-02T19:04:40+0900",
+      "summary": "NavGraph report 라우트 + HomeScreen 진입 아이콘 연결 — composable(\"report\") { ReportScreen(onBack = { navController.popBackStack() }) } 추가(search와 동일한 홈 진입 별도 화면, bottomNavItems 미추가로 4-tab 유지), HomeScreen에 onNavigateToReport 파라미터 + 헤더 검색 아이콘 옆 Icons.Outlined.BarChart IconButton(24dp/20dp·FgSecondary) 추가, NavGraph 호출부에서 navigate(\"report\") 와이어링",
+      "completed_at": "2026-08-02T19:06:22+0900"
+    }
+  ],
+  "created_at": "2026-08-02T18:56:22+0900",
+  "completed_at": "2026-08-02T19:06:22+0900"
 }

@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
@@ -83,6 +84,7 @@ fun HomeScreen(
     onNavigateToSchedule: () -> Unit,
     onNavigateToBible: () -> Unit,
     onNavigateToSearch: () -> Unit,
+    onNavigateToReport: () -> Unit,
     viewModel: HomeViewModel = hiltViewModel(),
     authViewModel: AuthViewModel = hiltViewModel(),
 ) {
@@ -148,6 +150,17 @@ fun HomeScreen(
                         Icon(
                             Icons.Outlined.Search,
                             contentDescription = "검색",
+                            tint = FgSecondary,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                    IconButton(
+                        onClick = onNavigateToReport,
+                        modifier = Modifier.size(24.dp),
+                    ) {
+                        Icon(
+                            Icons.Outlined.BarChart,
+                            contentDescription = "월간 리포트",
                             tint = FgSecondary,
                             modifier = Modifier.size(20.dp),
                         )

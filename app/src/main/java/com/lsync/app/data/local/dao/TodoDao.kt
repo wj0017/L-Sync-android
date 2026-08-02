@@ -52,6 +52,17 @@ interface TodoDao {
     """)
     fun searchByTitle(query: String): Flow<List<TodoEntity>>
 
+    // 월간 리포트 집계용 — 마감일 없는 Todo는 완료율 분모에서 제외
+    @Query("""
+        SELECT * FROM todos
+        WHERE deletedAt IS NULL
+          AND dueDate IS NOT NULL
+          AND dueDate >= :from
+          AND dueDate <= :to
+        ORDER BY dueDate ASC
+    """)
+    fun observeByDueDateRange(from: String, to: String): Flow<List<TodoEntity>>
+
     @Upsert
     suspend fun upsert(todo: TodoEntity)
 
