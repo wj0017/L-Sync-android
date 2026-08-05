@@ -18,9 +18,11 @@ import com.lsync.app.data.local.dao.TodoDao
 import com.lsync.app.data.local.dao.TodoTemplateDao
 import com.lsync.app.data.remote.FirestoreDataSource
 import com.lsync.app.notification.AlarmScheduler
+import com.lsync.app.notification.ReminderScheduler
 import com.lsync.app.data.repository.BudgetRepository
 import com.lsync.app.data.repository.EventRepository
 import com.lsync.app.data.repository.FinanceRepository
+import com.lsync.app.data.repository.NotificationSettingsRepository
 import com.lsync.app.data.repository.ReadingPlanRepository
 import com.lsync.app.data.repository.SearchRepository
 import com.lsync.app.data.repository.SyncRepository
@@ -63,6 +65,19 @@ object AppModule {
         dao: ReadingPlanDao,
         @ApplicationContext context: Context,
     ) = ReadingPlanRepository(dao, context)
+
+    @Provides
+    @Singleton
+    fun provideNotificationSettingsRepository(
+        @ApplicationContext context: Context,
+    ) = NotificationSettingsRepository(context)
+
+    @Provides
+    @Singleton
+    fun provideReminderScheduler(
+        @ApplicationContext context: Context,
+        settingsRepository: NotificationSettingsRepository,
+    ) = ReminderScheduler(context, settingsRepository)
 
     @Provides
     @Singleton

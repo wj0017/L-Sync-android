@@ -41,13 +41,21 @@
             android:name=".notification.TodoActionReceiver"
             android:exported="false" />
 
-        <!-- 재부팅 수신 (AlarmManager 재등록) -->
+        <!-- 정기 리마인더 수신 (통독·소비 요약) -->
+        <receiver
+            android:name=".notification.ReminderReceiver"
+            android:exported="false" />
+
+        <!-- 재부팅·앱 업데이트 수신 (AlarmManager 재등록)
+             MY_PACKAGE_REPLACED: 앱 업데이트 시 알람이 취소되는데 사용자가 앱을 열지 않으면
+             복구되지 않으므로 함께 받는다. -->
         <receiver
             android:name=".notification.BootReceiver"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
 

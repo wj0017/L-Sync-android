@@ -30,6 +30,8 @@ app/src/main/java/com/lsync/app/
 │   │   ├── BibleDatabase.kt        # 읽기 전용, assets/bible.db 번들
 │   │   ├── EsvDatabase.kt          # 읽기 전용, assets/esv.db 번들
 │   │   ├── FinanceCategory.kt
+│   │   ├── FinanceTotals.kt        # 정산 집계 확장함수(expenseSum/incomeSum/reimbursedSum/netExpense)
+│   │   ├── BibleBookNames.kt       # 66권 한글 책 이름(알림 문구 등 DB 없이 이름이 필요한 곳)
 │   │   ├── entity/
 │   │   │   ├── EventEntity.kt
 │   │   │   ├── TodoEntity.kt
@@ -47,7 +49,7 @@ app/src/main/java/com/lsync/app/
 │   │       ├── FinanceDao.kt          # 정산: observeAllSettlementItems, getBySettlementGroup / search(LIKE)
 │   │       ├── ReadingPlanDao.kt     # observeForDate, markRead, deleteFromDate, getReadDates, observeReadInRange(isRead=1 범위)
 │   │       ├── MemoDao.kt             # observeForChapter, insert, deleteById
-│   │       ├── BudgetDao.kt           # observeActive, upsert, getById (soft delete = deletedAt)
+│   │       ├── BudgetDao.kt           # observeBudgets(userId), upsert, getById (soft delete = deletedAt)
 │   │       ├── BibleDao.kt
 │   │       └── EsvDao.kt
 │   ├── recurrence/
@@ -59,8 +61,9 @@ app/src/main/java/com/lsync/app/
 │       ├── TodoRepository.kt          # createTemplate, upsertMaterialized(로컬+알람+동기화), create/update/complete/uncheck/delete
 │       ├── FinanceRepository.kt
 │       ├── BudgetRepository.kt        # setBudget(멱등 upsert+syncSafe), deleteBudget(soft delete 원격전파)
+│       ├── NotificationSettingsRepository.kt # 정기 리마인더 설정(SharedPreferences notification_prefs) + StateFlow. 로컬 전용
 │       ├── SearchRepository.kt        # SearchResults{events,todos,finances} — 3 Flow combine, blank 가드
-│       ├── ReadingPlanRepository.kt  # 1년 통독 시퀀스 계산, 설정(SharedPreferences), getStreak/getWeeklyHeatmap
+│       ├── ReadingPlanRepository.kt  # 1년 통독 시퀀스 계산, 설정(SharedPreferences), getStreak/getStreakAsOf/getWeeklyHeatmap
 │       ├── SyncRepository.kt         # pullAll(userId) — Firestore→Room LWW 복원(upsert-only) + clearLocalUserData(로그아웃 시 동기화 테이블 정리·알람 선취소)
 │       ├── AuthRepository.kt         # Firebase Auth 래퍼. currentUserId, authState, signInWithGoogle, signOut(clear→firebaseAuth.signOut). 로그인·자동로그인 시 pullAll 트리거
 │       └── AuthMigrationHelper.kt    # "local_user" → Firebase UID Room 일괄 마이그레이션 (멱등)
@@ -73,8 +76,11 @@ app/src/main/java/com/lsync/app/
 │   │   ├── LoginScreen.kt          # Google 로그인 버튼·로딩·에러 UI
 │   │   └── AuthViewModel.kt        # AuthUiState(isSignedIn/isLoading/error/userId), signInWithGoogle, signOut
 │   ├── navigation/
-│   │   └── NavGraph.kt             # 4-tab: Home / Schedule / Finance / Bible + composable("search")·composable("report")(하단탭 아님)
+│   │   └── NavGraph.kt             # 4-tab: Home / Schedule / Finance / Bible + composable("search")·composable("report")·composable("notifications")(하단탭 아님)
 │   │                               # 미로그인 시 LoginScreen early return. navTarget/onTargetConsumed로 딥링크 탭 이동(LaunchedEffect)
+│   ├── settings/
+│   │   ├── NotificationSettingsScreen.kt # 통독·소비 요약 토글 + 시각(Dialog+TimePicker) + 요일 ghost chip + 미리보기
+│   │   └── NotificationSettingsViewModel.kt # @HiltViewModel, 변경 시 save→ReminderScheduler.syncAll
 │   ├── search/
 │   │   ├── SearchScreen.kt         # 상단 검색바(자동 포커스) + 섹션별 LazyColumn(일정·할일·가계부) + 빈/결과없음 상태, 결과 탭→해당 탭 이동
 │   │   └── SearchViewModel.kt      # @HiltViewModel, debounce(200)+flatMapLatest, onQueryChange/clearQuery
@@ -82,7 +88,7 @@ app/src/main/java/com/lsync/app/
 │   │   ├── ReportScreen.kt         # 월 선택 헤더(◀ ▶, 현재 월이면 다음 달 비활성) + 4카드(할일 완료율 Canvas 링 / 일정 발생 수 / 가계부 순지출·수입·상위 카테고리 막대 / 통독 장·일수)
 │   │   └── ReportViewModel.kt      # Event·Todo·Finance·ReadingPlan 4 Flow combine. 일정=expandEvents 전개, 가계부=정산 규칙(FinanceDashboardViewModel 일치). 월 이동 시 monthJob.cancel 후 재구독
 │   ├── home/
-│   │   ├── HomeScreen.kt           # 오늘 날짜·통독·일정 미리보기·가계부 요약. 연속 읽기 streak + 주간 히트맵. 헤더: 검색·리포트 아이콘 + 메뉴(미허용 권한 재진입 + 로그아웃)
+│   │   ├── HomeScreen.kt           # 오늘 날짜·통독·일정 미리보기·가계부 요약. 연속 읽기 streak + 주간 히트맵. 헤더: 검색·리포트 아이콘 + 메뉴(미허용 권한 재진입 + 알림 설정 + 로그아웃)
 │   │   └── HomeViewModel.kt        # EventRepo + TodoRepo + FinanceRepo + ReadingPlanRepo 조합 (streak/heatmap 포함). observeMonthFinance=순지출·정산입금 제외(위젯·가계부와 정산정책 통일)
 │   ├── schedule/
 │   │   ├── ScheduleScreen.kt       # 단일 LazyColumn 통스크롤(헤더·캘린더·구분선·목록) + ExpandableFab
@@ -101,14 +107,17 @@ app/src/main/java/com/lsync/app/
 │       ├── BibleScreen.kt          # HorizontalPager, ESV/개역개정 교차, 목차, 검색, 절 묵상 메모, PlanChapterBanner(오늘 통독 장 읽음 토글)
 │       └── BibleViewModel.kt       # 개역개정 보조 텍스트 기본 표시(showKorean=true), ReadingPlanRepository 주입 → isPlanChapter/isPlanChapterRead
 ├── notification/
-│   ├── AlarmScheduler.kt              # scheduleForEvent(nextOccurrence)/scheduleForTodo(트리거 계산 단일화), 정확알람 권한 폴백
+│   ├── AlarmScheduler.kt              # scheduleForEvent(nextOccurrence)/scheduleForTodo(트리거 계산 단일화)
+│   ├── AlarmCompat.kt                 # setAlarmCompat — 정확알람 권한 폴백 단일화(AlarmScheduler·ReminderScheduler 공유)
+│   ├── ReminderScheduler.kt           # 정기 리마인더 등록/취소. ReminderType(BIBLE/SPENDING_DAILY/SPENDING_WEEKLY), nextDailyTrigger/nextWeeklyTrigger(순수 함수)
+│   ├── ReminderReceiver.kt            # @AndroidEntryPoint, goAsync — 통독·소비 요약 알림 생성 + 다음 회차 재무장
 │   ├── AlarmReceiver.kt               # contentIntent 딥링크(lsync://nav/schedule/$id) + TYPE_TODO 완료 액션(lsync://complete/$id)
 │   ├── TodoActionReceiver.kt          # @AndroidEntryPoint, goAsync — 알림 완료 액션 처리(금액미정 연동Todo 앱유도 ₩0 가드, 중복완료 가드, 알림 cancel)
-│   ├── BootReceiver.kt
+│   ├── BootReceiver.kt                # BOOT_COMPLETED / LOCKED_BOOT_COMPLETED / MY_PACKAGE_REPLACED → AlarmRestoreWorker
 │   ├── PaymentNotificationParser.kt  # title 정규식 단독 게이트 (바디 폴백 제거)
 │   └── PaymentNotificationService.kt
 ├── worker/
-│   ├── AlarmRestoreWorker.kt
+│   ├── AlarmRestoreWorker.kt         # 재부팅·앱 업데이트 복원 — 일정·할일 알람 + ReminderScheduler.syncAll()
 │   ├── TodoMaterializerWorker.kt     # 반복 인스턴스 생성 → TodoRepository.upsertMaterialized(동기화·알람 포함)
 │   ├── MaterializationTrigger.kt     # 템플릿 생성 직후 1회 즉시 materialization (OneTimeWork)
 │   ├── EventAlarmRefreshWorker.kt    # 반복 일정 알람 일1회 재계산(다음 발생 등록)
@@ -215,6 +224,20 @@ UI는 Room Flow를 구독하므로 네트워크 없이도 즉각 반응. UI는 F
 - **BibleScreen 연동:** `BibleViewModel`이 `ReadingPlanRepository`를 주입받아 현재 펼친 (book, chapter)가 오늘 통독 분량인지(`isPlanChapter`)와 읽음 여부(`isPlanChapterRead`)를 계산. 통독 장이면 `PlanChapterBanner`를 노출하고 탭으로 읽음 토글.
 - **연속 읽기 streak:** `ReadingPlanRepository.getStreak()` — 오늘부터 거꾸로 읽은 날짜가 연속된 일수. `ReadingPlanDao.getReadDates()`(읽은 날짜 distinct)를 HashSet으로 조회.
 - **주간 히트맵:** `getWeeklyHeatmap()` — 최근 7일(6일 전 → 오늘) 각 날짜의 읽음 여부 `List<Boolean>`. 홈 화면 도트로 렌더링.
+
+### 정기 리마인더 (통독 · 소비 요약)
+- **목적:** 앱을 열지 않아도 오늘 통독 잔여 분량과 소비 현황이 사용자에게 도달하게 한다. streak·예산 진행바 같은 동기 부여 장치가 앱 안에만 갇히지 않도록 하는 것이 설계 의도.
+- **3종:** 통독 리마인더(매일) / 소비 매일 요약 / 소비 주간 요약. 각각 독립 on/off + 시각 설정. **기본값은 전부 off** — 사용자가 켜지 않은 알림이 앱 업데이트만으로 울리지 않게 한다.
+- **설정 저장:** `NotificationSettingsRepository` — SharedPreferences `notification_prefs` + `StateFlow`. 기기별 설정이라 Firestore 동기화·Room 저장 대상이 아니다(`ReadingPlanRepository`와 같은 선례).
+- **트리거 시각 단일 계산:** `ReminderScheduler.nextDailyTrigger`/`nextWeeklyTrigger`(순수 함수, `ReminderScheduleTest`로 검증). 대상 시각이 `now`보다 **엄격히 미래**일 때만 그대로 쓰고 같거나 과거면 다음 회차로 넘긴다(`AlarmScheduler`의 `trigger <= now` 스킵과 같은 방향).
+- **재무장 3중화:** AlarmManager는 one-shot이므로 ① `ReminderReceiver`가 발화할 때마다 다음 회차 등록(알림을 보내지 않는 경우에도) ② `LSyncApplication.onCreate()`의 `syncAll()`(강제 종료·업데이트 대비) ③ `AlarmRestoreWorker`(재부팅·`MY_PACKAGE_REPLACED`). 모두 같은 `syncAll`/`scheduleNext`를 공유해 시각 드리프트가 없다.
+- **통독 잔소리 방지:** 오늘 분량을 **전부 읽었으면 알림을 보내지 않는다**. 통독 미시작·완주 상태도 스킵. 리시버가 `ensureReadingPlanForDate(today)`를 먼저 호출해, 앱을 열지 않아 `reading_plan` row가 없는 날에도 정상 동작한다.
+- **streak 기준일:** 리마인더 시점엔 오늘을 아직 안 읽었으므로 `getStreak()`(오늘 기준)은 항상 0이다. `getStreakAsOf(어제)` = "어제까지 이어온 연속"을 쓴다.
+- **소비 집계:** 정산 정책(2.4)을 `data/local/FinanceTotals.kt` 확장함수로 공유. 주간은 **최근 7일 vs 직전 7일** — 사용자가 어떤 요일을 골라도 구간 길이가 같아 비교가 성립한다(월~오늘로 잡으면 수요일 설정 시 3일치만 집계됨).
+- **로그아웃:** 소비 알림만 조용히 스킵(`currentUserId == null`), 다음 회차는 계속 등록. 통독은 `reading_plan`이 로컬 전용이라 로그인과 무관하게 발화(정책 2.7과 일관).
+- **채널 분리:** 통독 `lsync_bible_reminder`(IMPORTANCE_DEFAULT, 소리) / 소비 `lsync_spending_digest`(IMPORTANCE_LOW, 무음). 채널이 분리돼야 시스템 설정에서 따로 끌 수 있다.
+- **notify ID 슬롯:** 991_001~991_003 고정. `AlarmReceiver`의 `id.hashCode()` 공간·결제(987_001)와 겹치지 않게 분리.
+- **Hilt 리시버 주의:** `@AndroidEntryPoint` BroadcastReceiver는 `onReceive`에서 **`super.onReceive(context, intent)`를 먼저 호출**해야 필드 주입이 일어난다. 빠뜨리면 `lateinit`이 초기화되지 않아 `UninitializedPropertyAccessException`.
 
 ### 일정·할 일 알람 라이프사이클
 - **단일 진실 원천:** 트리거 시각 계산은 `AlarmScheduler.scheduleForEvent(event)` / `scheduleForTodo(todo)` 안에만 존재. 라이브 등록(Repository)과 재부팅 복원(`AlarmRestoreWorker`)이 같은 메서드를 공유해 시각 드리프트를 방지.

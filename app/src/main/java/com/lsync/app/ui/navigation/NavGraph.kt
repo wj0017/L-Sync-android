@@ -34,6 +34,7 @@ import com.lsync.app.ui.home.HomeScreen
 import com.lsync.app.ui.report.ReportScreen
 import com.lsync.app.ui.schedule.ScheduleScreen
 import com.lsync.app.ui.search.SearchScreen
+import com.lsync.app.ui.settings.NotificationSettingsScreen
 import com.lsync.app.ui.theme.*
 
 sealed class Screen(val route: String, val label: String, val icon: ImageVector) {
@@ -140,6 +141,7 @@ fun NavGraph(
                     },
                     onNavigateToSearch = { navController.navigate("search") },
                     onNavigateToReport = { navController.navigate("report") },
+                    onNavigateToNotificationSettings = { navController.navigate("notifications") },
                     authViewModel = authViewModel,
                 )
             }
@@ -148,6 +150,9 @@ fun NavGraph(
             composable(Screen.Bible.route)    { BibleScreen() }
             composable("report") {
                 ReportScreen(onBack = { navController.popBackStack() })
+            }
+            composable("notifications") {
+                NotificationSettingsScreen(onBack = { navController.popBackStack() })
             }
             composable("search") {
                 SearchScreen(
