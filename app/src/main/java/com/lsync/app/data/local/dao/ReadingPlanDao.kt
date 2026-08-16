@@ -42,4 +42,14 @@ interface ReadingPlanDao {
         ORDER BY date ASC
     """)
     fun observeReadInRange(from: String, to: String): Flow<List<ReadingPlanEntity>>
+
+    // 위젯 리포트용 일회성 조회 — observeReadInRange와 동일 WHERE 절(수치 일치 필수).
+    @Query("""
+        SELECT * FROM reading_plan
+        WHERE isRead = 1
+          AND date >= :from
+          AND date <= :to
+        ORDER BY date ASC
+    """)
+    suspend fun getReadInRange(from: String, to: String): List<ReadingPlanEntity>
 }

@@ -99,6 +99,11 @@
       "dir": "22-web-catchup",
       "status": "completed",
       "completed_at": "2026-08-16T18:40:23+0900"
+    },
+    {
+      "dir": "20-widget-report",
+      "status": "completed",
+      "completed_at": "2026-08-17T00:55:34+0900"
     }
   ]
 }

@@ -63,6 +63,17 @@ interface TodoDao {
     """)
     fun observeByDueDateRange(from: String, to: String): Flow<List<TodoEntity>>
 
+    // 위젯 리포트용 일회성 조회 — observeByDueDateRange와 동일 WHERE 절(수치 일치 필수).
+    @Query("""
+        SELECT * FROM todos
+        WHERE deletedAt IS NULL
+          AND dueDate IS NOT NULL
+          AND dueDate >= :from
+          AND dueDate <= :to
+        ORDER BY dueDate ASC
+    """)
+    suspend fun getByDueDateRange(from: String, to: String): List<TodoEntity>
+
     @Upsert
     suspend fun upsert(todo: TodoEntity)
 

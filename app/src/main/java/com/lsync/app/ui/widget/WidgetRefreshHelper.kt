@@ -14,11 +14,14 @@ class WidgetRefreshHelper @Inject constructor(
     @ApplicationContext private val context: Context,
     @ApplicationScope private val scope: CoroutineScope,
 ) {
+    // 호출부(Home/Finance/Schedule VM)는 그대로 두고 여기서 모든 위젯을 갱신한다.
     fun requestUpdate() {
         scope.launch {
             val manager = GlanceAppWidgetManager(context)
-            val ids = manager.getGlanceIds(LSyncWidget::class.java)
-            ids.forEach { id -> LSyncWidget().update(context, id) }
+            manager.getGlanceIds(LSyncWidget::class.java)
+                .forEach { id -> LSyncWidget().update(context, id) }
+            manager.getGlanceIds(ReportWidget::class.java)
+                .forEach { id -> ReportWidget().update(context, id) }
         }
     }
 }

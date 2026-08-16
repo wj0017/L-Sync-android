@@ -109,6 +109,13 @@ fun NavGraph(
         // 콜드 스타트/미로그인에서도 target이 보존됐다가 로그인 후 소비된다.
         LaunchedEffect(authState.isSignedIn, navTarget) {
             if (!authState.isSignedIn) return@LaunchedEffect
+            // 리포트는 하단 탭이 아닌 별도 라우트라 탭 이동 로직(popUpTo/restoreState)을 태우지 않는다.
+            // 홈 헤더 진입과 동일하게 현재 백스택 위로 쌓아 뒤로가기로 돌아오게 한다.
+            if (navTarget == "report") {
+                navController.navigate("report")
+                onTargetConsumed()
+                return@LaunchedEffect
+            }
             if (navTarget == null || bottomNavItems.none { it.route == navTarget }) return@LaunchedEffect
             navController.navigate(navTarget) {
                 popUpTo(navController.graph.findStartDestination().id) { saveState = true }
