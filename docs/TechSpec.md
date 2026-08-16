@@ -1,4 +1,4 @@
-# L-Sync Technical Spec (v0.8)
+# L-Sync Technical Spec (v0.9)
 
 **목적:** 데이터베이스 구조, 보안 규칙, 안드로이드 권한·알림, 백그라운드 엔진 등 구현에 직접 필요한 기술 명세.
 
@@ -319,3 +319,28 @@ EntryPointAccessors.fromApplication(context.applicationContext, WidgetEntryPoint
 | BudgetEntity | AppDatabase | id(`userId_category`), userId, category, limitAmount, createdAt, updatedAt, deletedAt? |
 | BibleVerseEntity | BibleDatabase | idx, book, chapter, verse, text, testament, book_name, book_short |
 | EsvVerseEntity | EsvDatabase | idx, book, chapter, verse, text |
+
+---
+
+## 11. 웹 클라이언트 동기화 계약 (`web/`)
+
+웹(Next.js)은 앱과 같은 Firestore 컬렉션을 직접 읽고 쓴다. **앱의 읽기 방식이 계약의 기준**이다.
+
+`FirestoreDataSource`의 역매핑은 `runCatching { ... }.getOrNull()` + `mapNotNull` 조합이므로, 필드 타입이 하나라도 어긋나면 **예외 없이 그 문서가 통째로 버려진다.** 로그도 남지 않는다.
+
+| 필드 | 앱이 읽는 방식 | 웹이 써야 하는 값 | 어기면 |
+|------|---------------|-----------------|--------|
+| 문서 ID | `document(entity.id)` — 엔티티 id가 곧 문서 ID | `setDoc(doc(col, id))`, id는 UUID | 앱이 `document(id)`로 갱신 시 별도 문서가 생겨 갈라짐 |
+| `id` | `getString("id") ?: return null` | 문서 ID와 **동일한** UUID를 본문에도 | `null` 반환 → 드롭 (`addDoc` 자동 ID는 본문에 `id`가 없다) |
+| `createdAt` / `updatedAt` | `getLong(...) ?: 0L` | `Date.now()` (epoch millis Number) | `serverTimestamp()` → Timestamp → 예외 → 드롭 |
+| `deletedAt` / `completedAt` | `getLong(...)` (nullable) | `Date.now()` 또는 `null` | ISO 문자열 → 예외 → 드롭 |
+| `date` / `dueDate` / `startDate` | `getString(...)` | `YYYY-MM-DD` **Floating Time 문자열 그대로** | millis로 바꾸면 드롭 + 타임존 의미 파괴 |
+| `amount` | `getLong("amount")` | Number | 문자열이면 드롭 |
+
+- **삭제는 tombstone만.** 앱의 pull(`SyncRepository.pullAll`)은 **upsert-only**라 원격에서 문서가 사라져도 Room 행은 남는다. hard delete하면 다음 로컬 변경 때 그 행이 다시 push되어 **부활**한다. `deletedAt`(millis) + `updatedAt` 갱신으로 전파한다.
+- **읽기 측도 tombstone을 걸러야 한다** — `useEvents`/`useTodos`/`useFinance` 모두 `!deletedAt` 필터.
+- **집계는 `web/lib/finance.ts` 단일 출처.** 앱 §9의 공식과 동일 — 순지출 `Math.max(0, Σ EXPENSE − Σ 정산입금)`, 수입은 `settlementGroupId == null`인 INCOME만, 상위 카테고리는 EXPENSE 원금 기준 내림차순 5개.
+- **반복 일정은 `web/lib/recurrence.ts`** (`EventRecurrence.kt`의 웹 대응물). RRULE 파싱은 `rrule` 패키지에 위임. dtstart는 `new Date(Date.UTC(y, m-1, d))`, 결과는 `toISOString().slice(0,10)` — **UTC 왕복만 허용**(로컬 타임존 왕복 시 KST에서 하루 밀림). 전개 순서는 `범위 필터 → exdates 제외 → overrides 적용`, override는 시각만 바꾸고 발생 날짜는 옮기지 않는다.
+- **통독은 웹에 없다** — `reading_plan`·`memos`는 Firestore 미동기화(로컬 전용). 웹 리포트는 일정·할일·가계부 3개 도메인만 집계한다.
+- **`crypto.randomUUID()`는 secure context 전용** — https 또는 localhost에서만 동작한다. 평문 http(LAN IP)로 접속한 dev 서버에서는 생성이 실패한다.
+- **미해결:** Phase 19 이전에 웹에서 만든 문서는 랜덤 문서 ID + Timestamp `createdAt`이라 여전히 앱이 읽지 못한다. 마이그레이션 스크립트는 없다 — Firebase 콘솔에서 수동 확인·정리.

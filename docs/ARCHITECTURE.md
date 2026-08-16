@@ -183,6 +183,14 @@ UI는 Room Flow를 구독하므로 네트워크 없이도 즉각 반응. UI는 F
 - **월 이동:** `previousMonth`/`nextMonth`(`YearMonth.now()` 초과 가드). 월이 바뀌면 `monthJob.cancel()` 후 새 `YYYY-MM-DD` 범위로 재구독하고 상태를 초기화해 이전 월 값이 남지 않게 한다.
 - **UI·진입:** `ui/report/ReportScreen.kt` — 차트 라이브러리 없이 `Canvas`(`drawArc`/`drawRoundRect`) 직접 드로잉, **지출 수치·막대에 `AccentRed` 미사용**(체감 부담 완화 = 디자인 의도). `NavGraph` `composable("report")` + `HomeScreen` 헤더 리포트 아이콘 — `search`와 동일한 홈 진입 별도 화면이며 하단 4-tab은 유지.
 
+### 웹 클라이언트 (`web/`, Next.js)
+- **위치:** 앱과 같은 Firestore 컬렉션(`events`/`todos`/`finance`)을 직접 읽고 쓰는 보조 클라이언트. Room도 pull 동기화도 없다 — `onSnapshot` 구독이 곧 상태다.
+- **쓰기 계약이 앱의 읽기 계약에 종속된다:** `FirestoreDataSource`의 역매핑은 `getString("id") ?: return null` / `getLong("createdAt")`를 `runCatching{}.getOrNull()` + `mapNotNull`로 감싼다. 타입이 하나라도 어긋나면 **그 문서가 예외 없이 통째로 드롭**되어 웹 데이터가 앱에 영원히 도달하지 않는다. 따라서 웹은 ① 문서 ID = 본문 `id`(UUID, `setDoc`) ② 시각 필드 epoch millis(`serverTimestamp()`·ISO 문자열 금지) ③ 삭제는 tombstone(`deletedAt`)으로 쓴다. 상세 표는 `docs/TechSpec.md` §11.
+- **날짜는 Floating Time 유지:** `date`/`dueDate`/`startDate`는 `YYYY-MM-DD` 문자열 그대로. 반복 전개는 `Date.UTC(...)` ↔ `toISOString().slice(0,10)` UTC 왕복만 사용한다 — 로컬 타임존(KST)으로 왕복시키면 종일 일정이 하루 밀린다.
+- **집계 단일화:** `web/lib/finance.ts`(`financeTotals`/`topExpenseCategories`)가 앱 `ReportViewModel.aggregateFinance`와 동일 공식. 가계부 화면·리포트 훅이 이것만 호출하고 정산 판정을 복제하지 않는다.
+- **반복 일정:** `web/lib/recurrence.ts`가 `EventRecurrence.kt`의 웹 대응물(`expandEvent`/`expandEvents`). RRULE 파싱은 `rrule` 패키지에 위임 — 손으로 포팅하면 dmfs lib-recur와 갈라져 같은 일정이 두 클라이언트에서 다른 날짜에 뜬다. **범위 삭제·반복 생성은 앱 전용**이라 웹은 반복 발생의 삭제 버튼을 노출하지 않는다(마스터 전체 삭제 방지).
+- **통독 제외:** `reading_plan`·`memos`는 로컬 전용(§ 로그아웃 데이터 격리)이라 웹에서 얻을 수 없다. 웹 리포트는 일정·할일·가계부 3개 도메인만 집계한다.
+
 ### 알림·위젯 딥링크 + 알림 완료 액션
 - **탭 이동:** `MainActivity`(singleTop + `onNewIntent`, `EXTRA_NAV_TARGET`) → `NavGraph(navTarget, onTargetConsumed)`가 `LaunchedEffect(isSignedIn, navTarget)`로 탭 이동(콜드스타트 시에도 보존).
 - **알림 인텐트:** `AlarmReceiver` contentIntent는 고유 data `lsync://nav/schedule/$id`(rc=`id.hashCode`). `TYPE_TODO`는 완료 액션(rc=+1, `lsync://complete/$id`) 추가.
