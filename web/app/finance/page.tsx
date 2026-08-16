@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { useAuth } from '@/components/AuthProvider';
 import { useFinance } from '@/hooks/useFinance';
 import { addFinance, deleteFinance } from '@/lib/db';
+import { financeTotals } from '@/lib/finance';
 import { LSyncFinance } from '@/types/models';
 
 const KO_MONTHS = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
@@ -38,11 +39,8 @@ export default function FinancePage() {
     [items, filter],
   );
 
-  const { income, expense } = useMemo(() => {
-    let income = 0, expense = 0;
-    items.forEach(f => { f.type === 'INCOME' ? income += f.amount : expense += f.amount; });
-    return { income, expense };
-  }, [items]);
+  // 앱과 동일한 정산 규칙(PRD 2.4) — 지출은 순지출, 수입은 정산 입금 제외.
+  const { income, expense, reimbursed } = useMemo(() => financeTotals(items), [items]);
   const balance = income - expense;
 
   function prevMonth() {
@@ -99,9 +97,16 @@ export default function FinancePage() {
             <p className="text-[14px] font-medium text-ls-green">+₩{income.toLocaleString()}</p>
           </div>
           <div>
-            <p className="text-[10px] text-ls-fg3 uppercase tracking-wide mb-0.5">지출</p>
+            <p className="text-[10px] text-ls-fg3 uppercase tracking-wide mb-0.5">순지출</p>
             <p className="text-[14px] font-medium text-ls-fg2">₩{expense.toLocaleString()}</p>
           </div>
+          {/* 돌려받은 돈이 있을 때만 노출 — 수입과 별개로 표기(앱 대시보드 요약 카드와 동일) */}
+          {reimbursed > 0 && (
+            <div>
+              <p className="text-[10px] text-ls-fg3 uppercase tracking-wide mb-0.5">정산 받음</p>
+              <p className="text-[14px] font-medium text-ls-blue">+₩{reimbursed.toLocaleString()}</p>
+            </div>
+          )}
         </div>
       </div>
 
