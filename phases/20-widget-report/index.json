@@ -1,0 +1,32 @@
+{
+  "project": "L-Sync",
+  "phase": "20-widget-report",
+  "steps": [
+    {
+      "step": 0,
+      "name": "aggregate-util",
+      "status": "completed",
+      "started_at": "2026-08-17T00:49:17+0900",
+      "summary": "data/report/MonthlyAggregate.kt(financeTotals·topExpenseCategories, 정산정책 PRD 2.4 단일 출처) 신규 + ReportViewModel.aggregateFinance를 해당 함수 호출로 교체(CategorySlice=CategoryAmount typealias, 출력 동일) + 위젯용 suspend 조회 TodoDao.getByDueDateRange·ReadingPlanDao.getReadInRange 추가(기존 observe* 쿼리 동일 WHERE)",
+      "completed_at": "2026-08-17T00:51:39+0900"
+    },
+    {
+      "step": 1,
+      "name": "report-widget",
+      "status": "completed",
+      "started_at": "2026-08-17T00:51:39+0900",
+      "summary": "4×2 월간 리포트 위젯 신규 — ReportWidgetState/ReportWidget(2×2 그리드: 할일 완료율·일정 발생수·순지출·통독, financeTotals·expandEvents 재사용, 미로그인 시 empty(), 지출 AccentRed 미사용)/ReportWidgetReceiver + report_widget_info.xml(widget_loading 재사용) + Manifest receiver 등록 + WidgetRefreshHelper가 두 위젯 모두 갱신. 기존 5×2 위젯·WidgetEntryPoint 무수정",
+      "completed_at": "2026-08-17T00:54:02+0900"
+    },
+    {
+      "step": 2,
+      "name": "widget-report-deeplink",
+      "status": "completed",
+      "started_at": "2026-08-17T00:54:02+0900",
+      "summary": "리포트 위젯 탭 → 리포트 화면 딥링크 — ReportWidget에 navIntent(LSyncWidget과 동일 형태 재선언, 검증 파일 무수정) + 루트 Box .clickable(actionStartActivity(navIntent(context, \"report\"))), NavGraph LaunchedEffect에 \"report\" 분기 추가(별도 라우트라 탭 popUpTo 미적용, navigate 후 onTargetConsumed) — 기존 4-tab 딥링크·bottomNavItems 가드·로그인 가드 무변경, MainActivity 무수정",
+      "completed_at": "2026-08-17T00:55:34+0900"
+    }
+  ],
+  "created_at": "2026-08-17T00:49:17+0900",
+  "completed_at": "2026-08-17T00:55:34+0900"
+}

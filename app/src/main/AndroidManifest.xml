@@ -73,6 +73,18 @@
                 android:resource="@xml/lsync_widget_info" />
         </receiver>
 
+        <!-- 월간 리포트 위젯 (4×2) -->
+        <receiver
+            android:name=".ui.widget.ReportWidgetReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/report_widget_info" />
+        </receiver>
+
         <!-- WorkManager (Hilt 연동) -->
         <provider
             android:name="androidx.startup.InitializationProvider"
