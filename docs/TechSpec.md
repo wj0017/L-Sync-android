@@ -1,4 +1,4 @@
-# L-Sync Technical Spec (v0.9)
+# L-Sync Technical Spec (v0.10)
 
 **목적:** 데이터베이스 구조, 보안 규칙, 안드로이드 권한·알림, 백그라운드 엔진 등 구현에 직접 필요한 기술 명세.
 
@@ -238,6 +238,23 @@ service cloud.firestore {
 | 시스템 갱신 주기 | 1800000ms (30분, fallback) |
 | 갱신 주체 | ① `WidgetRefreshHelper`(데이터 변경 시 즉시), ② `WidgetRefreshWorker`(30분 주기) |
 | 데이터 소스 | Room 전용 (Firestore 미사용) |
+
+### 6.1.1 리포트 위젯 (4×2, Phase 20)
+
+기존 5×2 위젯은 Row2가 106dp 고정에 4카드로 포화 상태라 **건드리지 않고 별도 위젯**을 추가했다.
+
+| 항목 | 값 |
+|------|----|
+| 클래스 | `ui/widget/ReportWidget.kt` + `ReportWidgetReceiver` + `res/xml/report_widget_info.xml` |
+| 크기 | 4×2 cells (minWidth 200dp, minHeight 110dp) |
+| 지표 | 이번 달 할일 완료율 · 일정 발생 수 · 순지출 · 통독(장/일) — **앱 리포트 화면(§9)과 동일 정의** |
+| 데이터 | `TodoDao.getByDueDateRange` / `EventDao.getForExpansion`+`expandEvents` / `FinanceDao.getAllByDateRange` / `ReadingPlanDao.getReadInRange` (모두 suspend 일회성 조회 — Glance는 Flow를 구독하지 않는다) |
+| 진입 | 탭 → `EXTRA_NAV_TARGET="report"` → `NavGraph`가 하단 탭 로직 대신 `navigate("report")`로 분기 |
+| 미로그인 | `currentUserId == null`이면 `ReportWidgetState.empty()` |
+
+- **집계 단일 출처:** `data/report/MonthlyAggregate.kt`(`financeTotals`/`topExpenseCategories`, 순수 Kotlin·DI 없음)를 `ReportViewModel`과 위젯이 **함께 호출**한다. 정산 공식이 화면마다 복제되면 숫자가 갈라진다(Phase 17 이력) — 새 집계 지점은 반드시 이 파일을 쓴다. `HomeViewModel`·`FinanceDashboardViewModel`·`LSyncWidget`의 기존 사본은 검증된 코드라 의도적으로 두었다.
+- **`WidgetRefreshHelper.requestUpdate()`가 두 위젯을 모두 갱신**한다. 호출부(Home/Finance/Schedule VM)는 변경 없음.
+- `LSyncWidget.kt`의 색 상수·`navIntent`는 `private`이라 import할 수 없다. `ReportWidget.kt`에 동일 값으로 재선언한다 — 검증된 파일을 public으로 여는 대신 중복을 택했다.
 
 ### 6.2 위젯 섹션
 

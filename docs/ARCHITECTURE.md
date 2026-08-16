@@ -183,6 +183,12 @@ UI는 Room Flow를 구독하므로 네트워크 없이도 즉각 반응. UI는 F
 - **월 이동:** `previousMonth`/`nextMonth`(`YearMonth.now()` 초과 가드). 월이 바뀌면 `monthJob.cancel()` 후 새 `YYYY-MM-DD` 범위로 재구독하고 상태를 초기화해 이전 월 값이 남지 않게 한다.
 - **UI·진입:** `ui/report/ReportScreen.kt` — 차트 라이브러리 없이 `Canvas`(`drawArc`/`drawRoundRect`) 직접 드로잉, **지출 수치·막대에 `AccentRed` 미사용**(체감 부담 완화 = 디자인 의도). `NavGraph` `composable("report")` + `HomeScreen` 헤더 리포트 아이콘 — `search`와 동일한 홈 진입 별도 화면이며 하단 4-tab은 유지.
 
+### 리포트 위젯 + 집계 공식 단일화 (Phase 20)
+- **집계 단일 출처:** `data/report/MonthlyAggregate.kt` — `financeTotals(items)`(순지출·정산입금 제외 수입) / `topExpenseCategories(items, limit)`. **순수 Kotlin, DI·Android 의존 없음**(`data/recurrence/EventRecurrence.kt`와 같은 스타일). `ReportViewModel`과 `ReportWidget`이 함께 호출한다. **새로 집계가 필요한 곳은 반드시 여기를 쓴다** — 사본이 늘면 화면마다 숫자가 갈라진다(Phase 17에서 실제로 발생).
+- **기존 사본은 두었다:** `HomeViewModel.observeMonthFinance` / `FinanceDashboardViewModel.aggregate` / `LSyncWidget.loadWidgetState`는 동작 검증이 끝난 코드라 의도적으로 리팩토링하지 않았다. 이 결정은 "새 사본을 막는다"는 목적에는 충분하고 회귀 위험은 0이다.
+- **별도 4×2 위젯:** 기존 5×2 `LSyncWidget`은 Row2 106dp 고정에 4카드로 포화라 **수정하지 않고** `ReportWidget`을 추가했다. `WidgetEntryPoint`는 이미 필요한 DAO 5개를 노출해 변경이 없다. Glance는 Flow를 구독하지 않으므로 `TodoDao.getByDueDateRange` / `ReadingPlanDao.getReadInRange` **suspend 일회성 조회**를 추가했다(대응 `observe*`와 WHERE 절 동일 — 다르면 위젯과 리포트 화면 숫자가 어긋난다).
+- **딥링크 분기:** `NavGraph`의 `LaunchedEffect`는 `bottomNavItems.none { it.route == navTarget }`으로 조기 반환하므로 하단 탭이 아닌 `"report"`는 그냥 넘기면 **무시된다.** 탭 로직(`popUpTo`/`restoreState`) 앞에서 `"report"`를 분기해 `navigate("report")` + `onTargetConsumed()`로 처리한다. 기존 4탭 딥링크 경로는 그대로다.
+
 ### 웹 클라이언트 (`web/`, Next.js)
 - **위치:** 앱과 같은 Firestore 컬렉션(`events`/`todos`/`finance`)을 직접 읽고 쓰는 보조 클라이언트. Room도 pull 동기화도 없다 — `onSnapshot` 구독이 곧 상태다.
 - **쓰기 계약이 앱의 읽기 계약에 종속된다:** `FirestoreDataSource`의 역매핑은 `getString("id") ?: return null` / `getLong("createdAt")`를 `runCatching{}.getOrNull()` + `mapNotNull`로 감싼다. 타입이 하나라도 어긋나면 **그 문서가 예외 없이 통째로 드롭**되어 웹 데이터가 앱에 영원히 도달하지 않는다. 따라서 웹은 ① 문서 ID = 본문 `id`(UUID, `setDoc`) ② 시각 필드 epoch millis(`serverTimestamp()`·ISO 문자열 금지) ③ 삭제는 tombstone(`deletedAt`)으로 쓴다. 상세 표는 `docs/TechSpec.md` §11.
