@@ -14,7 +14,7 @@ export function useFinance(uid: string, year: number, month: number) {
     const unsub = onSnapshot(financeQuery(uid), (snap) => {
       const filtered = snap.docs
         .map(d => ({ id: d.id, ...d.data() } as LSyncFinance))
-        .filter(f => !f.isExcluded && f.date?.startsWith(prefix))
+        .filter(f => !f.deletedAt && !f.isExcluded && f.date?.startsWith(prefix))
         .sort((a, b) => b.date.localeCompare(a.date));
       setItems(filtered);
     });

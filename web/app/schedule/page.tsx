@@ -4,7 +4,8 @@ import { useAuth } from '@/components/AuthProvider';
 import { useEvents } from '@/hooks/useEvents';
 import { useTodos } from '@/hooks/useTodos';
 import { addEvent, addTodo, deleteEvent, deleteTodo, toggleTodo } from '@/lib/db';
-import { LSyncEvent, LSyncTodo } from '@/types/models';
+import { EventOccurrence, expandEvents } from '@/lib/recurrence';
+import { LSyncTodo } from '@/types/models';
 
 const KO_DAYS_SHORT = ['일', '월', '화', '수', '목', '금', '토'];
 const KO_MONTHS = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
@@ -38,9 +39,19 @@ export default function SchedulePage() {
     return cells;
   }, [year, month]);
 
+  // 반복 일정은 마스터 1건이라 그대로 쓰면 첫 발생일에만 찍힌다.
+  // 표시 중인 달 범위로 전개해야 매 발생일이 달력에 나타난다(앱과 동일한 읽기-전개).
+  const occurrences = useMemo(() => {
+    const mm = String(month + 1).padStart(2, '0');
+    const from = `${year}-${mm}-01`;
+    const to = `${year}-${mm}-${String(new Date(year, month + 1, 0).getDate()).padStart(2, '0')}`;
+    return expandEvents(events, from, to)
+      .sort((a, b) => a.startDate.localeCompare(b.startDate));
+  }, [events, year, month]);
+
   const eventDates = useMemo(() =>
-    new Set(events.map(e => e.startDate?.slice(0, 10)).filter(Boolean)),
-    [events],
+    new Set(occurrences.map(o => o.date)),
+    [occurrences],
   );
   const todoDates = useMemo(() =>
     new Set(todos.map(t => t.dueDate).filter(Boolean)),
@@ -48,9 +59,9 @@ export default function SchedulePage() {
   );
 
   const dayItems = useMemo(() => [
-    ...events.filter(e => e.startDate?.startsWith(selectedDate)).map(e => ({ type: 'event' as const, data: e })),
+    ...occurrences.filter(o => o.date === selectedDate).map(o => ({ type: 'event' as const, data: o })),
     ...todos.filter(t => t.dueDate === selectedDate).map(t => ({ type: 'todo' as const, data: t })),
-  ], [events, todos, selectedDate]);
+  ], [occurrences, todos, selectedDate]);
 
   function prevMonth() {
     if (month === 0) { setYear(y => y - 1); setMonth(11); }
@@ -156,8 +167,9 @@ export default function SchedulePage() {
         )}
         {dayItems.map(item =>
           item.type === 'event'
-            ? <EventCard key={item.data.id} event={item.data as LSyncEvent} onDelete={() => deleteEvent(item.data.id)} />
-            : <TodoCard  key={item.data.id} todo={item.data as LSyncTodo}
+            ? <EventCard key={`${item.data.masterId}_${item.data.date}`} occurrence={item.data}
+                onDelete={() => deleteEvent(item.data.masterId)} />
+            : <TodoCard  key={item.data.id} todo={item.data}
                 onToggle={v => toggleTodo(item.data.id, v)}
                 onDelete={() => deleteTodo(item.data.id)} />,
         )}
@@ -209,16 +221,22 @@ export default function SchedulePage() {
   );
 }
 
-function EventCard({ event, onDelete }: { event: LSyncEvent; onDelete: () => void }) {
-  const time = event.isAllDay ? '종일' : (event.startDate?.slice(11, 16) ?? '');
+function EventCard({ occurrence, onDelete }: { occurrence: EventOccurrence; onDelete: () => void }) {
+  const time = occurrence.isAllDay ? '종일' : occurrence.startDate.slice(11, 16);
   return (
     <div className="flex items-center gap-3 bg-ls-card border border-ls-hair rounded-[12px] px-4 py-3">
       <div className="w-1 h-10 bg-ls-blue rounded-full flex-shrink-0" />
       <div className="flex-1 min-w-0">
-        <p className="text-[14px] font-medium truncate">{event.title}</p>
-        <p className="text-[11px] text-ls-fg3">{time}</p>
+        <p className="text-[14px] font-medium truncate">{occurrence.title}</p>
+        <p className="text-[11px] text-ls-fg3">
+          {time}{occurrence.isRecurring && ' · 반복'}
+        </p>
       </div>
-      <button onClick={onDelete} className="text-ls-fg3 text-[18px] leading-none px-1">×</button>
+      {/* 반복 발생은 삭제 버튼을 노출하지 않는다 — masterId 삭제는 시리즈 전체를 지운다.
+          범위 삭제(단건/이후/전체)는 앱에만 있는 기능이다. */}
+      {!occurrence.isRecurring && (
+        <button onClick={onDelete} className="text-ls-fg3 text-[18px] leading-none px-1">×</button>
+      )}
     </div>
   );
 }
