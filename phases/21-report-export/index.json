@@ -1,0 +1,32 @@
+{
+  "project": "L-Sync",
+  "phase": "21-report-export",
+  "steps": [
+    {
+      "step": 0,
+      "name": "report-summary-text",
+      "status": "completed",
+      "started_at": "2026-08-27T21:00:12+0900",
+      "summary": "ReportUiState를 그대로 받아 Intent.EXTRA_TEXT용 월간 리포트 텍스트 요약을 만드는 buildReportSummaryText(ui/report/ReportSummaryText.kt, Android·로케일 의존 없음) + 단위 테스트 4케이스 추가",
+      "completed_at": "2026-08-27T21:02:30+0900"
+    },
+    {
+      "step": 1,
+      "name": "report-share-card",
+      "status": "completed",
+      "started_at": "2026-08-27T21:02:30+0900",
+      "summary": "오프스크린 ComposeView measure/layout → 소프트웨어 Canvas 렌더로 월간 리포트 PNG Bitmap을 만드는 renderReportCard(ui/report/ReportCardRenderer.kt, 밀도 3f·fontScale 1f 고정, 실패 시 null) + 기존 private 카드를 재사용하는 ReportShareCard(ReportScreen.kt, 최상위 Column)",
+      "completed_at": "2026-08-27T21:04:33+0900"
+    },
+    {
+      "step": 2,
+      "name": "report-export-ui",
+      "status": "completed",
+      "started_at": "2026-08-27T21:04:33+0900",
+      "summary": "FileProvider(file_paths.xml+manifest '${applicationId}.fileprovider') 등록, data/export/ShareFiles.kt(savePngForShare: cacheDir/shared·이전 파일 선정리·IO 디스패처, buildImageShareIntent: FLAG_GRANT_READ_URI_PERMISSION+clipData, buildTextShareIntent) 추가, ReportScreen 상단바 공유 아이콘 → 형식 선택 시트(이미지/텍스트) → 렌더 진행 오버레이 → 미리보기 다이얼로그 → 공유 흐름 구현(공유 상태는 전부 화면 로컬 remember, 렌더 실패 시 스낵바로 텍스트 공유 대안 제시)",
+      "completed_at": "2026-08-27T21:10:39+0900"
+    }
+  ],
+  "created_at": "2026-08-27T21:00:12+0900",
+  "completed_at": "2026-08-27T21:10:39+0900"
+}

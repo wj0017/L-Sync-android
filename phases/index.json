@@ -104,6 +104,11 @@
       "dir": "20-widget-report",
       "status": "completed",
       "completed_at": "2026-08-17T00:55:34+0900"
+    },
+    {
+      "dir": "21-report-export",
+      "status": "completed",
+      "completed_at": "2026-08-27T21:10:39+0900"
     }
   ]
 }
