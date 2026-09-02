@@ -85,6 +85,17 @@
                 android:resource="@xml/report_widget_info" />
         </receiver>
 
+        <!-- 공유용 캐시 파일(리포트 PNG 등) content:// 노출 -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
         <!-- WorkManager (Hilt 연동) -->
         <provider
             android:name="androidx.startup.InitializationProvider"

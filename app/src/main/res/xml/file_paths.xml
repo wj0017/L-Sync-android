@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- data/export/ShareFiles.kt의 File(context.cacheDir, "shared")와 경로 문자열이 정확히 일치해야 한다.
+         어긋나면 런타임에 IllegalArgumentException: Failed to find configured root 가 난다. -->
+    <cache-path name="shared" path="shared/" />
+</paths>
