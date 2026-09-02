@@ -143,10 +143,15 @@ class ReadingPlanRepository @Inject constructor(
 
     suspend fun getTotalRead(): Int = dao.getTotalRead()
 
-    suspend fun getStreak(): Int {
+    suspend fun getStreak(): Int = getStreakAsOf(LocalDate.now())
+
+    // 기준일부터 거꾸로 센 연속 읽기 일수.
+    // 리마인더는 "오늘"을 기준으로 세면 아직 안 읽은 시점이라 항상 0이 나오므로
+    // 어제를 기준으로 호출한다("어제까지 이어온 연속").
+    suspend fun getStreakAsOf(from: LocalDate): Int {
         val readDates = dao.getReadDates().toHashSet()
         var streak = 0
-        var date = LocalDate.now()
+        var date = from
         while (readDates.contains(date.toString())) {
             streak++
             date = date.minusDays(1)

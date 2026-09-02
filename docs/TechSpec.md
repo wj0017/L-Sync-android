@@ -1,4 +1,4 @@
-# L-Sync Technical Spec (v0.11)
+# L-Sync Technical Spec (v0.12)
 
 **목적:** 데이터베이스 구조, 보안 규칙, 안드로이드 권한·알림, 백그라운드 엔진 등 구현에 직접 필요한 기술 명세.
 
@@ -206,7 +206,27 @@ service cloud.firestore {
 - Android 13+: 첫 실행 시 `POST_NOTIFICATIONS` 요청.
 - **딥링크·완료 액션:** `AlarmReceiver` contentIntent는 고유 data `lsync://nav/schedule/$id`(rc=`id.hashCode`) → `MainActivity`(singleTop + `onNewIntent`, `EXTRA_NAV_TARGET`) → `NavGraph`가 해당 탭으로 이동(콜드스타트 보존). `TYPE_TODO` 알림은 완료 액션(rc=+1, `lsync://complete/$id`) → `TodoActionReceiver`(@AndroidEntryPoint, `goAsync`)가 완료 처리(금액 미정 연동 Todo는 앱 유도로 ₩0 가드, 중복 완료 가드, 알림 cancel). 위젯 4카드도 `actionStartActivity`로 동일 딥링크 진입.
 
-### 5.2 결제 알림 자동 가계부
+### 5.2 정기 리마인더 (통독 · 소비 요약)
+
+- **구성:** `ReminderScheduler`(등록/취소·시각 계산) → AlarmManager → `ReminderReceiver`(내용 계산·게시·재무장).
+- **설정:** `NotificationSettingsRepository` — SharedPreferences `notification_prefs`, `StateFlow<NotificationSettings>`. 로컬 전용(Firestore 미동기화). **기본값 전부 off.**
+
+| 리마인더 | `ReminderType` | 기본 시각 | notify ID | 채널 | 딥링크 |
+|---|---|---|---|---|---|
+| 통독 | `BIBLE` | 21:00 | 991_001 | `lsync_bible_reminder` (DEFAULT) | `bible` 탭 |
+| 소비 매일 | `SPENDING_DAILY` | 21:30 | 991_002 | `lsync_spending_digest` (LOW) | `finance` 탭 |
+| 소비 주간 | `SPENDING_WEEKLY` | 일 20:00 | 991_003 | `lsync_spending_digest` (LOW) | `finance` 탭 |
+
+- **트리거 계산(순수 함수):** `nextDailyTrigger(now, hour, minute)` / `nextWeeklyTrigger(now, dayOfWeek, hour, minute)`. 대상 시각이 `now`보다 **엄격히 미래**면 그대로, 같거나 과거면 +1일 / +7일. `dayOfWeek`는 `java.time.DayOfWeek.value`(1=월 … 7=일), 범위 밖 값은 1~7로 보정. 등록은 `ZoneId.systemDefault()` epoch millis(사용자가 고른 벽시계 시각이므로 Floating Time 규칙과 무관).
+- **requestCode:** `"reminder:${type.key}".hashCode()` — `AlarmScheduler`의 `"$type:$id"` 네임스페이스 방식과 동일.
+- **정확 알람 폴백:** `AlarmCompat.setAlarmCompat` 공유(`AlarmScheduler`와 단일화).
+- **재무장 3중화:** ① `ReminderReceiver`가 발화 시 `scheduleNext`(알림 미게시여도 항상) ② `LSyncApplication.onCreate()` `syncAll()` ③ `AlarmRestoreWorker`(`BOOT_COMPLETED` / `LOCKED_BOOT_COMPLETED` / **`MY_PACKAGE_REPLACED`**).
+- **통독 내용 규칙:** 시작 안 함 → 스킵 / `ensureReadingPlanForDate(today)` 선행 → 항목 없음이면 스킵 / **전부 읽음이면 스킵**. 문구 = `"오늘 통독 N장 남았어요"` + 챕터 목록, streak ≥ 2면 `getStreakAsOf(어제)` 사용(오늘 기준으로 세면 리마인더 시점엔 항상 0).
+- **소비 내용 규칙:** `currentUserId == null`이면 스킵(재무장은 수행). 매일 = 오늘 순지출 + 이번 달 순지출 + 전체 예산(`"${userId}___TOTAL__"`) 사용률. 주간 = **최근 7일 vs 직전 7일** 증감 + 최다 카테고리(EXPENSE 원금) + 이번 달 누적. 집계는 **`data/report/MonthlyAggregate.kt` 단일 출처**(`financeTotals(...).expense` = 순지출, `topExpenseCategories(rows, limit = 1)` = 최다 카테고리)만 호출한다 — 리시버가 정산 공식을 복제하지 않는다.
+- **Hilt 리시버:** `@AndroidEntryPoint` + `onReceive` 첫 줄 `super.onReceive(context, intent)`(주입 시점) + `goAsync()`(Room 조회 동안 프로세스 유지).
+- **설정 UI:** `ui/settings/NotificationSettingsScreen.kt` — 토글 + 시각(`ui.window.Dialog` + material3 `TimePicker`; material3 1.2.x에 `TimePickerDialog` 컴포저블이 없어 직접 구성) + 요일 ghost chip + "지금 미리보기"(켜진 리마인더를 명시적 브로드캐스트로 즉시 1회 발송). `NavGraph` `composable("notifications")` + `HomeScreen` 헤더 메뉴 진입.
+
+### 5.3 결제 알림 자동 가계부
 - **서비스:** `PaymentNotificationService` (NotificationListenerService)
 - **지원 앱:**
 

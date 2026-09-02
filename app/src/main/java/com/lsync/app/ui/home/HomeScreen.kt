@@ -85,6 +85,7 @@ fun HomeScreen(
     onNavigateToBible: () -> Unit,
     onNavigateToSearch: () -> Unit,
     onNavigateToReport: () -> Unit,
+    onNavigateToNotificationSettings: () -> Unit,
     viewModel: HomeViewModel = hiltViewModel(),
     authViewModel: AuthViewModel = hiltViewModel(),
 ) {
@@ -215,6 +216,23 @@ fun HomeScreen(
                             if (needsNotification || needsExactAlarm || needsListener) {
                                 HorizontalDivider(color = Divider, thickness = 0.5.dp)
                             }
+
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        "알림 설정",
+                                        fontFamily = Pretendard,
+                                        fontSize = 14.sp,
+                                        color = FgPrimary,
+                                    )
+                                },
+                                onClick = {
+                                    onNavigateToNotificationSettings()
+                                    menuExpanded = false
+                                },
+                            )
+
+                            HorizontalDivider(color = Divider, thickness = 0.5.dp)
 
                             DropdownMenuItem(
                                 text = {

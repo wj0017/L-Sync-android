@@ -1,11 +1,9 @@
 package com.lsync.app.notification
 
-import android.annotation.SuppressLint
 import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import com.lsync.app.data.local.entity.EventEntity
 import com.lsync.app.data.local.entity.TodoEntity
 import com.lsync.app.data.recurrence.nextOccurrence
@@ -107,15 +105,9 @@ class AlarmScheduler @Inject constructor(
         }
     }
 
-    // 정확 알람 권한(Android 12+) 미허용 시 inexact 폴백 — 알람이 조용히 사라지는 것을 방지.
-    @SuppressLint("ScheduleExactAlarm")
-    private fun setAlarm(triggerAtMillis: Long, pendingIntent: PendingIntent) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarmManager.canScheduleExactAlarms()) {
-            alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
-        } else {
-            alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
-        }
-    }
+    // 정확 알람 권한(Android 12+) 미허용 시 inexact 폴백 — AlarmCompat.setAlarmCompat에 단일화.
+    private fun setAlarm(triggerAtMillis: Long, pendingIntent: PendingIntent) =
+        alarmManager.setAlarmCompat(triggerAtMillis, pendingIntent)
 
     // YYYY-MM-DD → 그 날 09:00(시스템 타임존) epoch millis. Floating Time 유지.
     private fun dateToReminderMillis(dateStr: String): Long =
