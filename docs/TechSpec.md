@@ -1,4 +1,4 @@
-# L-Sync Technical Spec (v0.10)
+# L-Sync Technical Spec (v0.11)
 
 **목적:** 데이터베이스 구조, 보안 규칙, 안드로이드 권한·알림, 백그라운드 엔진 등 구현에 직접 필요한 기술 명세.
 
@@ -320,6 +320,40 @@ EntryPointAccessors.fromApplication(context.applicationContext, WidgetEntryPoint
 - **월 범위:** Floating Date 문자열 `"%04d-%02d-01"` ~ `"%04d-%02d-{lengthOfMonth}"`. 타임존 변환 없음.
 - **월 이동:** `previousMonth`/`nextMonth`(`YearMonth.now()` 초과 시 무시). 변경 시 `monthJob.cancel()` → 상태 초기화 → 새 범위 재구독.
 - **UI:** `ui/report/ReportScreen.kt` — `collectAsState()`만 사용, `Canvas` 직접 드로잉(차트 라이브러리 미사용), 지출에 `AccentRed` 미사용. 진입은 `composable("report")` + `HomeScreen` 헤더 아이콘(하단 4-tab 불변).
+
+### 9.1 리포트 내보내기 (Phase 21)
+
+월간 리포트를 **이미지(PNG) / 텍스트** 두 형식으로 공유한다. 집계는 재계산하지 않고 `ReportUiState`를 그대로 소비한다(§9 표가 유일한 공식).
+
+| 구성 | 파일 | 계약 |
+|------|------|------|
+| 텍스트 요약 | `ui/report/ReportSummaryText.kt` | `buildReportSummaryText(state): String`. Android·`Context`·로케일 의존 금지(월 이름 직접 조립, 금액은 `Locale.US` 고정 그룹 구분자) → JVM 단위 테스트 대상 |
+| 카드 렌더 | `ui/report/ReportCardRenderer.kt` | `suspend renderReportCard(context, state, widthPx = 1080): Bitmap?`. `Dispatchers.Main` 고정(View measure/layout/draw), 실패 시 `null` |
+| 공유 카드 | `ui/report/ReportScreen.kt` `ReportShareCard`(internal) | 화면의 4카드 Composable을 재사용하는 최상위 `Column` — 별도 레이아웃을 만들지 않는다 |
+| 파일·Intent | `data/export/ShareFiles.kt` | `suspend savePngForShare(context, bitmap, fileName): Uri?` / `buildImageShareIntent(context, uri, subject)` / `buildTextShareIntent(text, subject)` |
+
+**렌더 파이프라인** (Compose 1.6.7에 `rememberGraphicsLayer()`/`toImageBitmap()`이 없어 채택)
+
+1. `ContextWrapper` 체인을 따라 `Activity`를 찾고 `android.R.id.content`에 `ComposeView`를 **1×1 INVISIBLE**로 붙인다(`DisposeOnDetachedFromWindow`).
+2. `LocalDensity`를 `Density(density = 3f, fontScale = 1f)`로 고정 — 기기 밀도/글꼴 배율이 이미지에 새지 않게 한다(`1080px / 3f = 360dp` 폭).
+3. `awaitFrame()` ×2 → `measure(EXACTLY widthPx, UNSPECIFIED)`. 높이가 0이면 한 프레임 더 기다렸다 재측정, 그래도 0이면 `null`.
+4. `layout` → `Bitmap(ARGB_8888)` + `Canvas.drawColor(0xFF0A0A0A)`(BgPrimary) 후 `draw`.
+5. `finally`에서 반드시 `removeView` — 누락 시 보이지 않는 뷰와 컴포지션이 Activity에 누적된다.
+
+**FileProvider 3중 일치** — 하나라도 어긋나면 런타임 `IllegalArgumentException: Failed to find configured root`.
+
+| 위치 | 값 |
+|------|-----|
+| `AndroidManifest.xml` | `android:authorities="${applicationId}.fileprovider"`, `exported="false"`, `grantUriPermissions="true"` |
+| `res/xml/file_paths.xml` | `<cache-path name="shared" path="shared/" />` |
+| `ShareFiles.kt` | `File(context.cacheDir, "shared")`, authority = `"${context.packageName}.fileprovider"` |
+
+**주의 사항**
+
+- **캐시 정리는 다음 저장 직전에만.** 공유 직후 삭제하면 수신 앱(카카오톡·Gmail 등)이 비동기로 읽기 전에 파일이 사라진다.
+- `FLAG_GRANT_READ_URI_PERMISSION` 누락 → 수신 앱 `SecurityException`. `clipData` 누락 → Android 13+ Sharesheet 썸네일 미리보기 없음.
+- 렌더/저장 실패는 예외를 삼키고 `null`을 반환하며, 화면이 **스낵바 액션으로 텍스트 공유를 대안 제시**한다.
+- 공유 관련 상태(형식 시트·렌더 진행·미리보기 비트맵)는 전부 `ReportScreen`의 로컬 `remember` — `ReportViewModel`은 무변경이다.
 
 ---
 

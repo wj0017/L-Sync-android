@@ -50,6 +50,8 @@ app/src/main/java/com/lsync/app/
 │   │       ├── BudgetDao.kt           # observeActive, upsert, getById (soft delete = deletedAt)
 │   │       ├── BibleDao.kt
 │   │       └── EsvDao.kt
+│   ├── export/
+│   │   └── ShareFiles.kt             # 파일 공유 공용 유틸(top-level, Hilt 미등록). savePngForShare(cacheDir/shared + FileProvider URI, 실패 시 null) / buildImageShareIntent(GRANT_READ_URI_PERMISSION + clipData) / buildTextShareIntent
 │   ├── recurrence/
 │   │   └── EventRecurrence.kt        # 순수 Kotlin RRULE 전개 엔진. expandEvent/expandEvents/nextOccurrence + exdates/overrides JSON 헬퍼
 │   ├── remote/
@@ -80,6 +82,10 @@ app/src/main/java/com/lsync/app/
 │   │   └── SearchViewModel.kt      # @HiltViewModel, debounce(200)+flatMapLatest, onQueryChange/clearQuery
 │   ├── report/
 │   │   ├── ReportScreen.kt         # 월 선택 헤더(◀ ▶, 현재 월이면 다음 달 비활성) + 4카드(할일 완료율 Canvas 링 / 일정 발생 수 / 가계부 순지출·수입·상위 카테고리 막대 / 통독 장·일수)
+│   │   │                           # 상단바 공유 아이콘 → 형식 선택 시트(이미지/텍스트) → 렌더 오버레이 → 미리보기 다이얼로그 → Sharesheet. 공유 상태는 전부 화면 로컬 remember(ViewModel 무변경)
+│   │   │                           # ReportShareCard(internal) — 화면의 4카드를 그대로 재사용하는 공유 이미지용 최상위 Column
+│   │   ├── ReportCardRenderer.kt   # renderReportCard(context, state, widthPx=1080) — 오프스크린 ComposeView measure/layout → 소프트웨어 Canvas. 밀도 3f·fontScale 1f 고정, 실패 시 null
+│   │   ├── ReportSummaryText.kt    # buildReportSummaryText(state) — EXTRA_TEXT용 텍스트 요약. Android·로케일 비의존(JVM 단위 테스트 보유)
 │   │   └── ReportViewModel.kt      # Event·Todo·Finance·ReadingPlan 4 Flow combine. 일정=expandEvents 전개, 가계부=정산 규칙(FinanceDashboardViewModel 일치). 월 이동 시 monthJob.cancel 후 재구독
 │   ├── home/
 │   │   ├── HomeScreen.kt           # 오늘 날짜·통독·일정 미리보기·가계부 요약. 연속 읽기 streak + 주간 히트맵. 헤더: 검색·리포트 아이콘 + 메뉴(미허용 권한 재진입 + 로그아웃)
@@ -188,6 +194,14 @@ UI는 Room Flow를 구독하므로 네트워크 없이도 즉각 반응. UI는 F
 - **기존 사본은 두었다:** `HomeViewModel.observeMonthFinance` / `FinanceDashboardViewModel.aggregate` / `LSyncWidget.loadWidgetState`는 동작 검증이 끝난 코드라 의도적으로 리팩토링하지 않았다. 이 결정은 "새 사본을 막는다"는 목적에는 충분하고 회귀 위험은 0이다.
 - **별도 4×2 위젯:** 기존 5×2 `LSyncWidget`은 Row2 106dp 고정에 4카드로 포화라 **수정하지 않고** `ReportWidget`을 추가했다. `WidgetEntryPoint`는 이미 필요한 DAO 5개를 노출해 변경이 없다. Glance는 Flow를 구독하지 않으므로 `TodoDao.getByDueDateRange` / `ReadingPlanDao.getReadInRange` **suspend 일회성 조회**를 추가했다(대응 `observe*`와 WHERE 절 동일 — 다르면 위젯과 리포트 화면 숫자가 어긋난다).
 - **딥링크 분기:** `NavGraph`의 `LaunchedEffect`는 `bottomNavItems.none { it.route == navTarget }`으로 조기 반환하므로 하단 탭이 아닌 `"report"`는 그냥 넘기면 **무시된다.** 탭 로직(`popUpTo`/`restoreState`) 앞에서 `"report"`를 분기해 `navigate("report")` + `onTargetConsumed()`로 처리한다. 기존 4탭 딥링크 경로는 그대로다.
+
+### 리포트 내보내기 (Phase 21)
+- **단일 소스 재사용:** 공유 이미지는 별도 레이아웃을 만들지 않고 화면의 카드 Composable을 `ReportShareCard`로 감싸 그대로 렌더한다. 텍스트 요약도 `ReportUiState`만 읽고 **집계를 다시 하지 않는다** — 재계산하면 화면·위젯과 숫자가 갈라진다(Phase 17 이력, § 집계 단일 출처).
+- **렌더 방식:** Compose BOM 2024.05.00(Compose 1.6.7)에는 `rememberGraphicsLayer()`/`toImageBitmap()`이 없어 **오프스크린 `ComposeView`를 1×1 INVISIBLE로 붙였다가 measure/layout 후 소프트웨어 `Canvas`에 그린다**(`finally`에서 반드시 removeView). 밀도 3f·fontScale 1f를 `LocalDensity`로 고정해 기기 설정과 무관하게 같은 이미지가 나오고, 바탕은 `BgPrimary(#0A0A0A)`로 채워 밝은 배경 메신저에서 흰 글씨가 사라지지 않게 한다. 느린 기기 대비로 측정 높이 0이면 한 프레임 더 기다렸다 재측정하고, 그래도 0이면 null을 반환한다.
+- **실패는 조용히 죽지 않는다:** 렌더 실패(Activity 없음·측정 실패·예외) 시 `null`을 돌려주고 화면이 **스낵바로 텍스트 공유 대안**을 제시한다. 이미지 공유는 어디서든 실패할 수 있으므로 텍스트 경로가 항상 살아 있어야 한다.
+- **파일 공유 경로:** `res/xml/file_paths.xml`의 `<cache-path path="shared/">` ↔ `ShareFiles.SHARED_DIR`("shared") ↔ manifest `android:authorities="${applicationId}.fileprovider"` **세 문자열이 정확히 일치**해야 한다(어긋나면 런타임 `Failed to find configured root`). authority는 빌드 타입별 applicationId를 따라가도록 `context.packageName`에서 조립한다.
+- **캐시 정리 시점:** 이전 공유 파일 삭제는 **다음 저장 직전**에만 한다. 공유 직후 지우면 수신 앱(카카오톡·Gmail 등)이 비동기로 읽기 전에 파일이 사라진다.
+- **Intent 플래그:** `FLAG_GRANT_READ_URI_PERMISSION` 없으면 수신 앱에서 SecurityException, `clipData` 없으면 Android 13+ Sharesheet 썸네일 미리보기가 뜨지 않는다.
 
 ### 웹 클라이언트 (`web/`, Next.js)
 - **위치:** 앱과 같은 Firestore 컬렉션(`events`/`todos`/`finance`)을 직접 읽고 쓰는 보조 클라이언트. Room도 pull 동기화도 없다 — `onSnapshot` 구독이 곧 상태다.

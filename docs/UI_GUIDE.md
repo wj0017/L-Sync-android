@@ -191,6 +191,23 @@ Row { 수입 ₩X(AccentGreen)   지출 ₩X(FgSecondary) }
 - 결과는 섹션(일정 · 할 일 · 가계부)별 LazyColumn. 빈 쿼리/결과 없음 상태 문구 제공.
 - 결과 항목 탭 → 해당 탭(화면)으로 이동만(검색 화면 내 인라인 편집 없음).
 
+## 리포트 화면
+
+- 하단 탭이 아닌 별도 라우트(`report`). 홈 헤더의 리포트 아이콘(38dp circle)으로 진입.
+- 월 선택 헤더: `◀ 2026년 8월 ▶`. **현재 월이면 다음 달 버튼 비활성**(FgTertiary).
+- 4카드(할일 완료율 · 일정 발생 수 · 가계부 · 통독). 차트는 `Canvas` 직접 드로잉(`drawArc` 완료율 링, `drawRoundRect` 카테고리 막대) — 차트 라이브러리 미사용.
+- **지출 수치·막대에 `AccentRed`를 쓰지 않는다.** 체감 부담을 키우지 않는 것이 의도(예산 초과 경고만 예외 → § 예산 진행바).
+
+### 내보내기 흐름 (상단바 공유 아이콘)
+
+`공유 아이콘 → 형식 선택 시트 → (이미지면) 렌더 오버레이 → 미리보기 다이얼로그 → 시스템 Sharesheet`
+
+- **형식 선택 시트:** `ModalBottomSheet`(containerColor `BgCard`, 32×4dp `FgTertiary` 드래그 핸들 — 홈 통독 설정 시트와 동일). 항목 카드는 `BgPrimary` + HairlineWhite 1dp, radius 14dp, 제목 14dp Medium + 설명 12dp `FgSecondary`.
+- **렌더 오버레이:** 전면 `Color(0xCC0A0A0A)` + `AccentBlue` 28dp 인디케이터. **탭을 흡수**해야 한다(`clickable(indication = null)`) — `clickable(enabled = false)`는 입력을 통과시켜 뒤 목록이 눌린다.
+- **미리보기 다이얼로그:** `BgCard` + HairlineWhite 1dp, radius 16dp. 이미지는 `heightIn(max = 420.dp)` + `verticalScroll`로 전체 확인. 하단 `취소`(outline) / `공유하기`(filled) 버튼 weight 1:1.
+- **텍스트 형식은 미리보기 없이** 바로 Sharesheet로 간다(렌더 단계가 없다).
+- **실패 시:** 스낵바로 "텍스트로 공유" 액션을 제시한다 — 이미지 경로가 막혀도 사용자가 빈손으로 끝나지 않게 한다.
+
 ## 홈 위젯 UI
 
 Glance는 RemoteViews 위에서 동작하므로 앱 컴포넌트(`MaterialTheme`, Pretendard 폰트 등)를 사용할 수 없다.
