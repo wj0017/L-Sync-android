@@ -100,6 +100,7 @@ export async function addFinance(uid: string, data: Omit<LSyncFinance, 'id' | 'u
     sourceTodoId: null,
     deletedAt: null,
     ...data,
+    note: data.note ?? null,
     id,
     userId: uid,
     createdAt: now,

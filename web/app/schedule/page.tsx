@@ -15,7 +15,7 @@ function isoDate(d: Date) {
 }
 
 export default function SchedulePage() {
-  const { uid, loading } = useAuth();
+  const { uid, loading, runWrite } = useAuth();
   const today = new Date();
 
   const [year,  setYear]  = useState(today.getFullYear());
@@ -77,13 +77,13 @@ export default function SchedulePage() {
     const startDate = newAllDay
       ? selectedDate
       : `${selectedDate}T${newTime || '09:00'}:00+09:00`;
-    await addEvent(uid, { title: newTitle.trim(), isAllDay: newAllDay, startDate, endDate: startDate });
+    if (!await runWrite(() => addEvent(uid, { title: newTitle.trim(), isAllDay: newAllDay, startDate, endDate: startDate }))) return;
     setNewTitle(''); setNewTime(''); setNewAllDay(true); setShowEventForm(false);
   }
 
   async function handleAddTodo() {
     if (!newTitle.trim()) return;
-    await addTodo(uid, { title: newTitle.trim(), dueDate: selectedDate });
+    if (!await runWrite(() => addTodo(uid, { title: newTitle.trim(), dueDate: selectedDate }))) return;
     setNewTitle(''); setShowTodoForm(false);
   }
 
@@ -168,10 +168,10 @@ export default function SchedulePage() {
         {dayItems.map(item =>
           item.type === 'event'
             ? <EventCard key={`${item.data.masterId}_${item.data.date}`} occurrence={item.data}
-                onDelete={() => deleteEvent(item.data.masterId)} />
+                onDelete={() => { void runWrite(() => deleteEvent(item.data.masterId)); }} />
             : <TodoCard  key={item.data.id} todo={item.data}
-                onToggle={v => toggleTodo(item.data.id, v)}
-                onDelete={() => deleteTodo(item.data.id)} />,
+                onToggle={v => { void runWrite(() => toggleTodo(item.data.id, v)); }}
+                onDelete={() => { void runWrite(() => deleteTodo(item.data.id)); }} />,
         )}
       </div>
 

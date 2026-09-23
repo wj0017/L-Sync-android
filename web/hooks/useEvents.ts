@@ -1,11 +1,13 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { onSnapshot } from 'firebase/firestore';
+import { readErrorMessage, useAuth } from '@/components/AuthProvider';
 import { eventsQuery } from '@/lib/db';
 import { LSyncEvent } from '@/types/models';
 
 export function useEvents(uid: string) {
   const [events, setEvents] = useState<LSyncEvent[]>([]);
+  const { reportReadError } = useAuth();
 
   useEffect(() => {
     const unsub = onSnapshot(eventsQuery(uid), (snap) => {
@@ -17,9 +19,13 @@ export function useEvents(uid: string) {
         .filter(e => !e.deletedAt)
         .sort((a, b) => (a.startDate ?? '').localeCompare(b.startDate ?? ''));
       setEvents(active);
+      reportReadError('events', null);
+    }, error => {
+      setEvents([]);
+      reportReadError('events', readErrorMessage(error));
     });
-    return unsub;
-  }, [uid]);
+    return () => { unsub(); reportReadError('events', null); };
+  }, [uid, reportReadError]);
 
   return events;
 }

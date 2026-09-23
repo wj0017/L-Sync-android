@@ -1,11 +1,13 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { onSnapshot } from 'firebase/firestore';
+import { readErrorMessage, useAuth } from '@/components/AuthProvider';
 import { todosQuery } from '@/lib/db';
 import { LSyncTodo } from '@/types/models';
 
 export function useTodos(uid: string) {
   const [todos, setTodos] = useState<LSyncTodo[]>([]);
+  const { reportReadError } = useAuth();
 
   useEffect(() => {
     const unsub = onSnapshot(todosQuery(uid), (snap) => {
@@ -15,9 +17,13 @@ export function useTodos(uid: string) {
         .filter(t => !t.deletedAt)
         .sort((a, b) => (a.dueDate ?? '').localeCompare(b.dueDate ?? ''));
       setTodos(active);
+      reportReadError('todos', null);
+    }, error => {
+      setTodos([]);
+      reportReadError('todos', readErrorMessage(error));
     });
-    return unsub;
-  }, [uid]);
+    return () => { unsub(); reportReadError('todos', null); };
+  }, [uid, reportReadError]);
 
   return todos;
 }

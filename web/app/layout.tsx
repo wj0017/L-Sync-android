@@ -21,10 +21,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="ko" className={instrumentSerif.variable}>
       <body className="bg-ls-bg text-ls-fg font-sans">
         <AuthProvider>
-          <div className="mx-auto max-w-[480px] min-h-screen relative">
-            <main className="pb-20">{children}</main>
-            <BottomNav />
-          </div>
+          <main className="pb-20">{children}</main>
+          <BottomNav />
         </AuthProvider>
       </body>
     </html>

@@ -18,7 +18,7 @@ function todayStr() {
 }
 
 export default function FinancePage() {
-  const { uid, loading } = useAuth();
+  const { uid, loading, runWrite } = useAuth();
   const today = new Date();
 
   const [year,  setYear]  = useState(today.getFullYear());
@@ -54,13 +54,13 @@ export default function FinancePage() {
 
   async function handleAdd() {
     if (!fAmount) return;
-    await addFinance(uid, {
+    if (!await runWrite(() => addFinance(uid, {
       type: fType,
       amount: Number(fAmount),
       category: fCategory,
       date: fDate,
       note: fNote || undefined,
-    });
+    }))) return;
     setFAmount(''); setFNote(''); setShowForm(false);
   }
 
@@ -137,7 +137,7 @@ export default function FinancePage() {
           <p className="text-[13px] text-ls-fg3 py-2">내역이 없습니다.</p>
         )}
         {filtered.map(item => (
-          <FinanceRow key={item.id} item={item} onDelete={() => deleteFinance(item.id)} />
+          <FinanceRow key={item.id} item={item} onDelete={() => { void runWrite(() => deleteFinance(item.id)); }} />
         ))}
       </div>
 
