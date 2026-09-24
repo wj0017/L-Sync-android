@@ -165,7 +165,7 @@ private fun GateCard(state: SyncStatusUiState) {
                 fontSize = 14.sp, color = FgPrimary,
             )
             Text(
-                "이 기간에 동기화 시도가 없어 판정할 수 없어요",
+                "이 기간에 저장·수정·삭제가 없어 판정할 수 없어요",
                 fontFamily = Pretendard, fontSize = 12.sp, color = FgSecondary,
                 modifier = Modifier.padding(top = 2.dp),
             )
@@ -188,10 +188,18 @@ private fun GateCard(state: SyncStatusUiState) {
             )
         }
         Text(
-            "실패 ${state.failures} / 시도 ${state.attempts}",
+            "내 작업 실패 ${state.failures} / 시도 ${state.attempts}",
             fontFamily = Pretendard, fontSize = 13.sp, color = FgSecondary,
             modifier = Modifier.padding(top = 2.dp),
         )
+        // 자동 복원(pull)은 앱 시작·로그인마다 쌓여 분모를 부풀리므로 게이트에서 빼고 따로 보여준다.
+        if (state.hasPullData) {
+            Text(
+                "자동 복원 실패 ${state.pullFailures} / 시도 ${state.pullAttempts} · 게이트 제외",
+                fontFamily = Pretendard, fontSize = 12.sp, color = FgSecondary,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+        }
         Text(
             if (state.passesGate) "게이트 통과 · 기준 5% 미만" else "게이트 초과 · 기준 5% 미만",
             fontFamily = Pretendard, fontWeight = FontWeight.Medium,

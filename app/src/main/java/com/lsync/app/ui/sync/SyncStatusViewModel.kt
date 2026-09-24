@@ -6,6 +6,7 @@ import com.lsync.app.data.local.dao.SyncLogDao
 import com.lsync.app.data.local.entity.SyncLogEntity
 import com.lsync.app.data.repository.AuthRepository
 import com.lsync.app.data.repository.SyncRepository
+import com.lsync.app.data.sync.SyncTarget
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,9 +24,13 @@ private const val RECENT_LOG_LIMIT = 50
 
 data class SyncStatusUiState(
     val windowDays: Int = 7,           // 집계 구간 — 7 또는 30
-    val attempts: Int = 0,             // 구간 내 전체 시도 수(에러율 분모)
-    val failures: Int = 0,             // 구간 내 실패 수(분자)
-    val unresolved: Int = 0,           // 미해결 실패 건수(구간 무관)
+    // 게이트 판정은 사용자 작업(push)만 센다. 자동 pull은 앱 시작·로그인마다 4건씩 쌓여
+    // 분모를 부풀리고, 그러면 사용자가 겪는 실패율보다 낮게 보인다.
+    val attempts: Int = 0,             // 구간 내 push 시도 수(게이트 분모)
+    val failures: Int = 0,             // 구간 내 push 실패 수(게이트 분자)
+    val pullAttempts: Int = 0,         // 구간 내 자동 복원(pull) 시도 수 — 참고용
+    val pullFailures: Int = 0,         // 구간 내 자동 복원(pull) 실패 수 — 참고용
+    val unresolved: Int = 0,           // 미해결 실패 건수(구간 무관, push·pull 합산)
     val logs: List<SyncLogEntity> = emptyList(),
     val isRetrying: Boolean = false,
 ) {
@@ -33,7 +38,17 @@ data class SyncStatusUiState(
     val errorRate: Float get() = if (attempts == 0) 0f else failures.toFloat() / attempts
     val hasData: Boolean get() = attempts > 0
     val passesGate: Boolean get() = errorRate < GATE_ERROR_RATE
+    val hasPullData: Boolean get() = pullAttempts > 0
 }
+
+// combine 중간 결과 묶음 — 화면 상태가 아니라 Flow 조합용이다.
+private data class SyncCounts(
+    val pushAttempts: Int,
+    val pushFailures: Int,
+    val pullAttempts: Int,
+    val pullFailures: Int,
+    val unresolved: Int,
+)
 
 @HiltViewModel
 class SyncStatusViewModel @Inject constructor(
@@ -54,7 +69,13 @@ class SyncStatusViewModel @Inject constructor(
 
     fun setWindow(days: Int) {
         if (days == _uiState.value.windowDays) return
-        _uiState.update { it.copy(windowDays = days, attempts = 0, failures = 0) }
+        _uiState.update {
+            it.copy(
+                windowDays = days,
+                attempts = 0, failures = 0,
+                pullAttempts = 0, pullFailures = 0,
+            )
+        }
         observeWindow(days)
     }
 
@@ -79,18 +100,26 @@ class SyncStatusViewModel @Inject constructor(
         // 미로그인이면 빈 상태 유지(로그인 화면이 먼저 뜨므로 실사용 경로는 아니다).
         val userId = authRepository.currentUserId ?: return
         val since = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(days.toLong())
+        val pullTarget = SyncTarget.PULL.key
         windowJob = viewModelScope.launch {
-            combine(
-                syncLogDao.observeAttemptsSince(userId, since),
-                syncLogDao.observeFailuresSince(userId, since),
+            // combine은 개별 인자를 최대 5개까지만 받으므로 수치를 먼저 묶고 목록과 합친다.
+            val counts = combine(
+                syncLogDao.observePushAttemptsSince(userId, since, pullTarget),
+                syncLogDao.observePushFailuresSince(userId, since, pullTarget),
+                syncLogDao.observePullAttemptsSince(userId, since, pullTarget),
+                syncLogDao.observePullFailuresSince(userId, since, pullTarget),
                 syncLogDao.observeUnresolvedCount(userId),
-                syncLogDao.observeRecent(userId, RECENT_LOG_LIMIT),
-            ) { attempts, failures, unresolved, logs ->
+            ) { pushAttempts, pushFailures, pullAttempts, pullFailures, unresolved ->
+                SyncCounts(pushAttempts, pushFailures, pullAttempts, pullFailures, unresolved)
+            }
+            combine(counts, syncLogDao.observeRecent(userId, RECENT_LOG_LIMIT)) { c, logs ->
                 _uiState.update {
                     it.copy(
-                        attempts = attempts,
-                        failures = failures,
-                        unresolved = unresolved,
+                        attempts = c.pushAttempts,
+                        failures = c.pushFailures,
+                        pullAttempts = c.pullAttempts,
+                        pullFailures = c.pullFailures,
+                        unresolved = c.unresolved,
                         logs = logs,
                     )
                 }

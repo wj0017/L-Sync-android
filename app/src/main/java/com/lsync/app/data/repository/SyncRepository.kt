@@ -33,38 +33,52 @@ class SyncRepository @Inject constructor(
     // upsert-only: 로컬이 같거나 더 최신이면 보존, 로컬 전용 데이터는 삭제하지 않는다.
     // 삭제는 모든 컬렉션이 tombstone(deletedAt)으로 전파된다 — deletedAt이 채워진 문서를
     // 그대로 upsert하면 로컬 쿼리(deletedAt IS NULL 필터)에서 사라져 삭제가 반영된다.
+    // 엔티티 그룹별로 syncSafe를 나눈다 — 한 그룹의 실패가 나머지 복원을 막지 않는다.
     suspend fun pullAll(userId: String) {
-        syncSafe(SyncTarget.PULL, userId, entityId = null) {
-            for (event in remote.fetchEvents(userId)) {
-                val local = eventDao.getById(event.id)
-                if (local == null || event.updatedAt > local.updatedAt) {
-                    eventDao.upsert(event)
-                }
+        syncSafe(SyncTarget.PULL, userId, entityId = null) { mergeEvents(userId) }
+        syncSafe(SyncTarget.PULL, userId, entityId = null) { mergeTodos(userId) }
+        syncSafe(SyncTarget.PULL, userId, entityId = null) { mergeFinance(userId) }
+        syncSafe(SyncTarget.PULL, userId, entityId = null) { mergeBudgets(userId) }
+    }
+
+    // ── LWW 머지 단일 출처 ────────────────────────────────────────────────────
+    // pullAll(로깅 있음)과 pullWithoutLogging(재시도 경로)이 함께 호출한다.
+    // 사본을 만들지 마라 — 두 경로의 머지 기준이 갈라지면 "재시도로 받은 데이터"와
+    // "평소 pull로 받은 데이터"가 조용히 달라진다.
+
+    private suspend fun mergeEvents(userId: String) {
+        for (event in remote.fetchEvents(userId)) {
+            val local = eventDao.getById(event.id)
+            if (local == null || event.updatedAt > local.updatedAt) {
+                eventDao.upsert(event)
             }
         }
-        syncSafe(SyncTarget.PULL, userId, entityId = null) {
-            for (todo in remote.fetchTodos(userId)) {
-                val local = todoDao.getById(todo.id)
-                if (local == null || todo.updatedAt > local.updatedAt) {
-                    todoDao.upsert(todo)
-                }
+    }
+
+    private suspend fun mergeTodos(userId: String) {
+        for (todo in remote.fetchTodos(userId)) {
+            val local = todoDao.getById(todo.id)
+            if (local == null || todo.updatedAt > local.updatedAt) {
+                todoDao.upsert(todo)
             }
         }
-        syncSafe(SyncTarget.PULL, userId, entityId = null) {
-            for (finance in remote.fetchFinance(userId)) {
-                val local = financeDao.getById(finance.id)
-                if (local == null || finance.updatedAt > local.updatedAt) {
-                    financeDao.upsert(finance)
-                }
+    }
+
+    private suspend fun mergeFinance(userId: String) {
+        for (finance in remote.fetchFinance(userId)) {
+            val local = financeDao.getById(finance.id)
+            if (local == null || finance.updatedAt > local.updatedAt) {
+                financeDao.upsert(finance)
             }
         }
-        syncSafe(SyncTarget.PULL, userId, entityId = null) {
-            // deletedAt이 채워져 오면 upsert로 soft delete 복원.
-            for (budget in remote.fetchBudgets(userId)) {
-                val local = budgetDao.getById(budget.id)
-                if (local == null || budget.updatedAt > local.updatedAt) {
-                    budgetDao.upsert(budget)
-                }
+    }
+
+    private suspend fun mergeBudgets(userId: String) {
+        // deletedAt이 채워져 오면 upsert로 soft delete 복원.
+        for (budget in remote.fetchBudgets(userId)) {
+            val local = budgetDao.getById(budget.id)
+            if (local == null || budget.updatedAt > local.updatedAt) {
+                budgetDao.upsert(budget)
             }
         }
     }
@@ -121,25 +135,13 @@ class SyncRepository @Inject constructor(
         }
     }
 
-    // pullAll과 같은 LWW 머지지만 syncSafe(로깅)를 거치지 않고 예외를 그대로 던진다.
+    // pullAll과 같은 머지를 syncSafe(로깅) 없이 수행하고 예외를 그대로 던진다.
     // pullAll은 실패를 삼키고 새 로그를 남기므로 재시도 경로에서 호출하면 성공 여부를 알 수 없고 루프가 생긴다.
     private suspend fun pullWithoutLogging(userId: String) {
-        for (event in remote.fetchEvents(userId)) {
-            val local = eventDao.getById(event.id)
-            if (local == null || event.updatedAt > local.updatedAt) eventDao.upsert(event)
-        }
-        for (todo in remote.fetchTodos(userId)) {
-            val local = todoDao.getById(todo.id)
-            if (local == null || todo.updatedAt > local.updatedAt) todoDao.upsert(todo)
-        }
-        for (finance in remote.fetchFinance(userId)) {
-            val local = financeDao.getById(finance.id)
-            if (local == null || finance.updatedAt > local.updatedAt) financeDao.upsert(finance)
-        }
-        for (budget in remote.fetchBudgets(userId)) {
-            val local = budgetDao.getById(budget.id)
-            if (local == null || budget.updatedAt > local.updatedAt) budgetDao.upsert(budget)
-        }
+        mergeEvents(userId)
+        mergeTodos(userId)
+        mergeFinance(userId)
+        mergeBudgets(userId)
     }
 
     // 로그아웃 시 동기화 대상 로컬 데이터를 비운다(계정 전환 시 이전 사용자 데이터 노출 차단).

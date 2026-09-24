@@ -1,4 +1,4 @@
-# L-Sync Technical Spec (v0.13)
+# L-Sync Technical Spec (v0.14)
 
 **목적:** 데이터베이스 구조, 보안 규칙, 안드로이드 권한·알림, 백그라운드 엔진 등 구현에 직접 필요한 기술 명세.
 
@@ -474,7 +474,7 @@ Repository.syncSafe ─┬─ Crashlytics(sync_failed)          ← 원격 모�
 | `TodoRepository` | 〃 | `TODOS` | Todo id (배치 연산도 Todo id 1행) |
 | `FinanceRepository` | 〃 | `FINANCE` | 거래 id |
 | `BudgetRepository` | 〃 | `BUDGETS` | `"${userId}_${category}"` |
-| `SyncRepository.pullAll` | suspend (호출부가 대기) | `PULL` | null — 엔티티 그룹(events/todos/finance/budgets) fetch마다 1행 |
+| `SyncRepository.pullAll` | suspend (호출부가 대기) | `PULL` | null — 엔티티 그룹(events/todos/finance/budgets) fetch마다 1행. **게이트 분모에서 제외**(§12.6) |
 
 - 시그니처: `syncSafe(target: SyncTarget, userId: String, entityId: String?, block: suspend () -> Unit)`. `block()` 성공 후 `recordSuccess`, 예외 시 Crashlytics 기록 **후** `recordFailure`.
 - **원격 연산 1회 = 로그 1행.** `completeTodoWithFinance`·`uncheckTodoWithFinance`·`deleteTodoUnlinkFinance` 같은 배치 write도 Todo id로 1행만 쓴다. 에러율의 분모를 사용자 액션 수와 일치시키기 위한 규칙이다(배치를 문서 수만큼 세면 연동 Todo가 많은 사용자일수록 분모가 부풀어 에러율이 낮게 보인다).
@@ -497,7 +497,8 @@ Repository.syncSafe ─┬─ Crashlytics(sync_failed)          ← 원격 모�
   - `batch.update` 기반 메서드(`uncheckTodoWithFinance`·`deleteTodoUnlinkFinance`)를 재사용하지 않는 이유: `update`는 **문서가 없으면 실패**한다. 생성 push가 실패해 원격 문서가 아예 없는 상태에서 미완료·삭제를 재현하면 영원히 실패한다. Room 행 전체를 merge하면 문서 유무와 무관하게 최종 상태가 맞는다.
   - **`todos` 재전송은 `linkedFinanceId`의 Finance를 동반한다** — 완료·미완료 연동 배치의 Finance 쪽(`isExcluded` 등)도 Room 현재 상태로 함께 올린다.
   - **`updatedAt`을 새로 찍지 않는다.** 재전송 시각으로 갱신하면 그 사이 다른 기기(웹 포함)가 쓴 더 최신 원격 문서를 pull LWW에서 이기게 되어 덮어쓴다. 원래 변경 시각을 보존해야 LWW 기준이 유지된다.
-- **`pull` 행은 여러 개여도 1회만** LWW 머지를 수행해 전부 해소한다. 이때 `pullAll`이 아닌 private `pullWithoutLogging`(같은 LWW 머지, 예외를 그대로 던짐)을 쓴다 — `pullAll`은 실패를 삼키고 새 로그를 남겨 성공 여부를 알 수 없다.
+- **`pull` 행은 여러 개여도 1회만** LWW 머지를 수행해 전부 해소한다. 이때 `pullAll`이 아닌 private `pullWithoutLogging`(예외를 그대로 던짐)을 쓴다 — `pullAll`은 실패를 삼키고 새 로그를 남겨 성공 여부를 알 수 없다.
+  - **LWW 머지 규칙의 단일 출처는 `mergeEvents`/`mergeTodos`/`mergeFinance`/`mergeBudgets` 4개 private 함수다.** `pullAll`은 각각을 `syncSafe`로 감싸 호출하고(그룹별 부분 실패 격리), `pullWithoutLogging`은 그대로 호출한다. 두 경로가 머지 로직을 각자 복사하면 "재시도로 받은 데이터"와 "평소 pull로 받은 데이터"의 기준이 조용히 갈라진다(Phase 17에서 집계 공식 사본이 갈라진 것과 같은 실패 양상).
 - **Room 행이 없거나 `entityId`가 null이면 해소로 본다** — 되살릴 원본이 없는 경고가 영구 잔류하지 않게 한다.
 - 항목별 `runCatching` — 한 건 실패가 나머지 재전송을 막지 않는다. 성공 시 `markResolved(id, now)`.
 - **재시도 경로는 `sync_log`에 새 행을 남기지 않는다(`SyncLogger` 미호출).** 재시도 실패를 다시 기록하면 `recordFailure → schedule → 재시도 → 실패 → recordFailure`의 무한 순환이 생기고, 재시도 횟수가 에러율 분모·분자를 오염시킨다. 남은 실패는 워커가 `Result.retry()`로 WorkManager 지수 백오프에 위임한다.
@@ -518,6 +519,8 @@ Repository.syncSafe ─┬─ Crashlytics(sync_failed)          ← 원격 모�
 
 - **진입:** `HomeScreen` 헤더 메뉴 "동기화 상태" → `NavGraph` `composable("sync")`(하단 탭 아님).
 - **`SyncStatusViewModel`**(`@HiltViewModel`): `SyncLogDao` Flow 4개(`observeAttemptsSince`·`observeFailuresSince`·`observeUnresolvedCount`·`observeRecent(limit = 50)`)를 `combine`. 구간(7일/30일) 변경 시 `windowJob.cancel()` 후 새 `since`로 재구독(`ReportViewModel` monthJob 패턴). `retryNow()`는 `isRetrying` 중복 가드 후 `retryFailed` 호출 — 결과 수치는 Room Flow가 갱신한다.
-- **에러율 = `failures / attempts`**(구간 내, 0나눗셈 가드 = 0). 재시도는 행을 만들지 않으므로 **분모·분자 모두에서 제외**된다. `passesGate` = 에러율 < 5%(PRD Phase 1 게이트).
-- **`SyncStatusScreen`:** 구간 ghost chip → 게이트 카드(에러율 %, `실패 N / 시도 M`, 통과/초과 문구; 시도 0이면 "기록 없음") → 미해결 실패 카드(건수 + "지금 재시도") → 최근 기록 50건(시각 · target, 상태 성공/해소됨/실패, 실패 시 `errorType: errorMessage`).
+- **에러율 = `failures / attempts`**(구간 내, 0나눗셈 가드 = 0). `passesGate` = 에러율 < 5%(PRD Phase 1 게이트).
+- **게이트 분모·분자는 사용자 작업(push)만 센다.** DAO 쿼리가 `target != :pullTarget`로 자동 복원을 제외하고(`observePushAttemptsSince`/`observePushFailuresSince`), pull은 `observePullAttemptsSince`/`observePullFailuresSince`로 따로 집계해 화면에 참고 수치로만 표시한다. 이유: `pullAll` 1회가 엔티티 그룹 4행을 남기므로 앱 시작·로그인마다 분모가 4씩 늘고, 그러면 사용자가 겪는 실패율보다 낮게 보인다. `pullTarget` 문자열은 호출부가 `SyncTarget.PULL.key`를 넘겨 사본을 만들지 않는다.
+- 재시도는 행을 만들지 않으므로 **분모·분자 모두에서 제외**된다(§12.3).
+- **`SyncStatusScreen`:** 구간 ghost chip → 게이트 카드(에러율 %, `내 작업 실패 N / 시도 M`, pull 기록이 있으면 `자동 복원 실패 N / 시도 M · 게이트 제외`, 통과/초과 문구; push 시도 0이면 "기록 없음") → 미해결 실패 카드(건수 + "지금 재시도") → 최근 기록 50건(시각 · target, 상태 성공/해소됨/실패, 실패 시 `errorType: errorMessage`).
 - **`AccentRed`는 게이트 초과(에러율 수치·판정 문구)와 미해결 실패 로그 행의 "실패" 상태에만** 쓴다. 미해결 건수 자체는 `FgPrimary`, "지금 재시도"는 `AccentBlue`(절제된 경고 색 — UI 가이드와 일관).
