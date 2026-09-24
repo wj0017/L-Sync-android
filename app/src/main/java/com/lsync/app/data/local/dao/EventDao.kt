@@ -13,6 +13,9 @@ interface EventDao {
     @Query("SELECT * FROM events WHERE id = :id AND deletedAt IS NULL")
     suspend fun getById(id: String): EventEntity?
 
+    @Query("SELECT * FROM events WHERE id = :id")
+    suspend fun getByIdIncludingDeleted(id: String): EventEntity?
+
     // 특정 날짜 범위의 이벤트 조회 (캘린더 월 뷰)
     @Query("""
         SELECT * FROM events

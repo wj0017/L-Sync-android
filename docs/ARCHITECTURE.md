@@ -70,7 +70,7 @@ app/src/main/java/com/lsync/app/
 │       ├── SearchRepository.kt        # SearchResults{events,todos,finances} — 3 Flow combine, blank 가드
 │       ├── ReadingPlanRepository.kt  # 1년 통독 시퀀스 계산, 설정(SharedPreferences), getStreak/getStreakAsOf/getWeeklyHeatmap
 │       ├── SyncRepository.kt         # pullAll(userId) — Firestore→Room LWW 복원(upsert-only) + clearLocalUserData(로그아웃 시 동기화 테이블 정리·알람 선취소)
-│       │                             # + retryFailed(userId): RetryResult — 미해결 실패를 Room 현재 행 set(merge)로 재전송(로그 미기록)
+│       │                             # + retryFailed(userId): RetryResult — 미해결 실패를 조건부 트랜잭션으로 재전송(로그 미기록)
 │       ├── AuthRepository.kt         # Firebase Auth 래퍼. currentUserId, authState, signInWithGoogle, signOut(clear→firebaseAuth.signOut). 로그인·자동로그인 시 pullAll 트리거
 │       └── AuthMigrationHelper.kt    # "local_user" → Firebase UID Room 일괄 마이그레이션 (멱등)
 ├── ui/
@@ -243,11 +243,11 @@ UI는 Room Flow를 구독하므로 네트워크 없이도 즉각 반응. UI는 F
 
 ### 동기화 신뢰성 계측 (Phase 23)
 - **흐름:** `Repository.syncSafe` → `SyncLogger` → Room `sync_log` → `SyncStatusScreen`(조회) / `SyncRetryWorker`(재전송). `sync_log`도 Room에만 산다(로컬 전용, Firestore 미동기화) — UI는 여전히 Room Flow만 구독한다.
-- **기록 지점:** 5벌의 `syncSafe` — Event/Todo/Finance/Budget은 `appScope` fire-and-forget, `SyncRepository.pullAll`은 suspend. **원격 연산 1회 = 로그 1행**(배치 write도 Todo id로 1행) — 에러율 분모를 사용자 액션 수와 맞춘다. Crashlytics `sync_failed` 기록은 그대로 병행.
+- **기록 지점:** 5벌의 `syncSafe` — Event/Todo/Finance/Budget은 `appScope` fire-and-forget, `SyncRepository.pullAll`은 suspend. **원격 연산 1회 = 로그 1행**(배치 write도 Todo id로 1행). 사용자 작업 하나가 여러 원격 연산을 만들면 여러 행이다. Crashlytics `sync_failed` 기록은 그대로 병행.
 - **DI 순환 회피:** `SyncLogger`는 `AuthRepository`를 주입받지 않는다(`AuthRepository → SyncRepository → SyncLogger → AuthRepository` 순환). userId는 호출부가 엔티티에서 넘긴다.
-- **재전송:** `SyncRepository.retryFailed`가 Room 현재 행을 `upsert*`(`set(merge)`)로 올린다. `batch.update` 기반 연동 메서드는 문서가 없으면 실패하므로 재사용하지 않고, `todos`는 `linkedFinanceId` Finance를 동반, `updatedAt`은 새로 찍지 않는다(LWW 보존). pull 실패는 여러 행이어도 로깅 없는 LWW 머지 1회로 해소.
+- **재전송:** `SyncRepository.retryFailed`가 Room 현재 행을 Firestore 트랜잭션으로 조건부 전송한다. 원격 문서가 더 최신이면 그 문서는 건너뛰며, `todos`의 연결된 Finance는 같은 트랜잭션 안에서 문서별로 판정한다. 원본이 없으면 `SourceMissing`으로 남기고 화면에 표시한다. pull 실패는 여러 행이어도 로깅 없는 LWW 머지 1회로 해소.
 - **순환 차단:** 재시도 경로는 `SyncLogger`를 부르지 않는다 — 기록→큐잉→재시도→기록 루프와 통계 오염 방지. 남은 실패는 `Result.retry()`로 WorkManager 지수 백오프에 위임.
-- **보존·격리:** 30일 초과 행은 삽입 50회마다 1회 prune. **로그아웃 시 비우지 않는다**(`reading_plan`·`memos`와 같은 로컬 전용 취급), 대신 모든 조회를 `userId`로 필터해 다른 계정에 노출하지 않는다.
+- **보존·격리:** 30일 초과 성공·해소 로그만 삽입 50회마다 prune하고 미해결 실패는 보존한다. **로그아웃 시 비우지 않는다**(`reading_plan`·`memos`와 같은 로컬 전용 취급), 대신 모든 조회를 `userId`로 필터해 다른 계정에 노출하지 않는다.
 - **등록:** `AppModule`에 `provideSyncLogDao`·`MIGRATION_6_7`, 5개 syncSafe 보유 provider에 `syncLogger`, `provideSyncRepository`에 `syncLogDao`. 상세 계약은 `docs/TechSpec.md` §12.
 
 ### 정산 추적 (Finance Settlement)

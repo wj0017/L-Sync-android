@@ -1,6 +1,7 @@
 package com.lsync.app.data.remote
 
 import com.google.firebase.firestore.DocumentSnapshot
+import com.google.firebase.firestore.CollectionReference
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import com.lsync.app.data.local.entity.BudgetEntity
@@ -69,6 +70,49 @@ class FirestoreDataSource @Inject constructor(
     // 예산은 soft delete(deletedAt)만 사용 — upsert로 한도 설정·삭제 모두 전파.
     suspend fun upsertBudget(entity: BudgetEntity) {
         budgets().document(entity.id).set(entity.toMap(), SetOptions.merge()).await()
+    }
+
+    // 재전송 전용: 비교와 쓰기를 원자적으로 수행한다. 일반 push는 오프라인 큐를 유지한다.
+    private suspend fun retryUpsert(
+        collection: CollectionReference,
+        id: String,
+        updatedAt: Long,
+        values: Map<String, Any?>,
+    ) {
+        val ref = collection.document(id)
+        firestore.runTransaction { transaction ->
+            val remote = transaction.get(ref)
+            if (!remote.exists() || shouldWriteRetry(updatedAt, remote.getLong("updatedAt"))) {
+                transaction.set(ref, values, SetOptions.merge())
+            }
+        }.await()
+    }
+
+    suspend fun retryEvent(entity: EventEntity) =
+        retryUpsert(events(), entity.id, entity.updatedAt, entity.toMap())
+
+    suspend fun retryFinance(entity: FinanceEntity) =
+        retryUpsert(finance(), entity.id, entity.updatedAt, entity.toMap())
+
+    suspend fun retryBudget(entity: BudgetEntity) =
+        retryUpsert(budgets(), entity.id, entity.updatedAt, entity.toMap())
+
+    suspend fun retryTodo(todo: TodoEntity, linkedFinance: FinanceEntity?) {
+        val todoRef = todos().document(todo.id)
+        val financeRef = linkedFinance?.let { finance().document(it.id) }
+        firestore.runTransaction { transaction ->
+            // Firestore 트랜잭션은 모든 읽기를 쓰기보다 먼저 끝내야 한다.
+            val remoteTodo = transaction.get(todoRef)
+            val remoteFinance = financeRef?.let { transaction.get(it) }
+            if (!remoteTodo.exists() || shouldWriteRetry(todo.updatedAt, remoteTodo.getLong("updatedAt"))) {
+                transaction.set(todoRef, todo.toMap(), SetOptions.merge())
+            }
+            if (linkedFinance != null && financeRef != null && remoteFinance != null &&
+                (!remoteFinance.exists() || shouldWriteRetry(linkedFinance.updatedAt, remoteFinance.getLong("updatedAt")))
+            ) {
+                transaction.set(financeRef, linkedFinance.toMap(), SetOptions.merge())
+            }
+        }.await()
     }
 
     // ── 복원 동기화(pull): 원격 컬렉션을 userId로 필터해 엔티티로 복원 ──

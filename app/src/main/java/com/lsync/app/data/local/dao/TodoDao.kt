@@ -16,6 +16,9 @@ interface TodoDao {
     @Query("SELECT * FROM todos WHERE id = :id AND deletedAt IS NULL")
     suspend fun getById(id: String): TodoEntity?
 
+    @Query("SELECT * FROM todos WHERE id = :id")
+    suspend fun getByIdIncludingDeleted(id: String): TodoEntity?
+
     // 미완료 미래 인스턴스 조회 (템플릿 업데이트 시 덮어쓰기 대상)
     @Query("""
         SELECT * FROM todos

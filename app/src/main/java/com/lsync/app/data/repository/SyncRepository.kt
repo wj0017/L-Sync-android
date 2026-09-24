@@ -15,7 +15,7 @@ import java.time.LocalDate
 import javax.inject.Inject
 import javax.inject.Singleton
 
-data class RetryResult(val attempted: Int, val resolved: Int, val failed: Int)
+data class RetryResult(val attempted: Int, val resolved: Int, val failed: Int, val missing: Int)
 
 @Singleton
 class SyncRepository @Inject constructor(
@@ -85,12 +85,12 @@ class SyncRepository @Inject constructor(
 
     // 미해결 실패를 Room 현재 상태로 재전송한다.
     // 이 경로는 sync_log에 새 행을 남기지 않는다(재시도 루프·통계 오염 방지).
-    // 원래 연산(batch.update)을 재현하지 않고 Room 행을 그대로 set(merge)한다 — 문서가 없어도 성공하고,
-    // updatedAt을 새로 찍지 않으므로 원격 LWW 기준이 보존된다.
+    // 원래 연산(batch.update)을 재현하지 않고 Room 현재 행을 조건부 트랜잭션으로 전송한다.
     suspend fun retryFailed(userId: String): RetryResult {
         val logs = syncLogDao.getUnresolvedFailures(userId)
         var resolved = 0
         var failed = 0
+        var missing = 0
 
         // pull 행은 여러 개여도 pullAll 1회로 전부 해소한다.
         val (pullLogs, pushLogs) = logs.partition { it.target == SyncTarget.PULL.key }
@@ -107,33 +107,54 @@ class SyncRepository @Inject constructor(
 
         // 한 건의 실패가 나머지 재전송을 막지 않도록 항목별로 예외를 삼킨다.
         for (log in pushLogs) {
-            val ok = runCatching { resend(log.target, log.entityId) }.isSuccess
-            if (ok) {
+            val result = runCatching { resend(log.target, log.entityId) }
+            val missingReason = result.getOrNull()
+            if (result.isFailure) {
+                failed++
+            } else if (missingReason == null) {
                 syncLogDao.markResolved(log.id, System.currentTimeMillis())
                 resolved++
             } else {
-                failed++
+                // 로그아웃 후 복원 전 등 원본이 없을 수 있다. 원격 성공으로 해소하지 않는다.
+                syncLogDao.markSourceMissing(log.id, missingReason)
+                missing++
             }
         }
-        return RetryResult(attempted = logs.size, resolved = resolved, failed = failed)
+        return RetryResult(attempted = logs.size, resolved = resolved, failed = failed, missing = missing)
     }
 
-    // Room 행이 없거나 entityId가 없으면 되살릴 원본이 없으므로 해소된 것으로 본다(경고 영구 잔류 방지).
-    private suspend fun resend(target: String, entityId: String?) {
-        if (entityId == null) return
-        when (target) {
-            SyncTarget.EVENTS.key -> eventDao.getById(entityId)?.let { remote.upsertEvent(it) }
-            SyncTarget.TODOS.key -> todoDao.getById(entityId)?.let { todo ->
-                remote.upsertTodo(todo)
-                // 완료·미완료 연동 배치의 Finance 쪽도 Room 현재 상태로 함께 올린다.
-                todo.linkedFinanceId
-                    ?.let { financeDao.getById(it) }
-                    ?.let { remote.upsertFinance(it) }
+    // null이면 두 문서 모두 쓰였거나 최신 원격 문서 때문에 건너뛴 것. 문자열이면 로컬 원본 부재.
+    // 원본 부재는 로그아웃 후 pull이 아직 끝나지 않은 상태일 수 있으므로 해소하지 않는다.
+    private suspend fun resend(target: String, entityId: String?): String? {
+        if (entityId == null) return "재전송 키 없음"
+        return when (target) {
+            SyncTarget.EVENTS.key -> {
+                val event = eventDao.getByIdIncludingDeleted(entityId) ?: return "일정 원본 없음"
+                remote.retryEvent(event)
+                null
             }
-            SyncTarget.FINANCE.key -> financeDao.getById(entityId)?.let { remote.upsertFinance(it) }
-            SyncTarget.BUDGETS.key -> budgetDao.getById(entityId)?.let { remote.upsertBudget(it) }
+            SyncTarget.TODOS.key -> {
+                val todo = todoDao.getByIdIncludingDeleted(entityId) ?: return "할 일 원본 없음"
+                val linkedFinance = todo.linkedFinanceId?.let { financeDao.getByIdIncludingDeleted(it) }
+                if (todo.linkedFinanceId != null && linkedFinance == null) return "연결된 가계부 원본 없음"
+                remote.retryTodo(todo, linkedFinance)
+                null
+            }
+            SyncTarget.FINANCE.key -> {
+                val finance = financeDao.getByIdIncludingDeleted(entityId) ?: return "가계부 원본 없음"
+                remote.retryFinance(finance)
+                null
+            }
+            SyncTarget.BUDGETS.key -> {
+                val budget = budgetDao.getById(entityId) ?: return "예산 원본 없음"
+                remote.retryBudget(budget)
+                null
+            }
+            else -> "알 수 없는 동기화 대상: $target"
         }
     }
+
+    suspend fun hasUnresolvedFailures(userId: String): Boolean = syncLogDao.getUnresolvedCount(userId) > 0
 
     // pullAll과 같은 머지를 syncSafe(로깅) 없이 수행하고 예외를 그대로 던진다.
     // pullAll은 실패를 삼키고 새 로그를 남기므로 재시도 경로에서 호출하면 성공 여부를 알 수 없고 루프가 생긴다.

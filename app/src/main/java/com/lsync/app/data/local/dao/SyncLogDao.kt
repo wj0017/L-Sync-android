@@ -35,13 +35,20 @@ interface SyncLogDao {
     @Query("SELECT * FROM sync_log WHERE userId = :userId AND success = 0 AND resolvedAt IS NULL ORDER BY createdAt ASC, id ASC")
     suspend fun getUnresolvedFailures(userId: String): List<SyncLogEntity>
 
+    @Query("SELECT COUNT(*) FROM sync_log WHERE userId = :userId AND success = 0 AND resolvedAt IS NULL")
+    suspend fun getUnresolvedCount(userId: String): Int
+
     @Insert
     suspend fun insert(log: SyncLogEntity)
 
     @Query("UPDATE sync_log SET resolvedAt = :now WHERE id = :id")
     suspend fun markResolved(id: Long, now: Long)
 
+    // 원본이 사라졌다면 전송 성공으로 위장하지 않고 화면에 원인을 남긴다.
+    @Query("UPDATE sync_log SET errorType = 'SourceMissing', errorMessage = :message WHERE id = :id AND resolvedAt IS NULL")
+    suspend fun markSourceMissing(id: Long, message: String)
+
     // 보존 기간 초과 행 삭제
-    @Query("DELETE FROM sync_log WHERE createdAt < :cutoff")
+    @Query("DELETE FROM sync_log WHERE createdAt < :cutoff AND (success = 1 OR resolvedAt IS NOT NULL)")
     suspend fun pruneOlderThan(cutoff: Long)
 }

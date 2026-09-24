@@ -188,7 +188,7 @@ private fun GateCard(state: SyncStatusUiState) {
             )
         }
         Text(
-            "내 작업 실패 ${state.failures} / 시도 ${state.attempts}",
+            "원격 전송 실패 ${state.failures} / 시도 ${state.attempts}",
             fontFamily = Pretendard, fontSize = 13.sp, color = FgSecondary,
             modifier = Modifier.padding(top = 2.dp),
         )
@@ -223,7 +223,7 @@ private fun UnresolvedCard(unresolved: Int, isRetrying: Boolean, onRetry: () -> 
                     fontSize = 20.sp, color = FgPrimary,
                 )
                 Text(
-                    if (unresolved == 0) "모두 전송됐어요" else "네트워크가 연결되면 자동으로 다시 보내요",
+                    if (unresolved == 0) "모두 전송됐어요" else "원본 없음 등 재시도할 수 없는 항목은 최근 기록을 확인하세요",
                     fontFamily = Pretendard, fontSize = 12.sp, color = FgSecondary,
                     modifier = Modifier.padding(top = 2.dp),
                 )
@@ -268,6 +268,7 @@ private fun LogRow(log: SyncLogEntity) {
     val (statusLabel, statusColor) = when {
         log.success -> "성공" to FgSecondary
         resolved -> "해소됨" to FgTertiary
+        log.errorType == "SourceMissing" -> "원본 없음" to AccentRed
         else -> "실패" to AccentRed
     }
 

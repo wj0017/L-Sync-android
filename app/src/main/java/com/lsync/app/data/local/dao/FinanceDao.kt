@@ -21,6 +21,9 @@ interface FinanceDao {
     @Query("SELECT * FROM finance WHERE id = :id AND deletedAt IS NULL")
     suspend fun getById(id: String): FinanceEntity?
 
+    @Query("SELECT * FROM finance WHERE id = :id")
+    suspend fun getByIdIncludingDeleted(id: String): FinanceEntity?
+
     @Query("SELECT * FROM finance WHERE sourceTodoId = :todoId AND deletedAt IS NULL")
     suspend fun getBySourceTodo(todoId: String): FinanceEntity?
 
