@@ -1,4 +1,4 @@
-# L-Sync Technical Spec (v0.15)
+# L-Sync Technical Spec (v0.16)
 
 **목적:** 데이터베이스 구조, 보안 규칙, 안드로이드 권한·알림, 백그라운드 엔진 등 구현에 직접 필요한 기술 명세.
 
@@ -487,7 +487,7 @@ Repository.syncSafe ─┬─ Crashlytics(sync_failed)          ← 원격 모�
 - `suspend recordSuccess(target, userId, entityId)` / `suspend recordFailure(target, userId, entityId, error)`. `errorType` = `error::class.java.simpleName`, `errorMessage` = `message.take(200)`.
 - **기록 실패는 삼킨다**(`runCatching`) — 진단 기록 때문에 사용자 데이터 저장 흐름이 깨지면 안 된다.
 - `recordFailure`는 기록 후 `SyncRetryTrigger.schedule()`을 호출한다(이것도 `runCatching`).
-- **보존:** 30일(`RETENTION_MILLIS`) 초과 성공 로그와 이미 해소된 실패만 `SyncLogDao.pruneOlderThan`으로 삭제한다. 미해결 실패는 기간과 무관하게 보존한다. 정리는 **삽입 50회(`PRUNE_EVERY`)마다 1회** 실행하며 카운터는 `AtomicInteger`다.
+- **보존:** 30일(`RETENTION_MILLIS`) 초과 성공 로그·해소된 실패·`SourceMissing`을 `SyncLogDao.pruneOlderThan`으로 삭제한다. 그 밖의 미해결 실패는 기간과 무관하게 보존한다. 정리는 **삽입 50회(`PRUNE_EVERY`)마다 1회** 실행하고, 새 기록이 없어도 만료된 `SourceMissing`이 남지 않도록 앱 시작 때 `SyncLogger.pruneExpired()`를 한 번 실행한다. 삽입 카운터는 `AtomicInteger`다.
 
 ### 12.3 재전송 (`SyncRepository.retryFailed(userId): RetryResult`)
 
@@ -499,7 +499,7 @@ Repository.syncSafe ─┬─ Crashlytics(sync_failed)          ← 원격 모�
   - **`updatedAt`은 새로 찍지 않는다.** 그 자체는 LWW 보호가 아니며, 트랜잭션 안의 원격 시각 비교가 오래된 재전송의 덮어쓰기를 막는다. 남는 한계: 문서 단위 LWW라 Todo와 Finance 사이의 의미상 불변식은 보장하지 못한다. 교차 문서 충돌 해소는 별도 설계가 필요하다.
 - **`pull` 행은 여러 개여도 1회만** LWW 머지를 수행해 전부 해소한다. 이때 `pullAll`이 아닌 private `pullWithoutLogging`(예외를 그대로 던짐)을 쓴다 — `pullAll`은 실패를 삼키고 새 로그를 남겨 성공 여부를 알 수 없다.
   - **LWW 머지 규칙의 단일 출처는 `mergeEvents`/`mergeTodos`/`mergeFinance`/`mergeBudgets` 4개 private 함수다.** `pullAll`은 각각을 `syncSafe`로 감싸 호출하고(그룹별 부분 실패 격리), `pullWithoutLogging`은 그대로 호출한다. 두 경로가 머지 로직을 각자 복사하면 "재시도로 받은 데이터"와 "평소 pull로 받은 데이터"의 기준이 조용히 갈라진다(Phase 17에서 집계 공식 사본이 갈라진 것과 같은 실패 양상).
-- **원본 행이 없거나 `entityId`가 null·target이 알 수 없으면 해소하지 않는다.** `SourceMissing`과 구체적 사유를 로그에 남겨 화면에 `원본 없음`으로 보인다. 로그아웃 후 pull 전에 원본이 없을 수도 있어 성공으로 위장하지 않는다. `RetryResult.missing`으로 예외 실패와 구분한다. 원본이 복구되면 다음 재시도에서 해소할 수 있다.
+- **원본 행이 없거나 `entityId`가 null·target이 알 수 없으면 성공으로 해소하지 않는다.** `SourceMissing`과 구체적 사유를 로그에 남겨 화면 미해결 건수와 최근 기록에 `원본 없음`으로 보인다. `getUnresolvedFailures()`에는 계속 포함하므로 원본이 복구되면 수동 재시도·다음 작업 실행에서 해소할 수 있다. 복구되지 않으면 30일 경과 후 다음 가지치기(앱 시작 또는 50번째 삽입)에서 삭제한다. `RetryResult.missing`은 예외 실패와 구분한다.
 - 재전송 조회는 삭제된 행도 포함한다(`getByIdIncludingDeleted`). 일반 화면 조회의 `deletedAt IS NULL` 필터를 그대로 쓰면 실패한 tombstone을 원본 없음으로 오인한다.
 - 항목별 `runCatching` — 한 건 실패가 나머지 재전송을 막지 않는다. 성공 시 `markResolved(id, now)`.
 - **재시도 경로는 `sync_log`에 새 행을 남기지 않는다(`SyncLogger` 미호출).** 재시도 실패를 다시 기록하면 `recordFailure → schedule → 재시도 → 실패 → recordFailure`의 무한 순환이 생기고, 재시도 횟수가 에러율 분모·분자를 오염시킨다. 남은 실패는 워커가 `Result.retry()`로 WorkManager 지수 백오프에 위임한다.
@@ -509,7 +509,7 @@ Repository.syncSafe ─┬─ Crashlytics(sync_failed)          ← 원격 모�
 | 클래스 | 내용 |
 |--------|------|
 | `worker/SyncRetryTrigger` (`@Singleton`) | `OneTimeWorkRequest<SyncRetryWorker>` + `NetworkType.CONNECTED` 제약 + `BackoffPolicy.EXPONENTIAL` 30초. `enqueueUniqueWork("sync_retry", ExistingWorkPolicy.KEEP)` — 실패가 연달아 기록돼도 대기·실행 중인 워커를 유지해 백오프가 리셋되지 않게 한다 |
-| `worker/SyncRetryWorker` (`@HiltWorker`) | 미로그인이면 `Result.success()`. 재전송 뒤 미해결 건수를 재조회해 남았으면 지수 백오프로 `Result.retry()`. 최초 실행 포함 최대 5회(`runAttemptCount` 0~4) 뒤에는 로그를 남기고 자동 시도를 멈춘다. 권한 오류의 무한 재시도를 피하기 위한 상한이다. |
+| `worker/SyncRetryWorker` (`@HiltWorker`) | 미로그인이면 `Result.success()`. 재전송 뒤 **재시도 가능한 미해결 건수**를 재조회해 남았으면 지수 백오프로 `Result.retry()`. `SourceMissing`은 재전송 목록·화면 건수에는 남지만 계속-재시도 판정에서는 제외한다. 최초 실행 포함 최대 5회(`runAttemptCount` 0~4) 뒤에는 로그를 남기고 자동 시도를 멈춘다. 권한 오류의 무한 재시도를 피하기 위한 상한이다. |
 
 `KEEP`은 실행 중 들어온 예약을 버린다. 워커의 마지막 재조회 이후 새 실패가 기록되는 경쟁 조건은 남는다. `LSyncApplication.onCreate()`가 `SyncRetryTrigger.schedule()`을 호출해 다음 앱 시작에 회수하고, 사용자는 화면에서 수동 재시도할 수 있다. `APPEND_OR_REPLACE`는 연속 실패 시 작업 체인이 쌓이고 기존 백오프 동작을 바꾸므로 사용하지 않는다.
 

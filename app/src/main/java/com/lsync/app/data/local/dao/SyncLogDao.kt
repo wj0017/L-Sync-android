@@ -35,8 +35,10 @@ interface SyncLogDao {
     @Query("SELECT * FROM sync_log WHERE userId = :userId AND success = 0 AND resolvedAt IS NULL ORDER BY createdAt ASC, id ASC")
     suspend fun getUnresolvedFailures(userId: String): List<SyncLogEntity>
 
-    @Query("SELECT COUNT(*) FROM sync_log WHERE userId = :userId AND success = 0 AND resolvedAt IS NULL")
-    suspend fun getUnresolvedCount(userId: String): Int
+    // 워커 계속-재시도 판정용. 원본이 없는 행은 네트워크 재시도로 해소되지 않는다.
+    // 화면 건수와 재전송 대상 목록에는 SourceMissing을 계속 포함한다.
+    @Query("SELECT COUNT(*) FROM sync_log WHERE userId = :userId AND success = 0 AND resolvedAt IS NULL AND (errorType IS NULL OR errorType != 'SourceMissing')")
+    suspend fun getRetryableUnresolvedCount(userId: String): Int
 
     @Insert
     suspend fun insert(log: SyncLogEntity)
@@ -48,7 +50,7 @@ interface SyncLogDao {
     @Query("UPDATE sync_log SET errorType = 'SourceMissing', errorMessage = :message WHERE id = :id AND resolvedAt IS NULL")
     suspend fun markSourceMissing(id: Long, message: String)
 
-    // 보존 기간 초과 행 삭제
-    @Query("DELETE FROM sync_log WHERE createdAt < :cutoff AND (success = 1 OR resolvedAt IS NOT NULL)")
+    // 원본 없음은 사용자에게 30일간 보여준 뒤 정리한다. 다른 미해결 실패는 보존한다.
+    @Query("DELETE FROM sync_log WHERE createdAt < :cutoff AND (success = 1 OR resolvedAt IS NOT NULL OR errorType = 'SourceMissing')")
     suspend fun pruneOlderThan(cutoff: Long)
 }

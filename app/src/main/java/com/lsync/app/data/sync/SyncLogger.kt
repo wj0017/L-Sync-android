@@ -37,6 +37,12 @@ class SyncLogger @Inject constructor(
         runCatching { retryTrigger.schedule() }
     }
 
+    // 앱을 다시 켤 때도 만료 로그를 정리한다. 삽입이 50회 미만이면 주기적 가지치기만으로는
+    // SourceMissing 배지가 기한 후에도 계속 남을 수 있다.
+    suspend fun pruneExpired() {
+        runCatching { dao.pruneOlderThan(System.currentTimeMillis() - RETENTION_MILLIS) }
+    }
+
     // 기록 실패는 삼킨다 — 진단 기록 때문에 사용자 데이터 저장 흐름이 깨지면 안 된다.
     private suspend fun record(target: SyncTarget, userId: String, entityId: String?, error: Throwable?) {
         runCatching {

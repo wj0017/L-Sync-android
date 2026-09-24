@@ -247,7 +247,7 @@ UI는 Room Flow를 구독하므로 네트워크 없이도 즉각 반응. UI는 F
 - **DI 순환 회피:** `SyncLogger`는 `AuthRepository`를 주입받지 않는다(`AuthRepository → SyncRepository → SyncLogger → AuthRepository` 순환). userId는 호출부가 엔티티에서 넘긴다.
 - **재전송:** `SyncRepository.retryFailed`가 Room 현재 행을 Firestore 트랜잭션으로 조건부 전송한다. 원격 문서가 더 최신이면 그 문서는 건너뛰며, `todos`의 연결된 Finance는 같은 트랜잭션 안에서 문서별로 판정한다. 원본이 없으면 `SourceMissing`으로 남기고 화면에 표시한다. pull 실패는 여러 행이어도 로깅 없는 LWW 머지 1회로 해소.
 - **순환 차단:** 재시도 경로는 `SyncLogger`를 부르지 않는다 — 기록→큐잉→재시도→기록 루프와 통계 오염 방지. 남은 실패는 `Result.retry()`로 WorkManager 지수 백오프에 위임.
-- **보존·격리:** 30일 초과 성공·해소 로그만 삽입 50회마다 prune하고 미해결 실패는 보존한다. **로그아웃 시 비우지 않는다**(`reading_plan`·`memos`와 같은 로컬 전용 취급), 대신 모든 조회를 `userId`로 필터해 다른 계정에 노출하지 않는다.
+- **보존·격리:** 30일 초과 성공·해소 로그와 `SourceMissing`은 삽입 50회마다, 그리고 앱 시작 때 prune한다. 다른 미해결 실패는 보존한다. `SourceMissing`은 워커 계속-재시도 판정에서 제외하지만 화면과 재전송 목록에는 남긴다. **로그아웃 시 비우지 않는다**(`reading_plan`·`memos`와 같은 로컬 전용 취급), 대신 모든 조회를 `userId`로 필터해 다른 계정에 노출하지 않는다.
 - **등록:** `AppModule`에 `provideSyncLogDao`·`MIGRATION_6_7`, 5개 syncSafe 보유 provider에 `syncLogger`, `provideSyncRepository`에 `syncLogDao`. 상세 계약은 `docs/TechSpec.md` §12.
 
 ### 정산 추적 (Finance Settlement)

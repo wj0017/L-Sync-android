@@ -154,7 +154,7 @@ class SyncRepository @Inject constructor(
         }
     }
 
-    suspend fun hasUnresolvedFailures(userId: String): Boolean = syncLogDao.getUnresolvedCount(userId) > 0
+    suspend fun hasRetryableFailures(userId: String): Boolean = syncLogDao.getRetryableUnresolvedCount(userId) > 0
 
     // pullAll과 같은 머지를 syncSafe(로깅) 없이 수행하고 예외를 그대로 던진다.
     // pullAll은 실패를 삼키고 새 로그를 남기므로 재시도 경로에서 호출하면 성공 여부를 알 수 없고 루프가 생긴다.

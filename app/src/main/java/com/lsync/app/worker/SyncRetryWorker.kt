@@ -24,8 +24,8 @@ class SyncRetryWorker @AssistedInject constructor(
         syncRepository.retryFailed(uid)
         // 시작할 때 읽은 목록 뒤에 기록된 실패도 확인한다. 마지막 조회 이후의 창은
         // 앱 시작 시 SyncRetryTrigger.schedule()로 회수한다(KEEP은 RUNNING 중 예약을 버림).
-        val hasUnresolved = syncRepository.hasUnresolvedFailures(uid)
-        return if (shouldRetrySync(runAttemptCount, hasUnresolved)) Result.retry() else Result.success()
+        val hasRetryable = syncRepository.hasRetryableFailures(uid)
+        return if (shouldRetrySync(runAttemptCount, hasRetryable)) Result.retry() else Result.success()
     }
 }
 
