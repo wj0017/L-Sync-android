@@ -153,7 +153,7 @@ UI는 Room Flow를 구독하므로 네트워크 없이도 즉각 반응. UI는 F
 
 ### Firestore 복원 동기화 (pull)
 - **목적:** 재설치·기기 변경 시 원격 데이터를 Room으로 되돌린다(기존엔 push 전용이라 복원 경로가 없었음).
-- **`SyncRepository.pullAll(userId)`:** `FirestoreDataSource.fetchEvents/fetchTodos/fetchFinance`로 원격 문서를 받아 **last-write-wins**로 머지 — 항목별 `updatedAt`이 로컬보다 클 때만 upsert(로컬이 같거나 최신이면 보존). **upsert-only**라 로컬 전용 데이터를 삭제하지 않음.
+- **`SyncRepository.pullAll(userId)`:** `FirestoreDataSource.fetchEvents/fetchTodos/fetchFinance/fetchBudgets`로 원격 문서를 받아 **last-write-wins**로 머지 — tombstone을 포함한 로컬 행과 `updatedAt`을 비교해 원격이 더 최신일 때만 upsert한다. **upsert-only**라 로컬 전용 데이터를 삭제하지 않음.
 - **삭제 반영:** 모든 컬렉션이 tombstone(`deletedAt`)으로 전파된다. `deletedAt`이 채워진 문서를 그대로 upsert하면 로컬 쿼리(`deletedAt IS NULL` 필터)에서 사라져 삭제가 반영된다. pull이 upsert-only라 hard delete는 다음 로컬 변경 때 행을 되살리므로 쓰지 않는다.
 - **트리거 시점:** `AuthRepository`가 로그인(백그라운드)·자동로그인(앱 재실행) 시 `AuthMigrationHelper.migrate` **직후** `pullAll` 실행. UI는 Room Flow로 자동 반영. 실패는 `syncSafe`로 Crashlytics(`sync_failed`)에 기록하고 흐름을 막지 않음. (Auth↔Sync 순환 의존 없음 — Sync는 Auth를 모름)
 

@@ -48,7 +48,7 @@ class SyncRepository @Inject constructor(
 
     private suspend fun mergeEvents(userId: String) {
         for (event in remote.fetchEvents(userId)) {
-            val local = eventDao.getById(event.id)
+            val local = eventDao.getByIdIncludingDeleted(event.id)
             if (local == null || event.updatedAt > local.updatedAt) {
                 eventDao.upsert(event)
             }
@@ -57,7 +57,7 @@ class SyncRepository @Inject constructor(
 
     private suspend fun mergeTodos(userId: String) {
         for (todo in remote.fetchTodos(userId)) {
-            val local = todoDao.getById(todo.id)
+            val local = todoDao.getByIdIncludingDeleted(todo.id)
             if (local == null || todo.updatedAt > local.updatedAt) {
                 todoDao.upsert(todo)
             }
@@ -66,7 +66,7 @@ class SyncRepository @Inject constructor(
 
     private suspend fun mergeFinance(userId: String) {
         for (finance in remote.fetchFinance(userId)) {
-            val local = financeDao.getById(finance.id)
+            val local = financeDao.getByIdIncludingDeleted(finance.id)
             if (local == null || finance.updatedAt > local.updatedAt) {
                 financeDao.upsert(finance)
             }

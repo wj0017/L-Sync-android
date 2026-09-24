@@ -329,7 +329,7 @@ EntryPointAccessors.fromApplication(context.applicationContext, WidgetEntryPoint
 - **원자성:** Todo 완료 → Finance 생성은 Firestore Batch Write로 묶음.
 - **Crashlytics:** 네트워크 연결 상태에서 Exception 발생 시 `sync_failed` 이벤트 기록.
 - **로컬 계측:** 같은 `syncSafe`가 성공·실패를 Room `sync_log`에도 남긴다(Crashlytics와 병행). 재전송·에러율 화면은 §12.
-- **복원 동기화(pull):** `SyncRepository.pullAll(userId)`가 `FirestoreDataSource.fetchEvents/fetchTodos/fetchFinance/fetchBudgets`로 원격을 받아 **last-write-wins upsert-only** 머지(항목별 `updatedAt > local.updatedAt`일 때만 덮어씀, 로컬 전용 데이터 미삭제). `AuthRepository`가 로그인·자동로그인 시 마이그레이션 직후 백그라운드 실행. 재설치·기기 변경 복원 경로. 엔티티 그룹별 `syncSafe`로 부분 실패 격리.
+- **복원 동기화(pull):** `SyncRepository.pullAll(userId)`가 `FirestoreDataSource.fetchEvents/fetchTodos/fetchFinance/fetchBudgets`로 원격을 받아 **last-write-wins upsert-only** 머지(항목별 `updatedAt > local.updatedAt`일 때만 덮어씀, 로컬 전용 데이터 미삭제). 비교용 Room 조회에는 tombstone도 포함해 오래된 원격 문서가 로컬 삭제를 되살리지 않게 한다. `AuthRepository`가 로그인·자동로그인 시 마이그레이션 직후 백그라운드 실행. 재설치·기기 변경 복원 경로. 엔티티 그룹별 `syncSafe`로 부분 실패 격리.
 - **로그아웃 데이터 격리(계정 전환):** `AuthRepository.signOut()`은 `clear → firebaseAuth.signOut()` 순서. `SyncRepository.clearLocalUserData()`가 동기화 5테이블(events / todos / finance / budgets / todo_templates)을 `clearAll()`하되 **알람을 선취소한 뒤 삭제**. `reading_plan` / `memos`는 로컬 전용·복원 불가라 **보존**. `AppModule.provideSyncRepository`에 `todoTemplateDao`·`alarmScheduler` 주입.
 
 ---
