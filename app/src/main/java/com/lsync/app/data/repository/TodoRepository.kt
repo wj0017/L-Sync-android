@@ -8,6 +8,8 @@ import com.lsync.app.data.local.entity.TodoTemplateEntity
 import com.lsync.app.data.local.entity.FinanceEntity
 import com.lsync.app.data.local.entity.TodoEntity
 import com.lsync.app.data.remote.FirestoreDataSource
+import com.lsync.app.data.sync.SyncLogger
+import com.lsync.app.data.sync.SyncTarget
 import com.lsync.app.di.ApplicationScope
 import com.lsync.app.notification.AlarmScheduler
 import kotlinx.coroutines.CoroutineScope
@@ -24,6 +26,7 @@ class TodoRepository @Inject constructor(
     private val financeDao: FinanceDao,
     private val remote: FirestoreDataSource,
     private val alarmScheduler: AlarmScheduler,
+    private val syncLogger: SyncLogger,
     @ApplicationScope private val appScope: CoroutineScope,
 ) {
     fun observeAll(): Flow<List<TodoEntity>> = todoDao.observeAll()
@@ -68,7 +71,7 @@ class TodoRepository @Inject constructor(
         todoDao.upsertAll(todos)
         todos.forEach { todo ->
             alarmScheduler.scheduleForTodo(todo)
-            syncSafe { remote.upsertTodo(todo) }
+            syncSafe(SyncTarget.TODOS, todo.userId, todo.id) { remote.upsertTodo(todo) }
         }
     }
 
@@ -108,7 +111,7 @@ class TodoRepository @Inject constructor(
             updatedAt = now,
         )
         todoDao.upsert(entity)
-        syncSafe { remote.upsertTodo(entity) }
+        syncSafe(SyncTarget.TODOS, entity.userId, entity.id) { remote.upsertTodo(entity) }
         alarmScheduler.scheduleForTodo(entity)
         return entity
     }
@@ -135,7 +138,7 @@ class TodoRepository @Inject constructor(
         )
         todoDao.upsert(updated)
         alarmScheduler.scheduleForTodo(updated)
-        syncSafe { remote.upsertTodo(updated) }
+        syncSafe(SyncTarget.TODOS, updated.userId, updated.id) { remote.upsertTodo(updated) }
         return updated
     }
 
@@ -177,10 +180,10 @@ class TodoRepository @Inject constructor(
             financeDao.upsert(finance)
 
             // 원자적 원격 동기화
-            syncSafe { remote.completeTodoWithFinance(linkedTodo, finance) }
+            syncSafe(SyncTarget.TODOS, linkedTodo.userId, linkedTodo.id) { remote.completeTodoWithFinance(linkedTodo, finance) }
         } else {
             todoDao.upsert(completedTodo)
-            syncSafe { remote.upsertTodo(completedTodo) }
+            syncSafe(SyncTarget.TODOS, completedTodo.userId, completedTodo.id) { remote.upsertTodo(completedTodo) }
         }
 
         // 완료된 Todo는 리마인더가 필요 없으므로 알람 취소
@@ -195,8 +198,8 @@ class TodoRepository @Inject constructor(
 
         todo.linkedFinanceId?.let { financeId ->
             financeDao.excludeByTodoId(todo.id)
-            syncSafe { remote.uncheckTodoWithFinance(todo.id, financeId, now) }
-        } ?: syncSafe { remote.upsertTodo(unchecked) }
+            syncSafe(SyncTarget.TODOS, todo.userId, todo.id) { remote.uncheckTodoWithFinance(todo.id, financeId, now) }
+        } ?: syncSafe(SyncTarget.TODOS, unchecked.userId, unchecked.id) { remote.upsertTodo(unchecked) }
 
         // 다시 미완료가 됐으니 알람 복구 (마감일이 지났으면 내부에서 자동 스킵)
         alarmScheduler.scheduleForTodo(unchecked)
@@ -208,7 +211,7 @@ class TodoRepository @Inject constructor(
         todoDao.softDelete(todo.id, now)
         financeDao.unlinkTodo(todo.id)
         alarmScheduler.cancelTodo(todo.id)
-        syncSafe { remote.deleteTodoUnlinkFinance(todo.id, todo.linkedFinanceId, now) }
+        syncSafe(SyncTarget.TODOS, todo.userId, todo.id) { remote.deleteTodoUnlinkFinance(todo.id, todo.linkedFinanceId, now) }
     }
 
     private fun today(): String {
@@ -219,16 +222,23 @@ class TodoRepository @Inject constructor(
     // 원격 push는 앱 스코프에서 비동기 실행 — 오프라인이면 Firestore write Task가 서버 ack까지
     // 완료되지 않아, 호출부에서 await하면 알람 등록/취소 등 후속 로직이 무기한 지연된다.
     // Firestore SDK가 쓰기를 디스크에 큐잉하므로 재연결 시 순서대로 서버에 반영된다.
-    private fun syncSafe(block: suspend () -> Unit) {
+    private fun syncSafe(
+        target: SyncTarget,
+        userId: String,
+        entityId: String?,
+        block: suspend () -> Unit,
+    ) {
         appScope.launch {
             try {
                 block()
+                syncLogger.recordSuccess(target, userId, entityId)
             } catch (e: Exception) {
                 FirebaseCrashlytics.getInstance().apply {
                     setCustomKey("sync_target", "todos")
                     recordException(e)
                     log("sync_failed")
                 }
+                syncLogger.recordFailure(target, userId, entityId, e)
             }
         }
     }

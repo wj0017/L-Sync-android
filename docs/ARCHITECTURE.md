@@ -22,11 +22,11 @@ app/src/main/java/com/lsync/app/
 ├── MainActivity.kt                 # singleTop + onNewIntent, EXTRA_NAV_TARGET 파싱 → NavGraph로 딥링크 탭 이동(콜드스타트 보존)
 ├── di/
 │   └── AppModule.kt                # Hilt SingletonComponent
-│                                   # AppDatabase(v5), BibleDatabase, EsvDatabase,
+│                                   # AppDatabase(v7), BibleDatabase, EsvDatabase,
 │                                   # 모든 DAO, Repository, Firestore 포함
 ├── data/
 │   ├── local/
-│   │   ├── AppDatabase.kt          # v5 — Event, Todo, Finance, TodoTemplate, ReadingPlan, Memo, Budget
+│   │   ├── AppDatabase.kt          # v7 — Event, Todo, Finance, TodoTemplate, ReadingPlan, Memo, Budget, SyncLog
 │   │   ├── BibleDatabase.kt        # 읽기 전용, assets/bible.db 번들
 │   │   ├── EsvDatabase.kt          # 읽기 전용, assets/esv.db 번들
 │   │   ├── FinanceCategory.kt
@@ -39,6 +39,7 @@ app/src/main/java/com/lsync/app/
 │   │   │   ├── ReadingPlanEntity.kt  # reading_plan 테이블 (date, book, chapter, isRead)
 │   │   │   ├── MemoEntity.kt          # memos 테이블 (book, chapter, verse, text, date)
 │   │   │   ├── BudgetEntity.kt        # budgets 테이블 (id="userId_category" 결정론적, limitAmount, deletedAt). TOTAL_CATEGORY="__TOTAL__"
+│   │   │   ├── SyncLogEntity.kt       # sync_log 테이블 (userId, target, entityId?, success, errorType?, errorMessage?, createdAt, resolvedAt?). 로컬 전용·Firestore 미동기화
 │   │   │   ├── BibleVerseEntity.kt
 │   │   │   └── EsvVerseEntity.kt
 │   │   └── dao/
@@ -49,12 +50,15 @@ app/src/main/java/com/lsync/app/
 │   │       ├── ReadingPlanDao.kt     # observeForDate, markRead, deleteFromDate, getReadDates, observeReadInRange(isRead=1 범위)
 │   │       ├── MemoDao.kt             # observeForChapter, insert, deleteById
 │   │       ├── BudgetDao.kt           # observeBudgets(userId), upsert, getById (soft delete = deletedAt)
+│   │       ├── SyncLogDao.kt          # observeRecent/observeUnresolvedCount/observeAttemptsSince/observeFailuresSince(전부 userId 필터), getUnresolvedFailures, insert, markResolved, pruneOlderThan
 │   │       ├── BibleDao.kt
 │   │       └── EsvDao.kt
 │   ├── export/
 │   │   └── ShareFiles.kt             # 파일 공유 공용 유틸(top-level, Hilt 미등록). savePngForShare(cacheDir/shared + FileProvider URI, 실패 시 null) / buildImageShareIntent(GRANT_READ_URI_PERMISSION + clipData) / buildTextShareIntent
 │   ├── recurrence/
 │   │   └── EventRecurrence.kt        # 순수 Kotlin RRULE 전개 엔진. expandEvent/expandEvents/nextOccurrence + exdates/overrides JSON 헬퍼
+│   ├── sync/
+│   │   └── SyncLogger.kt             # @Singleton. SyncTarget enum + recordSuccess/recordFailure → sync_log. 기록 실패 삼킴, 실패 시 SyncRetryTrigger.schedule, 50회마다 30일 초과 prune. AuthRepository 미주입(DI 순환)
 │   ├── remote/
 │   │   └── FirestoreDataSource.kt    # push(upsert/batch) + fetchEvents/fetchTodos/fetchFinance/fetchBudgets(복원 pull), budgets 컬렉션
 │   └── repository/
@@ -66,6 +70,7 @@ app/src/main/java/com/lsync/app/
 │       ├── SearchRepository.kt        # SearchResults{events,todos,finances} — 3 Flow combine, blank 가드
 │       ├── ReadingPlanRepository.kt  # 1년 통독 시퀀스 계산, 설정(SharedPreferences), getStreak/getStreakAsOf/getWeeklyHeatmap
 │       ├── SyncRepository.kt         # pullAll(userId) — Firestore→Room LWW 복원(upsert-only) + clearLocalUserData(로그아웃 시 동기화 테이블 정리·알람 선취소)
+│       │                             # + retryFailed(userId): RetryResult — 미해결 실패를 Room 현재 행 set(merge)로 재전송(로그 미기록)
 │       ├── AuthRepository.kt         # Firebase Auth 래퍼. currentUserId, authState, signInWithGoogle, signOut(clear→firebaseAuth.signOut). 로그인·자동로그인 시 pullAll 트리거
 │       └── AuthMigrationHelper.kt    # "local_user" → Firebase UID Room 일괄 마이그레이션 (멱등)
 ├── ui/
@@ -77,11 +82,14 @@ app/src/main/java/com/lsync/app/
 │   │   ├── LoginScreen.kt          # Google 로그인 버튼·로딩·에러 UI
 │   │   └── AuthViewModel.kt        # AuthUiState(isSignedIn/isLoading/error/userId), signInWithGoogle, signOut
 │   ├── navigation/
-│   │   └── NavGraph.kt             # 4-tab: Home / Schedule / Finance / Bible + composable("search")·composable("report")·composable("notifications")(하단탭 아님)
+│   │   └── NavGraph.kt             # 4-tab: Home / Schedule / Finance / Bible + composable("search")·composable("report")·composable("notifications")·composable("sync")(하단탭 아님)
 │   │                               # 미로그인 시 LoginScreen early return. navTarget/onTargetConsumed로 딥링크 탭 이동(LaunchedEffect)
 │   ├── settings/
 │   │   ├── NotificationSettingsScreen.kt # 통독·소비 요약 토글 + 시각(Dialog+TimePicker) + 요일 ghost chip + 미리보기
 │   │   └── NotificationSettingsViewModel.kt # @HiltViewModel, 변경 시 save→ReminderScheduler.syncAll
+│   ├── sync/
+│   │   ├── SyncStatusScreen.kt     # 7일/30일 ghost chip + 게이트 카드(에러율·5% 판정) + 미해결 실패·지금 재시도 + 최근 기록 50건
+│   │   └── SyncStatusViewModel.kt  # @HiltViewModel, SyncLogDao 4 Flow combine, windowJob 재구독, errorRate 0나눗셈 가드, retryNow isRetrying 가드
 │   ├── search/
 │   │   ├── SearchScreen.kt         # 상단 검색바(자동 포커스) + 섹션별 LazyColumn(일정·할일·가계부) + 빈/결과없음 상태, 결과 탭→해당 탭 이동
 │   │   └── SearchViewModel.kt      # @HiltViewModel, debounce(200)+flatMapLatest, onQueryChange/clearQuery
@@ -126,7 +134,9 @@ app/src/main/java/com/lsync/app/
 │   ├── TodoMaterializerWorker.kt     # 반복 인스턴스 생성 → TodoRepository.upsertMaterialized(동기화·알람 포함)
 │   ├── MaterializationTrigger.kt     # 템플릿 생성 직후 1회 즉시 materialization (OneTimeWork)
 │   ├── EventAlarmRefreshWorker.kt    # 반복 일정 알람 일1회 재계산(다음 발생 등록)
-│   └── WidgetRefreshWorker.kt        # 30분 주기 위젯 갱신 (비-Hilt CoroutineWorker)
+│   ├── WidgetRefreshWorker.kt        # 30분 주기 위젯 갱신 (비-Hilt CoroutineWorker)
+│   ├── SyncRetryTrigger.kt           # 동기화 실패 기록 시 OneTimeWork 예약 (CONNECTED, EXPONENTIAL, enqueueUniqueWork "sync_retry" KEEP)
+│   └── SyncRetryWorker.kt            # @HiltWorker. 미로그인 success, retryFailed 후 실패 잔존 시 Result.retry()
 └── ui/widget/
     ├── LSyncWidget.kt                # GlanceAppWidget — 4개 섹션 UI + loadWidgetState()
     ├── LSyncWidgetReceiver.kt        # GlanceAppWidgetReceiver
@@ -217,6 +227,7 @@ UI는 Room Flow를 구독하므로 네트워크 없이도 즉각 반응. UI는 F
 - **날짜는 Floating Time 유지:** `date`/`dueDate`/`startDate`는 `YYYY-MM-DD` 문자열 그대로. 반복 전개는 `Date.UTC(...)` ↔ `toISOString().slice(0,10)` UTC 왕복만 사용한다 — 로컬 타임존(KST)으로 왕복시키면 종일 일정이 하루 밀린다.
 - **집계 단일화:** `web/lib/finance.ts`(`financeTotals`/`topExpenseCategories`)가 앱 `ReportViewModel.aggregateFinance`와 동일 공식. 가계부 화면·리포트 훅이 이것만 호출하고 정산 판정을 복제하지 않는다.
 - **반복 일정:** `web/lib/recurrence.ts`가 `EventRecurrence.kt`의 웹 대응물(`expandEvent`/`expandEvents`). RRULE 파싱은 `rrule` 패키지에 위임 — 손으로 포팅하면 dmfs lib-recur와 갈라져 같은 일정이 두 클라이언트에서 다른 날짜에 뜬다. **범위 삭제·반복 생성은 앱 전용**이라 웹은 반복 발생의 삭제 버튼을 노출하지 않는다(마스터 전체 삭제 방지).
+- **인증:** `web/components/AuthProvider.tsx`가 Firebase Auth Google 로그인(`signInWithPopup`)으로 실제 UID를 얻어 컨텍스트로 내린다(`local_user` 고정 제거). 앱과 같은 계정이면 Firestore 규칙 `auth.uid == userId`를 동일하게 통과하며, 목록 쿼리의 `where('userId', '==', uid)`는 규칙 통과 조건이라 빼면 안 된다. 쓰기는 `runWrite`, 읽기 에러는 `reportReadError`로 배너 표시. 상세는 TechSpec §11.1.
 - **통독 제외:** `reading_plan`·`memos`는 로컬 전용(§ 로그아웃 데이터 격리)이라 웹에서 얻을 수 없다. 웹 리포트는 일정·할일·가계부 3개 도메인만 집계한다.
 
 ### 알림·위젯 딥링크 + 알림 완료 액션
@@ -229,6 +240,15 @@ UI는 Room Flow를 구독하므로 네트워크 없이도 즉각 반응. UI는 F
 - **목적:** 계정 전환 시 이전 사용자의 동기화 데이터가 남지 않도록 격리.
 - **정리 범위:** 동기화 5테이블(events / todos / finance / budgets / todo_templates) `clearAll()` + `SyncRepository.clearLocalUserData()`. **알람을 선취소한 뒤 삭제**하고, **reading_plan / memos는 보존**(로컬 전용·복원 불가).
 - **순서:** `AuthRepository.signOut()`은 `clear → firebaseAuth.signOut()` 순서로 실행해 인증 해제 전에 로컬을 비운다. `AppModule.provideSyncRepository`에 `todoTemplateDao`·`alarmScheduler` 주입.
+
+### 동기화 신뢰성 계측 (Phase 23)
+- **흐름:** `Repository.syncSafe` → `SyncLogger` → Room `sync_log` → `SyncStatusScreen`(조회) / `SyncRetryWorker`(재전송). `sync_log`도 Room에만 산다(로컬 전용, Firestore 미동기화) — UI는 여전히 Room Flow만 구독한다.
+- **기록 지점:** 5벌의 `syncSafe` — Event/Todo/Finance/Budget은 `appScope` fire-and-forget, `SyncRepository.pullAll`은 suspend. **원격 연산 1회 = 로그 1행**(배치 write도 Todo id로 1행) — 에러율 분모를 사용자 액션 수와 맞춘다. Crashlytics `sync_failed` 기록은 그대로 병행.
+- **DI 순환 회피:** `SyncLogger`는 `AuthRepository`를 주입받지 않는다(`AuthRepository → SyncRepository → SyncLogger → AuthRepository` 순환). userId는 호출부가 엔티티에서 넘긴다.
+- **재전송:** `SyncRepository.retryFailed`가 Room 현재 행을 `upsert*`(`set(merge)`)로 올린다. `batch.update` 기반 연동 메서드는 문서가 없으면 실패하므로 재사용하지 않고, `todos`는 `linkedFinanceId` Finance를 동반, `updatedAt`은 새로 찍지 않는다(LWW 보존). pull 실패는 여러 행이어도 로깅 없는 LWW 머지 1회로 해소.
+- **순환 차단:** 재시도 경로는 `SyncLogger`를 부르지 않는다 — 기록→큐잉→재시도→기록 루프와 통계 오염 방지. 남은 실패는 `Result.retry()`로 WorkManager 지수 백오프에 위임.
+- **보존·격리:** 30일 초과 행은 삽입 50회마다 1회 prune. **로그아웃 시 비우지 않는다**(`reading_plan`·`memos`와 같은 로컬 전용 취급), 대신 모든 조회를 `userId`로 필터해 다른 계정에 노출하지 않는다.
+- **등록:** `AppModule`에 `provideSyncLogDao`·`MIGRATION_6_7`, 5개 syncSafe 보유 provider에 `syncLogger`, `provideSyncRepository`에 `syncLogDao`. 상세 계약은 `docs/TechSpec.md` §12.
 
 ### 정산 추적 (Finance Settlement)
 - 별도 테이블 없이 `FinanceEntity.settlementGroupId` 단일 컬럼으로 그룹화. EXPENSE가 리더, INCOME이 정산 입금.

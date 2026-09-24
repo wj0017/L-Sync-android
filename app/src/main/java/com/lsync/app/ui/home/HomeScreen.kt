@@ -86,6 +86,7 @@ fun HomeScreen(
     onNavigateToSearch: () -> Unit,
     onNavigateToReport: () -> Unit,
     onNavigateToNotificationSettings: () -> Unit,
+    onNavigateToSyncStatus: () -> Unit,
     viewModel: HomeViewModel = hiltViewModel(),
     authViewModel: AuthViewModel = hiltViewModel(),
 ) {
@@ -228,6 +229,21 @@ fun HomeScreen(
                                 },
                                 onClick = {
                                     onNavigateToNotificationSettings()
+                                    menuExpanded = false
+                                },
+                            )
+
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        "동기화 상태",
+                                        fontFamily = Pretendard,
+                                        fontSize = 14.sp,
+                                        color = FgPrimary,
+                                    )
+                                },
+                                onClick = {
+                                    onNavigateToSyncStatus()
                                     menuExpanded = false
                                 },
                             )

@@ -17,6 +17,7 @@
 | **검색** | 일정·할일·가계부 횡단 통합 검색(홈 헤더 진입, 결과 탭→해당 화면 이동) |
 | **리포트** | 월간 횡단 집계 — 할일 완료율, 일정 발생 수, 순지출·수입·상위 카테고리, 통독 장·일수(홈 헤더 진입, 월 이동). 이미지(PNG)·텍스트 내보내기 |
 | **알림 설정** | 통독 리마인더·소비 요약(매일/주간) 개별 on/off·시각·요일 지정(홈 메뉴 진입) |
+| **동기화 상태** | 7일/30일 동기화 에러율·5% 게이트 판정, 미해결 실패 즉시 재시도, 최근 기록 50건(홈 메뉴 진입) |
 
 ### 핵심 동작
 
@@ -28,6 +29,7 @@
 - **정산 추적** — 공동 결제 후 돌려받는 흐름을 추적. 정산 입금은 수입에 섞지 않고 별도 집계해 잔액만 정확히 반영.
 - **월간 리포트** — 네 도메인을 한 달 단위로 묶어 보여준다. 반복 일정은 전개한 발생 수로 세고, 가계부는 대시보드와 동일한 정산 정책(순지출·정산입금 제외)을 적용해 화면 간 수치가 어긋나지 않는다.
 - **정기 리마인더** — 지정한 시각에 오늘 통독 잔여 분량과 소비 현황(오늘·이번 달 순지출, 예산 대비, 최근 7일 증감)을 알린다. 오늘 통독을 다 읽은 날에는 보내지 않는다. 기본값은 전부 off.
+- **동기화 신뢰성 계측** — 모든 원격 동기화 시도를 기기 로컬(Room)에 기록하고, 실패는 네트워크가 연결되면 자동 재전송. 동기화 상태 화면에서 에러율(재시도 제외)과 미해결 실패를 확인한다.
 - **알림·위젯 딥링크** — 알림·위젯을 탭하면 해당 탭으로 이동(콜드스타트 보존). Todo 알림에서 바로 완료 처리.
 - **결제 알림 자동 파싱** — 알림 리스너가 결제 알림 제목을 파싱하여 가계부에 자동 입력.
 - **성경 데이터 완전 오프라인** — 한글·영문 역본을 Room `createFromAsset` SQLite 번들로 탑재.
@@ -43,6 +45,7 @@
 - **화면:** 홈 · 일정 · 가계부 · 리포트 · 성경(앱 안내). 반복 일정은 앱과 동일한 읽기-전개로 매 발생일에 표시된다.
 - **집계 일치:** 가계부·리포트는 앱과 **같은 정산 공식**(순지출·정산입금 제외 수입)을 쓴다. `web/lib/finance.ts` 한 곳에만 두어 사본이 갈라지지 않게 한다.
 - **쓰기 계약:** 앱의 `FirestoreDataSource`가 문서를 읽는 방식(`getString("id")` / `getLong(...)`)에 맞춰 **문서 ID = 본문 `id` 필드(UUID)**, 시각 필드는 **epoch millis**, 삭제는 **tombstone**으로 쓴다. 어긋나면 앱 pull에서 그 문서가 조용히 드롭된다 → `docs/TechSpec.md` §11.
+- **Google 로그인** — 앱과 같은 Google 계정으로 로그인해 실제 UID를 얻으므로 Firestore 보안 규칙(`auth.uid == userId`)을 앱과 동일하게 통과한다. 설정 절차는 `web/README.md`.
 - **통독은 웹에 없다** — `reading_plan`·`memos`는 로컬 전용이라 Firestore에 존재하지 않는다.
 
 ---
@@ -74,14 +77,15 @@ Room (SSOT)         FirestoreDataSource
 
 ```
 app/src/main/java/com/lsync/app/
-├── ui/{screen}/          # Composable 화면 + ViewModel
+├── ui/{screen}/          # Composable 화면 + ViewModel (ui/sync/ = 동기화 상태 화면)
 ├── data/local/entity/    # Room Entity
 ├── data/local/dao/       # Room DAO
 ├── data/remote/          # FirestoreDataSource
 ├── data/repository/      # Repository (Room + Firestore 조합)
+├── data/sync/            # SyncLogger (동기화 시도 로컬 기록)
 ├── di/                   # AppModule.kt (Hilt)
 ├── notification/         # AlarmScheduler, ReminderScheduler(정기 리마인더), 결제 알림 파서
-└── worker/               # AlarmRestoreWorker, TodoMaterializerWorker
+└── worker/               # AlarmRestoreWorker, TodoMaterializerWorker, SyncRetryWorker
 ```
 
 ---
@@ -132,7 +136,8 @@ Firebase 설정 파일은 저장소에 포함하지 않는다(`.gitignore`).
 - [x] **Phase 16** — 통합 검색 (일정·할일·가계부 횡단 LIKE 검색, 홈 헤더 진입, 결과 탭→해당 화면 이동)
 - [x] **Phase 17** — 안정화 (홈 가계부 집계 정산정책 통일, 통독 Flow 컬렉터 누수 제거, 로그아웃 시 동기화 테이블 정리·계정 전환 데이터 격리)
 - [x] **Phase 18** — 월간 리포트 (일정·할일·가계부·통독 횡단 월간 집계, 월 이동, Canvas 완료율 링·카테고리 막대, 홈 헤더 진입)
-- [x] **Phase 19** — 웹 따라잡기 (웹→앱 동기화 쓰기 계약 정합, 정산 집계 통일, 반복 일정 읽기-전개, 웹 월간 리포트)
+- [x] **Phase 19** — 웹 따라잡기 (웹→앱 동기화 쓰기 계약 정합, 정산 집계 통일, 반복 일정 읽기-전개, 웹 월간 리포트, 웹 Google 로그인 — 실제 UID로 Firestore 보안 규칙 충족)
 - [x] **Phase 20** — 리포트 위젯 (별도 4×2 Glance 위젯, 이번 달 완료율·일정 발생 수·순지출·통독, 탭 시 리포트 화면 딥링크, 집계 공식 단일화)
 - [x] **Phase 21** — 리포트 내보내기 (월간 리포트를 이미지(PNG)·텍스트로 공유, 오프스크린 Compose 렌더, FileProvider 캐시 공유, 미리보기 후 Sharesheet)
 - [x] **Phase 22** — 정기 리마인더 (통독 리마인더·소비 요약 매일/주간, 알림 설정 화면, 발화 시 재무장 + 앱 시작·재부팅·업데이트 복원)
+- [x] **Phase 23** — 동기화 신뢰성 계측 (동기화 시도 로컬 기록 `sync_log`·AppDatabase v7, 실패 자동 재전송 워커, 동기화 상태 화면에서 에러율 5% 게이트 판정·즉시 재시도)

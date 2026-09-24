@@ -7,6 +7,8 @@ import com.lsync.app.data.recurrence.EventOverride
 import com.lsync.app.data.recurrence.withExdate
 import com.lsync.app.data.recurrence.withOverride
 import com.lsync.app.data.remote.FirestoreDataSource
+import com.lsync.app.data.sync.SyncLogger
+import com.lsync.app.data.sync.SyncTarget
 import com.lsync.app.di.ApplicationScope
 import com.lsync.app.notification.AlarmScheduler
 import kotlinx.coroutines.CoroutineScope
@@ -23,6 +25,7 @@ class EventRepository @Inject constructor(
     private val dao: EventDao,
     private val remote: FirestoreDataSource,
     private val alarmScheduler: AlarmScheduler,
+    private val syncLogger: SyncLogger,
     @ApplicationScope private val appScope: CoroutineScope,
 ) {
     fun observeAll(): Flow<List<EventEntity>> = dao.observeAll()
@@ -37,7 +40,7 @@ class EventRepository @Inject constructor(
     suspend fun save(event: EventEntity) {
         dao.upsert(event)
         alarmScheduler.scheduleForEvent(event)
-        syncSafe { remote.upsertEvent(event) }
+        syncSafe(SyncTarget.EVENTS, event.userId, event.id) { remote.upsertEvent(event) }
     }
 
     suspend fun create(
@@ -101,7 +104,7 @@ class EventRepository @Inject constructor(
         val deleted = existing.copy(deletedAt = now, updatedAt = now)
         dao.upsert(deleted)
         alarmScheduler.cancelEvent(id)
-        syncSafe { remote.upsertEvent(deleted) }
+        syncSafe(SyncTarget.EVENTS, deleted.userId, deleted.id) { remote.upsertEvent(deleted) }
     }
 
     // ── 반복 일정 삭제 범위 ────────────────────────────────────────────────────
@@ -273,16 +276,23 @@ class EventRepository @Inject constructor(
 
     // 원격 push는 앱 스코프에서 비동기 실행 — 오프라인이면 write Task가 서버 ack까지 완료되지
     // 않으므로 호출부를 막지 않는다. 에러는 Crashlytics 기록 후 조용히 실패(로컬은 이미 저장됨).
-    private fun syncSafe(block: suspend () -> Unit) {
+    private fun syncSafe(
+        target: SyncTarget,
+        userId: String,
+        entityId: String?,
+        block: suspend () -> Unit,
+    ) {
         appScope.launch {
             try {
                 block()
+                syncLogger.recordSuccess(target, userId, entityId)
             } catch (e: Exception) {
                 FirebaseCrashlytics.getInstance().apply {
                     setCustomKey("sync_target", "events")
                     recordException(e)
                     log("sync_failed")
                 }
+                syncLogger.recordFailure(target, userId, entityId, e)
             }
         }
     }

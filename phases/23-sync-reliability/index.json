@@ -1,0 +1,48 @@
+{
+  "project": "L-Sync",
+  "phase": "23-sync-reliability",
+  "steps": [
+    {
+      "step": 0,
+      "name": "sync-log-entity",
+      "status": "completed",
+      "started_at": "2026-09-24T10:38:56+0900",
+      "summary": "SyncLogEntity(sync_log, userId+createdAt 인덱스) + SyncLogDao(최근·미해결 수·시도/실패 수·재시도 대상·insert·markResolved·prune) + AppDatabase v7 MIGRATION_6_7 + AppModule 마이그레이션·provideSyncLogDao 등록",
+      "completed_at": "2026-09-24T10:40:20+0900"
+    },
+    {
+      "step": 1,
+      "name": "sync-logger",
+      "status": "completed",
+      "started_at": "2026-09-24T10:40:20+0900",
+      "summary": "data/sync/SyncLogger(SyncTarget enum, recordSuccess/recordFailure, message 200자 절단, 50회마다 30일 prune, runCatching) + Event/Todo/Finance/Budget/Sync 5개 syncSafe에 (target,userId,entityId) 인자·성공/실패 기록 추가(Crashlytics 유지, 배치 연산은 Todo id 1행) + AppModule 5개 provider에 syncLogger 주입",
+      "completed_at": "2026-09-24T10:42:03+0900"
+    },
+    {
+      "step": 2,
+      "name": "sync-retry",
+      "status": "completed",
+      "started_at": "2026-09-24T10:42:03+0900",
+      "summary": "worker/SyncRetryTrigger(CONNECTED·EXPONENTIAL·enqueueUniqueWork sync_retry KEEP) + SyncRetryWorker(@HiltWorker, 미로그인 success, 실패 잔존 시 retry) + SyncRepository.retryFailed/RetryResult(Room 현재 행 set(merge) 재전송, todos는 linkedFinanceId Finance 동반, pull 행 다수여도 1회, Room 행 null이면 resolved, SyncLogger 미호출 — pull은 로깅 없는 private LWW 머지로 수행) + SyncLogger.recordFailure에서 schedule + AppModule provideSyncRepository에 syncLogDao",
+      "completed_at": "2026-09-24T10:43:34+0900"
+    },
+    {
+      "step": 3,
+      "name": "sync-status-screen",
+      "status": "completed",
+      "summary": "ui/sync/SyncStatusViewModel(@HiltViewModel, 7/30일 windowJob 재구독, SyncLogDao 4 Flow combine, errorRate 0나눗셈 가드·passesGate<5%, retryNow isRetrying 중복 가드) + SyncStatusScreen(헤더·구간 ghost chip·게이트 카드·미해결 실패+지금 재시도·최근 50건 로그, AccentRed는 게이트 초과·미해결 실패만) + NavGraph composable(\"sync\") + HomeScreen 메뉴 '동기화 상태'",
+      "started_at": "2026-09-24T10:43:34+0900",
+      "completed_at": "2026-09-24T10:45:31+0900"
+    },
+    {
+      "step": 4,
+      "name": "docs-catchup",
+      "status": "completed",
+      "summary": "TechSpec v0.13(§1.8 sync_log 표, §2 v6 MIGRATION_5_6 누락분+v7 MIGRATION_6_7, §7 로컬 계측 연결, §10 SyncLogEntity, §11.1 웹 Google 인증(AuthProvider·runWrite·reportReadError, 규칙 충족·userId 동등 필터 제약), §12 동기화 신뢰성 계측) + PRD 2.9·Phase 23(Phase 1 게이트 판정 연결) + README Phase 23·Phase 19 웹 인증 보강·동기화 상태 기능·data/sync·ui/sync 디렉토리 + ARCHITECTURE 트리·계측 흐름 절·웹 인증 bullet. 코드 무수정. 참고: ARCHITECTURE '복원 동기화(pull)' 절의 'Event/Finance는 원격 hard delete' 서술은 현재 코드(tombstone)와 어긋나는 기존 문서 부채로 남김; pullAll은 엔티티 그룹 4개 각각 1행씩(1회 pull = 최대 4행) 에러율에 집계됨",
+      "started_at": "2026-09-24T10:45:31+0900",
+      "completed_at": "2026-09-24T10:48:35+0900"
+    }
+  ],
+  "created_at": "2026-09-24T10:38:56+0900",
+  "completed_at": "2026-09-24T10:48:35+0900"
+}

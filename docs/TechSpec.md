@@ -1,4 +1,4 @@
-# L-Sync Technical Spec (v0.12)
+# L-Sync Technical Spec (v0.13)
 
 **목적:** 데이터베이스 구조, 보안 규칙, 안드로이드 권한·알림, 백그라운드 엔진 등 구현에 직접 필요한 기술 명세.
 
@@ -147,6 +147,22 @@
 | book | INTEGER | bible_verses와 동일 체계 |
 | chapter / verse / text | | |
 
+### 1.8. `sync_log` (AppDatabase v7 추가)
+
+원격 동기화 시도 1건 = 1행의 진단 기록. **로컬 전용 — Firestore 동기화 대상이 아니다**(Room에만 산다). 인덱스 `index_sync_log_userId_createdAt`(`userId`, `createdAt`). 사용처는 §12.
+
+| 컬럼 | 타입 | 설명 |
+|------|------|------|
+| id | INTEGER PK (autoincrement) | |
+| userId | TEXT | 호출부가 엔티티의 `userId`를 넘긴다. 모든 조회가 이 컬럼으로 필터 |
+| target | TEXT | `SyncTarget.key` — `"events"` / `"todos"` / `"finance"` / `"budgets"` / `"pull"` |
+| entityId | TEXT? | 재전송 키(엔티티 id). `target = "pull"`이면 null |
+| success | INTEGER (Boolean) | |
+| errorType | TEXT? | 예외 클래스 `simpleName` |
+| errorMessage | TEXT? | 예외 message 앞 200자 |
+| createdAt | INTEGER | 기록 시각(epoch millis) |
+| resolvedAt | INTEGER? | 재시도로 해소된 시각. `success = 0 AND resolvedAt IS NULL` = 미해결 실패 |
+
 ---
 
 ## 2. AppDatabase 마이그레이션
@@ -158,6 +174,8 @@
 | 3 | memos 테이블 추가 (MIGRATION_2_3) |
 | 4 | finance.settlementGroupId 컬럼 추가 (MIGRATION_3_4) |
 | 5 | budgets 테이블 추가 (MIGRATION_4_5) |
+| 6 | finance.deletedAt 컬럼 추가 (MIGRATION_5_6) |
+| 7 | sync_log 테이블 추가 (MIGRATION_6_7) |
 
 ---
 
@@ -310,6 +328,7 @@ EntryPointAccessors.fromApplication(context.applicationContext, WidgetEntryPoint
 
 - **원자성:** Todo 완료 → Finance 생성은 Firestore Batch Write로 묶음.
 - **Crashlytics:** 네트워크 연결 상태에서 Exception 발생 시 `sync_failed` 이벤트 기록.
+- **로컬 계측:** 같은 `syncSafe`가 성공·실패를 Room `sync_log`에도 남긴다(Crashlytics와 병행). 재전송·에러율 화면은 §12.
 - **복원 동기화(pull):** `SyncRepository.pullAll(userId)`가 `FirestoreDataSource.fetchEvents/fetchTodos/fetchFinance/fetchBudgets`로 원격을 받아 **last-write-wins upsert-only** 머지(항목별 `updatedAt > local.updatedAt`일 때만 덮어씀, 로컬 전용 데이터 미삭제). `AuthRepository`가 로그인·자동로그인 시 마이그레이션 직후 백그라운드 실행. 재설치·기기 변경 복원 경로. 엔티티 그룹별 `syncSafe`로 부분 실패 격리.
 - **로그아웃 데이터 격리(계정 전환):** `AuthRepository.signOut()`은 `clear → firebaseAuth.signOut()` 순서. `SyncRepository.clearLocalUserData()`가 동기화 5테이블(events / todos / finance / budgets / todo_templates)을 `clearAll()`하되 **알람을 선취소한 뒤 삭제**. `reading_plan` / `memos`는 로컬 전용·복원 불가라 **보존**. `AppModule.provideSyncRepository`에 `todoTemplateDao`·`alarmScheduler` 주입.
 
@@ -388,6 +407,7 @@ EntryPointAccessors.fromApplication(context.applicationContext, WidgetEntryPoint
 | ReadingPlanEntity | AppDatabase | id, date, book, chapter, isRead |
 | MemoEntity | AppDatabase | id, book, chapter, verse, text, date |
 | BudgetEntity | AppDatabase | id(`userId_category`), userId, category, limitAmount, createdAt, updatedAt, deletedAt? |
+| SyncLogEntity | AppDatabase | id, userId, target, entityId?, success, errorType?, errorMessage?, createdAt, resolvedAt? (로컬 전용) |
 | BibleVerseEntity | BibleDatabase | idx, book, chapter, verse, text, testament, book_name, book_short |
 | EsvVerseEntity | EsvDatabase | idx, book, chapter, verse, text |
 
@@ -415,3 +435,89 @@ EntryPointAccessors.fromApplication(context.applicationContext, WidgetEntryPoint
 - **통독은 웹에 없다** — `reading_plan`·`memos`는 Firestore 미동기화(로컬 전용). 웹 리포트는 일정·할일·가계부 3개 도메인만 집계한다.
 - **`crypto.randomUUID()`는 secure context 전용** — https 또는 localhost에서만 동작한다. 평문 http(LAN IP)로 접속한 dev 서버에서는 생성이 실패한다.
 - **미해결:** Phase 19 이전에 웹에서 만든 문서는 랜덤 문서 ID + Timestamp `createdAt`이라 여전히 앱이 읽지 못한다. 마이그레이션 스크립트는 없다 — Firebase 콘솔에서 수동 확인·정리.
+
+### 11.1 웹 인증 (Google 로그인)
+
+`1ae9917 feat(web): add Firebase Google authentication`으로 웹의 `local_user` 고정 UID가 제거됐다. 별도 Phase 번호 없이 Phase 19(웹 따라잡기)의 보강으로 취급한다.
+
+| 구성 | 파일 | 내용 |
+|------|------|------|
+| Auth 인스턴스 | `web/lib/firebase.ts` | 같은 Firebase 앱에서 `getAuth(app)` → `auth` export |
+| 인증 게이트 | `web/components/AuthProvider.tsx` | `onAuthStateChanged` 확인 중이면 "로그인 확인 중…", 미로그인이면 로그인 화면(`signInWithPopup` + `GoogleAuthProvider`). 로그인 후 `AuthenticatedApp`(key = `user.uid`)이 `uid: user.uid`를 컨텍스트로 내려준다. 상단에 이메일 + 로그아웃(`signOut`) |
+| 쓰기 래퍼 | `AuthProvider`의 `runWrite(action)` | 실행 전후 `auth.currentUser?.uid === user.uid`를 확인하고, 실패 시 에러 배너를 띄운 뒤 `false` 반환. 일정·가계부 페이지의 추가·삭제·토글이 모두 이것을 거친다 |
+| 읽기 에러 | `web/hooks/useEvents.ts`·`useTodos.ts`·`useFinance.ts` | `onSnapshot` 에러 콜백에서 목록을 비우고 `reportReadError(source, message)`로 배너 표시. 성공·언마운트 시 해제 |
+| 에러 문구 | `errorMessage` | `permission-denied` / `auth/popup-blocked` / `auth/unauthorized-domain` / `auth/operation-not-allowed`를 한국어로 매핑. 팝업을 닫은 경우(`auth/popup-closed-by-user`·`auth/cancelled-popup-request`)는 표시하지 않는다 |
+
+- **보안 규칙(§3)을 웹에서도 만족한다.** 웹이 Google 로그인으로 앱과 같은 실제 Firebase UID를 얻고, 쓰기는 그 UID를 `userId`로 넣는다. 따라서 `request.auth.uid == request.resource.data.userId`(create)·`resource.data.userId`(read/update/delete)가 앱과 동일하게 성립한다. 앱과 **같은 Google 계정**으로 로그인해야 같은 데이터가 보인다.
+- **목록 조회는 `userId` 동등 필터를 유지해야 한다.** Firestore 규칙은 필터가 아니므로, `web/lib/db.ts`의 `eventsQuery`/`todosQuery`/`financeQuery`가 `where('userId', '==', uid)`를 빼면 결과 중 일부만 허용되는 쿼리로 판정돼 **목록 전체가 `permission-denied`로 거부**된다. 인증 도입으로 이 필터의 `uid`가 `local_user`에서 실제 UID로 바뀌었을 뿐 제약은 그대로다.
+- **이 커밋에서 바뀌지 않은 것:** 쓰기 계약(표 위 — 문서 ID = 본문 `id`, epoch millis, tombstone)과 `!deletedAt` 읽기 필터. 추가로 `addFinance`가 `note`를 `undefined` 대신 `null`로 쓴다(`note: data.note ?? null`).
+- **Firebase 콘솔 수동 설정:** Authentication에서 Google 제공자 활성화, Authorized domains에 `localhost`·배포 도메인 등록. 절차는 `web/README.md`.
+
+---
+
+## 12. 동기화 신뢰성 계측 (Phase 23)
+
+동기화 실패가 Crashlytics로만 가서 사용자·개발자가 기기에서 확인할 수 없던 문제를 해결한다. 모든 원격 연산 결과를 Room `sync_log`(§1.8)에 남기고, 실패는 네트워크 복구 시 재전송하며, 에러율을 화면으로 보여준다.
+
+```
+Repository.syncSafe ─┬─ Crashlytics(sync_failed)          ← 원격 모니터링(기존 유지)
+                     └─ SyncLogger ─→ Room sync_log ─┬─→ SyncStatusScreen (에러율·미해결·최근 기록)
+                          │ (실패 시)                 └─→ SyncRepository.retryFailed
+                          └─ SyncRetryTrigger ─→ SyncRetryWorker ─┘
+```
+
+### 12.1 기록 지점
+
+| `syncSafe` 위치 | 실행 방식 | `SyncTarget` | `entityId` |
+|-----------------|----------|--------------|------------|
+| `EventRepository` | `appScope.launch` fire-and-forget | `EVENTS` | 이벤트 id |
+| `TodoRepository` | 〃 | `TODOS` | Todo id (배치 연산도 Todo id 1행) |
+| `FinanceRepository` | 〃 | `FINANCE` | 거래 id |
+| `BudgetRepository` | 〃 | `BUDGETS` | `"${userId}_${category}"` |
+| `SyncRepository.pullAll` | suspend (호출부가 대기) | `PULL` | null — 엔티티 그룹(events/todos/finance/budgets) fetch마다 1행 |
+
+- 시그니처: `syncSafe(target: SyncTarget, userId: String, entityId: String?, block: suspend () -> Unit)`. `block()` 성공 후 `recordSuccess`, 예외 시 Crashlytics 기록 **후** `recordFailure`.
+- **원격 연산 1회 = 로그 1행.** `completeTodoWithFinance`·`uncheckTodoWithFinance`·`deleteTodoUnlinkFinance` 같은 배치 write도 Todo id로 1행만 쓴다. 에러율의 분모를 사용자 액션 수와 일치시키기 위한 규칙이다(배치를 문서 수만큼 세면 연동 Todo가 많은 사용자일수록 분모가 부풀어 에러율이 낮게 보인다).
+- **`SyncLogger`는 `AuthRepository`를 주입받지 않는다.** `AuthRepository → SyncRepository → SyncLogger → AuthRepository`로 Hilt 순환이 생긴다. `userId`는 호출부가 엔티티(`entity.userId`)나 `pullAll(userId)` 인자에서 넘긴다.
+- **Crashlytics 기록은 그대로 유지한다.** 로컬 `sync_log` = 사용자가 기기에서 확인·재시도하는 용도, Crashlytics = 개발자 원격 모니터링 용도로 역할이 다르다.
+
+### 12.2 `SyncLogger` (`data/sync/SyncLogger.kt`, `@Singleton`)
+
+- `SyncTarget` enum(`EVENTS`/`TODOS`/`FINANCE`/`BUDGETS`/`PULL`, `key`가 `sync_log.target` 문자열의 단일 출처).
+- `suspend recordSuccess(target, userId, entityId)` / `suspend recordFailure(target, userId, entityId, error)`. `errorType` = `error::class.java.simpleName`, `errorMessage` = `message.take(200)`.
+- **기록 실패는 삼킨다**(`runCatching`) — 진단 기록 때문에 사용자 데이터 저장 흐름이 깨지면 안 된다.
+- `recordFailure`는 기록 후 `SyncRetryTrigger.schedule()`을 호출한다(이것도 `runCatching`).
+- **보존:** 30일(`RETENTION_MILLIS`) 초과 행을 `SyncLogDao.pruneOlderThan`으로 삭제. 매 삽입마다 DELETE하면 쓰기가 2배라 **삽입 50회(`PRUNE_EVERY`)마다 1회** 실행한다. 카운터는 프로세스 수명 동안만 유지(`AtomicInteger`).
+
+### 12.3 재전송 (`SyncRepository.retryFailed(userId): RetryResult`)
+
+`RetryResult(attempted, resolved, failed)`. `SyncLogDao.getUnresolvedFailures(userId)`(오래된 순)를 대상으로 한다.
+
+- **Room 현재 행을 `set(merge)`로 upsert한다.** `FirestoreDataSource.upsertEvent`/`upsertTodo`/`upsertFinance`/`upsertBudget`을 재사용하고, 원래 연산을 재현하지 않는다.
+  - `batch.update` 기반 메서드(`uncheckTodoWithFinance`·`deleteTodoUnlinkFinance`)를 재사용하지 않는 이유: `update`는 **문서가 없으면 실패**한다. 생성 push가 실패해 원격 문서가 아예 없는 상태에서 미완료·삭제를 재현하면 영원히 실패한다. Room 행 전체를 merge하면 문서 유무와 무관하게 최종 상태가 맞는다.
+  - **`todos` 재전송은 `linkedFinanceId`의 Finance를 동반한다** — 완료·미완료 연동 배치의 Finance 쪽(`isExcluded` 등)도 Room 현재 상태로 함께 올린다.
+  - **`updatedAt`을 새로 찍지 않는다.** 재전송 시각으로 갱신하면 그 사이 다른 기기(웹 포함)가 쓴 더 최신 원격 문서를 pull LWW에서 이기게 되어 덮어쓴다. 원래 변경 시각을 보존해야 LWW 기준이 유지된다.
+- **`pull` 행은 여러 개여도 1회만** LWW 머지를 수행해 전부 해소한다. 이때 `pullAll`이 아닌 private `pullWithoutLogging`(같은 LWW 머지, 예외를 그대로 던짐)을 쓴다 — `pullAll`은 실패를 삼키고 새 로그를 남겨 성공 여부를 알 수 없다.
+- **Room 행이 없거나 `entityId`가 null이면 해소로 본다** — 되살릴 원본이 없는 경고가 영구 잔류하지 않게 한다.
+- 항목별 `runCatching` — 한 건 실패가 나머지 재전송을 막지 않는다. 성공 시 `markResolved(id, now)`.
+- **재시도 경로는 `sync_log`에 새 행을 남기지 않는다(`SyncLogger` 미호출).** 재시도 실패를 다시 기록하면 `recordFailure → schedule → 재시도 → 실패 → recordFailure`의 무한 순환이 생기고, 재시도 횟수가 에러율 분모·분자를 오염시킨다. 남은 실패는 워커가 `Result.retry()`로 WorkManager 지수 백오프에 위임한다.
+
+### 12.4 워커
+
+| 클래스 | 내용 |
+|--------|------|
+| `worker/SyncRetryTrigger` (`@Singleton`) | `OneTimeWorkRequest<SyncRetryWorker>` + `NetworkType.CONNECTED` 제약 + `BackoffPolicy.EXPONENTIAL` 30초. `enqueueUniqueWork("sync_retry", ExistingWorkPolicy.KEEP)` — 실패가 연달아 기록돼도 대기·실행 중인 워커를 유지해 백오프가 리셋되지 않게 한다 |
+| `worker/SyncRetryWorker` (`@HiltWorker`) | `authRepository.currentUserId`가 null이면 `Result.success()`(retry를 돌려주면 로그인할 때까지 계속 깨어난다). `retryFailed(uid).failed > 0`이면 `Result.retry()`, 아니면 `Result.success()` |
+
+### 12.5 로그아웃·격리
+
+- **로그아웃 시 `sync_log`는 비우지 않는다.** `SyncRepository.clearLocalUserData()`의 정리 대상(동기화 5테이블)에 포함되지 않는다 — PRD 2.7의 `reading_plan`·`memos`와 같은 취급(로컬 전용·Firestore에서 복원 불가).
+- 다른 계정에 노출되지 않도록 **`SyncLogDao`의 모든 조회가 `userId`로 필터**한다(`observeRecent`/`observeUnresolvedCount`/`observeAttemptsSince`/`observeFailuresSince`/`getUnresolvedFailures`). `pruneOlderThan`만 전체 사용자 대상이다.
+
+### 12.6 화면 (`ui/sync/`)
+
+- **진입:** `HomeScreen` 헤더 메뉴 "동기화 상태" → `NavGraph` `composable("sync")`(하단 탭 아님).
+- **`SyncStatusViewModel`**(`@HiltViewModel`): `SyncLogDao` Flow 4개(`observeAttemptsSince`·`observeFailuresSince`·`observeUnresolvedCount`·`observeRecent(limit = 50)`)를 `combine`. 구간(7일/30일) 변경 시 `windowJob.cancel()` 후 새 `since`로 재구독(`ReportViewModel` monthJob 패턴). `retryNow()`는 `isRetrying` 중복 가드 후 `retryFailed` 호출 — 결과 수치는 Room Flow가 갱신한다.
+- **에러율 = `failures / attempts`**(구간 내, 0나눗셈 가드 = 0). 재시도는 행을 만들지 않으므로 **분모·분자 모두에서 제외**된다. `passesGate` = 에러율 < 5%(PRD Phase 1 게이트).
+- **`SyncStatusScreen`:** 구간 ghost chip → 게이트 카드(에러율 %, `실패 N / 시도 M`, 통과/초과 문구; 시도 0이면 "기록 없음") → 미해결 실패 카드(건수 + "지금 재시도") → 최근 기록 50건(시각 · target, 상태 성공/해소됨/실패, 실패 시 `errorType: errorMessage`).
+- **`AccentRed`는 게이트 초과(에러율 수치·판정 문구)와 미해결 실패 로그 행의 "실패" 상태에만** 쓴다. 미해결 건수 자체는 `FgPrimary`, "지금 재시도"는 `AccentBlue`(절제된 경고 색 — UI 가이드와 일관).

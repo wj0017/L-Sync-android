@@ -4,6 +4,8 @@ import com.google.firebase.crashlytics.FirebaseCrashlytics
 import com.lsync.app.data.local.dao.BudgetDao
 import com.lsync.app.data.local.entity.BudgetEntity
 import com.lsync.app.data.remote.FirestoreDataSource
+import com.lsync.app.data.sync.SyncLogger
+import com.lsync.app.data.sync.SyncTarget
 import com.lsync.app.di.ApplicationScope
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
@@ -15,6 +17,7 @@ import javax.inject.Singleton
 class BudgetRepository @Inject constructor(
     private val dao: BudgetDao,
     private val remote: FirestoreDataSource,
+    private val syncLogger: SyncLogger,
     @ApplicationScope private val appScope: CoroutineScope,
 ) {
     fun observeBudgets(userId: String): Flow<List<BudgetEntity>> = dao.observeBudgets(userId)
@@ -34,7 +37,7 @@ class BudgetRepository @Inject constructor(
             deletedAt = null,
         )
         dao.upsert(entity)
-        syncSafe { remote.upsertBudget(entity) }
+        syncSafe(SyncTarget.BUDGETS, entity.userId, entity.id) { remote.upsertBudget(entity) }
     }
 
     // soft delete + deletedAt 원격 전파 (pull upsert-only라 hard delete는 다른 기기에 반영 안 됨)
@@ -42,21 +45,28 @@ class BudgetRepository @Inject constructor(
         val now = System.currentTimeMillis()
         dao.softDelete(id, now)
         val deleted = dao.getById(id) ?: return
-        syncSafe { remote.upsertBudget(deleted) }
+        syncSafe(SyncTarget.BUDGETS, deleted.userId, deleted.id) { remote.upsertBudget(deleted) }
     }
 
     // 원격 push는 앱 스코프에서 비동기 실행 — 오프라인이면 write Task가 서버 ack까지 완료되지
     // 않으므로 호출부를 막지 않는다. 에러는 Crashlytics 기록 후 조용히 실패(로컬은 이미 저장됨).
-    private fun syncSafe(block: suspend () -> Unit) {
+    private fun syncSafe(
+        target: SyncTarget,
+        userId: String,
+        entityId: String?,
+        block: suspend () -> Unit,
+    ) {
         appScope.launch {
             try {
                 block()
+                syncLogger.recordSuccess(target, userId, entityId)
             } catch (e: Exception) {
                 FirebaseCrashlytics.getInstance().apply {
                     setCustomKey("sync_target", "budgets")
                     recordException(e)
                     log("sync_failed")
                 }
+                syncLogger.recordFailure(target, userId, entityId, e)
             }
         }
     }

@@ -5,6 +5,8 @@ import com.lsync.app.data.local.FinanceCategory
 import com.lsync.app.data.local.dao.FinanceDao
 import com.lsync.app.data.local.entity.FinanceEntity
 import com.lsync.app.data.remote.FirestoreDataSource
+import com.lsync.app.data.sync.SyncLogger
+import com.lsync.app.data.sync.SyncTarget
 import com.lsync.app.di.ApplicationScope
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
@@ -18,6 +20,7 @@ class FinanceRepository @Inject constructor(
     private val dao: FinanceDao,
     private val remote: FirestoreDataSource,
     private val authRepository: AuthRepository,
+    private val syncLogger: SyncLogger,
     @ApplicationScope private val appScope: CoroutineScope,
 ) {
     private val currentUserId: String
@@ -56,7 +59,7 @@ class FinanceRepository @Inject constructor(
             updatedAt = now,
         )
         dao.upsert(entity)
-        syncSafe { remote.upsertFinance(entity) }
+        syncSafe(SyncTarget.FINANCE, entity.userId, entity.id) { remote.upsertFinance(entity) }
         return entity.id
     }
 
@@ -68,7 +71,7 @@ class FinanceRepository @Inject constructor(
             updatedAt = System.currentTimeMillis(),
         )
         dao.upsert(updated)
-        syncSafe { remote.upsertFinance(updated) }
+        syncSafe(SyncTarget.FINANCE, updated.userId, updated.id) { remote.upsertFinance(updated) }
     }
 
     suspend fun addReimbursement(groupId: String, amount: Long, date: String, note: String?) {
@@ -88,14 +91,14 @@ class FinanceRepository @Inject constructor(
             updatedAt = now,
         )
         dao.upsert(entity)
-        syncSafe { remote.upsertFinance(entity) }
+        syncSafe(SyncTarget.FINANCE, entity.userId, entity.id) { remote.upsertFinance(entity) }
     }
 
     suspend fun linkToSettlement(financeId: String, groupId: String) {
         val entity = dao.getById(financeId) ?: return
         val updated = entity.copy(settlementGroupId = groupId, updatedAt = System.currentTimeMillis())
         dao.upsert(updated)
-        syncSafe { remote.upsertFinance(updated) }
+        syncSafe(SyncTarget.FINANCE, updated.userId, updated.id) { remote.upsertFinance(updated) }
     }
 
     suspend fun update(
@@ -116,7 +119,7 @@ class FinanceRepository @Inject constructor(
             updatedAt = System.currentTimeMillis(),
         )
         dao.upsert(updated)
-        syncSafe { remote.upsertFinance(updated) }
+        syncSafe(SyncTarget.FINANCE, updated.userId, updated.id) { remote.upsertFinance(updated) }
     }
 
     // Todo 연동 항목(sourceTodoId != null)은 직접 삭제 불가 — excludeByTodoId로만 처리해야 함 (CLAUDE.md CRITICAL)
@@ -137,17 +140,17 @@ class FinanceRepository @Inject constructor(
                 if (member.sourceTodoId != null) {
                     val unlinked = member.copy(settlementGroupId = null, updatedAt = now)
                     dao.upsert(unlinked)
-                    syncSafe { remote.upsertFinance(unlinked) }
+                    syncSafe(SyncTarget.FINANCE, unlinked.userId, unlinked.id) { remote.upsertFinance(unlinked) }
                 } else {
                     val deletedMember = member.copy(deletedAt = now, updatedAt = now)
                     dao.upsert(deletedMember)
-                    syncSafe { remote.upsertFinance(deletedMember) }
+                    syncSafe(SyncTarget.FINANCE, deletedMember.userId, deletedMember.id) { remote.upsertFinance(deletedMember) }
                 }
             }
         }
         val deleted = entity.copy(deletedAt = now, updatedAt = now)
         dao.upsert(deleted)
-        syncSafe { remote.upsertFinance(deleted) }
+        syncSafe(SyncTarget.FINANCE, deleted.userId, deleted.id) { remote.upsertFinance(deleted) }
     }
 
     suspend fun exportCsv(yearMonth: String): String {
@@ -171,16 +174,23 @@ class FinanceRepository @Inject constructor(
 
     // 원격 push는 앱 스코프에서 비동기 실행 — 오프라인이면 write Task가 서버 ack까지 완료되지
     // 않으므로 호출부를 막지 않는다. 에러는 Crashlytics 기록 후 조용히 실패(로컬은 이미 저장됨).
-    private fun syncSafe(block: suspend () -> Unit) {
+    private fun syncSafe(
+        target: SyncTarget,
+        userId: String,
+        entityId: String?,
+        block: suspend () -> Unit,
+    ) {
         appScope.launch {
             try {
                 block()
+                syncLogger.recordSuccess(target, userId, entityId)
             } catch (e: Exception) {
                 FirebaseCrashlytics.getInstance().apply {
                     setCustomKey("sync_target", "finance")
                     recordException(e)
                     log("sync_failed")
                 }
+                syncLogger.recordFailure(target, userId, entityId, e)
             }
         }
     }

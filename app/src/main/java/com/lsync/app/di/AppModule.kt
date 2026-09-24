@@ -14,6 +14,7 @@ import com.lsync.app.data.local.dao.EventDao
 import com.lsync.app.data.local.dao.FinanceDao
 import com.lsync.app.data.local.dao.MemoDao
 import com.lsync.app.data.local.dao.ReadingPlanDao
+import com.lsync.app.data.local.dao.SyncLogDao
 import com.lsync.app.data.local.dao.TodoDao
 import com.lsync.app.data.local.dao.TodoTemplateDao
 import com.lsync.app.data.remote.FirestoreDataSource
@@ -27,6 +28,7 @@ import com.lsync.app.data.repository.ReadingPlanRepository
 import com.lsync.app.data.repository.SearchRepository
 import com.lsync.app.data.repository.SyncRepository
 import com.lsync.app.data.repository.TodoRepository
+import com.lsync.app.data.sync.SyncLogger
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -45,7 +47,7 @@ object AppModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase =
         Room.databaseBuilder(context, AppDatabase::class.java, "lsync.db")
-            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6)
+            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7)
             .build()
 
     @Provides fun provideEventDao(db: AppDatabase): EventDao = db.eventDao()
@@ -54,6 +56,7 @@ object AppModule {
     @Provides fun provideFinanceDao(db: AppDatabase): FinanceDao = db.financeDao()
     @Provides fun provideReadingPlanDao(db: AppDatabase): ReadingPlanDao = db.readingPlanDao()
     @Provides fun provideBudgetDao(db: AppDatabase): BudgetDao = db.budgetDao()
+    @Provides fun provideSyncLogDao(db: AppDatabase): SyncLogDao = db.syncLogDao()
 
     @Provides
     @Singleton
@@ -104,8 +107,9 @@ object AppModule {
         dao: EventDao,
         remote: FirestoreDataSource,
         alarmScheduler: AlarmScheduler,
+        syncLogger: SyncLogger,
         @ApplicationScope appScope: CoroutineScope,
-    ) = EventRepository(dao, remote, alarmScheduler, appScope)
+    ) = EventRepository(dao, remote, alarmScheduler, syncLogger, appScope)
 
     @Provides
     @Singleton
@@ -115,8 +119,9 @@ object AppModule {
         financeDao: FinanceDao,
         remote: FirestoreDataSource,
         alarmScheduler: AlarmScheduler,
+        syncLogger: SyncLogger,
         @ApplicationScope appScope: CoroutineScope,
-    ) = TodoRepository(todoDao, todoTemplateDao, financeDao, remote, alarmScheduler, appScope)
+    ) = TodoRepository(todoDao, todoTemplateDao, financeDao, remote, alarmScheduler, syncLogger, appScope)
 
     @Provides
     @Singleton
@@ -124,16 +129,18 @@ object AppModule {
         dao: FinanceDao,
         remote: FirestoreDataSource,
         authRepository: com.lsync.app.data.repository.AuthRepository,
+        syncLogger: SyncLogger,
         @ApplicationScope appScope: CoroutineScope,
-    ) = FinanceRepository(dao, remote, authRepository, appScope)
+    ) = FinanceRepository(dao, remote, authRepository, syncLogger, appScope)
 
     @Provides
     @Singleton
     fun provideBudgetRepository(
         dao: BudgetDao,
         remote: FirestoreDataSource,
+        syncLogger: SyncLogger,
         @ApplicationScope appScope: CoroutineScope,
-    ) = BudgetRepository(dao, remote, appScope)
+    ) = BudgetRepository(dao, remote, syncLogger, appScope)
 
     @Provides
     @Singleton
@@ -153,7 +160,9 @@ object AppModule {
         budgetDao: BudgetDao,
         todoTemplateDao: TodoTemplateDao,
         alarmScheduler: AlarmScheduler,
-    ) = SyncRepository(remote, eventDao, todoDao, financeDao, budgetDao, todoTemplateDao, alarmScheduler)
+        syncLogger: SyncLogger,
+        syncLogDao: SyncLogDao,
+    ) = SyncRepository(remote, eventDao, todoDao, financeDao, budgetDao, todoTemplateDao, alarmScheduler, syncLogger, syncLogDao)
 
     @Provides
     @Singleton
