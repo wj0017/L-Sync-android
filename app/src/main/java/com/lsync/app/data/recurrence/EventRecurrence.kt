@@ -85,11 +85,16 @@ fun expandEvents(events: List<EventEntity>, from: String, to: String): List<Even
     events.flatMap { expandEvent(it, from, to) }
 
 // afterDate(YYYY-MM-DD) "다음" 발생을 1개 반환(알람용). exdates 제외·overrides 반영. 없으면 null.
-fun nextOccurrence(event: EventEntity, afterDate: String): EventOccurrence? {
+fun nextOccurrence(
+    event: EventEntity,
+    afterDate: String,
+    predicate: (EventOccurrence) -> Boolean = { true },
+): EventOccurrence? {
     val rrule = event.rrule?.trim()
     if (rrule.isNullOrBlank()) {
         val date = event.startDate.take(10)
-        return if (date > afterDate) singleOccurrence(event, date, isRecurring = false) else null
+        val occurrence = singleOccurrence(event, date, isRecurring = false)
+        return if (date > afterDate && predicate(occurrence)) occurrence else null
     }
 
     val exdates = parseExdates(event.exdatesJson)
@@ -107,8 +112,11 @@ fun nextOccurrence(event: EventEntity, afterDate: String): EventOccurrence? {
             val dateStr = occDate.toString()
             if (dateStr <= afterDate) continue
             if (dateStr in exdates) continue
-            found = buildOccurrence(event, dateStr, overrides[dateStr])
-            break
+            val occurrence = buildOccurrence(event, dateStr, overrides[dateStr])
+            if (predicate(occurrence)) {
+                found = occurrence
+                break
+            }
         }
         found
     } catch (e: Exception) {
