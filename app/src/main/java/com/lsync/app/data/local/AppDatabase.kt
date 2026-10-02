@@ -5,6 +5,7 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.lsync.app.data.local.dao.BudgetDao
+import com.lsync.app.data.local.dao.AlarmLogDao
 import com.lsync.app.data.local.dao.EventDao
 import com.lsync.app.data.local.dao.FinanceDao
 import com.lsync.app.data.local.dao.MemoDao
@@ -13,6 +14,10 @@ import com.lsync.app.data.local.dao.SyncLogDao
 import com.lsync.app.data.local.dao.TodoDao
 import com.lsync.app.data.local.dao.TodoTemplateDao
 import com.lsync.app.data.local.entity.BudgetEntity
+import com.lsync.app.data.local.entity.AlarmLogEntity
+import com.lsync.app.data.local.entity.AlarmDeliveryTokenEntity
+import com.lsync.app.data.local.entity.AlarmCoverageGapEntity
+import com.lsync.app.data.local.entity.AlarmCoverageStateEntity
 import com.lsync.app.data.local.entity.EventEntity
 import com.lsync.app.data.local.entity.FinanceEntity
 import com.lsync.app.data.local.entity.MemoEntity
@@ -31,8 +36,12 @@ import com.lsync.app.data.local.entity.TodoTemplateEntity
         MemoEntity::class,
         BudgetEntity::class,
         SyncLogEntity::class,
+        AlarmLogEntity::class,
+        AlarmDeliveryTokenEntity::class,
+        AlarmCoverageGapEntity::class,
+        AlarmCoverageStateEntity::class,
     ],
-    version = 7,
+    version = 8,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -44,6 +53,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun memoDao(): MemoDao
     abstract fun budgetDao(): BudgetDao
     abstract fun syncLogDao(): SyncLogDao
+    abstract fun alarmLogDao(): AlarmLogDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -125,6 +135,20 @@ abstract class AppDatabase : RoomDatabase() {
                 database.execSQL(
                     "CREATE INDEX IF NOT EXISTS `index_sync_log_userId_createdAt` ON `sync_log` (`userId`, `createdAt`)"
                 )
+            }
+        }
+
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("""CREATE TABLE IF NOT EXISTS `alarm_log` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `alarmKey` TEXT NOT NULL, `expectedAt` INTEGER NOT NULL, `userId` TEXT, `status` TEXT NOT NULL, `registered` INTEGER NOT NULL, `exact` INTEGER, `firedAt` INTEGER, `posted` INTEGER, `skipReason` TEXT, `missReason` TEXT)""")
+                database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_alarm_log_alarmKey_expectedAt` ON `alarm_log` (`alarmKey`, `expectedAt`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_alarm_log_status_expectedAt` ON `alarm_log` (`status`, `expectedAt`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_alarm_log_userId_expectedAt` ON `alarm_log` (`userId`, `expectedAt`)")
+                database.execSQL("""CREATE TABLE IF NOT EXISTS `alarm_delivery_token` (`token` TEXT NOT NULL, `alarmKey` TEXT NOT NULL, `expectedAt` INTEGER NOT NULL, `state` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, `setSucceededAt` INTEGER, `retiredAt` INTEGER, `deliveredAt` INTEGER, PRIMARY KEY(`token`))""")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_alarm_delivery_token_alarmKey_expectedAt` ON `alarm_delivery_token` (`alarmKey`, `expectedAt`)")
+                database.execSQL("""CREATE TABLE IF NOT EXISTS `alarm_coverage_gap` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `fromAt` INTEGER NOT NULL, `toAt` INTEGER NOT NULL)""")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_alarm_coverage_gap_fromAt_toAt` ON `alarm_coverage_gap` (`fromAt`, `toAt`)")
+                database.execSQL("""CREATE TABLE IF NOT EXISTS `alarm_coverage_state` (`id` INTEGER NOT NULL, `coveredFromAt` INTEGER NOT NULL, `coveredThroughAt` INTEGER NOT NULL, `refreshedAt` INTEGER NOT NULL, PRIMARY KEY(`id`))""")
             }
         }
     }
