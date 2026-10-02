@@ -5,6 +5,8 @@ import androidx.room.Room
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.lsync.app.data.local.AppDatabase
+import com.lsync.app.data.alarm.AlarmCommandQueue
+import com.lsync.app.data.alarm.AlarmRegistrar
 import com.lsync.app.data.local.BibleDatabase
 import com.lsync.app.data.local.EsvDatabase
 import com.lsync.app.data.local.dao.BibleDao
@@ -47,7 +49,7 @@ object AppModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase =
         Room.databaseBuilder(context, AppDatabase::class.java, "lsync.db")
-            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7)
+            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7, AppDatabase.MIGRATION_7_8)
             .build()
 
     @Provides fun provideEventDao(db: AppDatabase): EventDao = db.eventDao()
@@ -56,6 +58,7 @@ object AppModule {
     @Provides fun provideFinanceDao(db: AppDatabase): FinanceDao = db.financeDao()
     @Provides fun provideReadingPlanDao(db: AppDatabase): ReadingPlanDao = db.readingPlanDao()
     @Provides fun provideBudgetDao(db: AppDatabase): BudgetDao = db.budgetDao()
+    @Provides fun provideAlarmLogDao(db: AppDatabase): com.lsync.app.data.local.dao.AlarmLogDao = db.alarmLogDao()
     @Provides fun provideSyncLogDao(db: AppDatabase): SyncLogDao = db.syncLogDao()
 
     @Provides
@@ -80,7 +83,9 @@ object AppModule {
     fun provideReminderScheduler(
         @ApplicationContext context: Context,
         settingsRepository: NotificationSettingsRepository,
-    ) = ReminderScheduler(context, settingsRepository)
+        commandQueue: AlarmCommandQueue,
+        registrar: AlarmRegistrar,
+    ) = ReminderScheduler(context, settingsRepository, commandQueue, registrar)
 
     @Provides
     @Singleton

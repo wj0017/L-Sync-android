@@ -70,7 +70,7 @@ class TodoRepository @Inject constructor(
     suspend fun upsertMaterialized(todos: List<TodoEntity>) {
         todoDao.upsertAll(todos)
         todos.forEach { todo ->
-            alarmScheduler.scheduleForTodo(todo)
+            alarmScheduler.scheduleForTodoAndAwait(todo.id)
             syncSafe(SyncTarget.TODOS, todo.userId, todo.id) { remote.upsertTodo(todo) }
         }
     }
@@ -112,7 +112,7 @@ class TodoRepository @Inject constructor(
         )
         todoDao.upsert(entity)
         syncSafe(SyncTarget.TODOS, entity.userId, entity.id) { remote.upsertTodo(entity) }
-        alarmScheduler.scheduleForTodo(entity)
+        alarmScheduler.scheduleForTodoAndAwait(entity.id)
         return entity
     }
 
@@ -137,7 +137,7 @@ class TodoRepository @Inject constructor(
             updatedAt = System.currentTimeMillis(),
         )
         todoDao.upsert(updated)
-        alarmScheduler.scheduleForTodo(updated)
+        alarmScheduler.scheduleForTodoAndAwait(updated.id)
         syncSafe(SyncTarget.TODOS, updated.userId, updated.id) { remote.upsertTodo(updated) }
         return updated
     }
@@ -187,7 +187,7 @@ class TodoRepository @Inject constructor(
         }
 
         // 완료된 Todo는 리마인더가 필요 없으므로 알람 취소
-        alarmScheduler.cancelTodo(todo.id)
+        alarmScheduler.scheduleForTodoAndAwait(completedTodo.id)
     }
 
     // Todo Uncheck — Finance Soft Delete (통계 제외)
@@ -202,7 +202,7 @@ class TodoRepository @Inject constructor(
         } ?: syncSafe(SyncTarget.TODOS, unchecked.userId, unchecked.id) { remote.upsertTodo(unchecked) }
 
         // 다시 미완료가 됐으니 알람 복구 (마감일이 지났으면 내부에서 자동 스킵)
-        alarmScheduler.scheduleForTodo(unchecked)
+        alarmScheduler.scheduleForTodoAndAwait(unchecked.id)
     }
 
     // Todo 삭제 — Finance는 연결 고리만 해제, 데이터 유지 (PRD 2.2 정책)
@@ -210,7 +210,7 @@ class TodoRepository @Inject constructor(
         val now = System.currentTimeMillis()
         todoDao.softDelete(todo.id, now)
         financeDao.unlinkTodo(todo.id)
-        alarmScheduler.cancelTodo(todo.id)
+        alarmScheduler.scheduleForTodoAndAwait(todo.id)
         syncSafe(SyncTarget.TODOS, todo.userId, todo.id) { remote.deleteTodoUnlinkFinance(todo.id, todo.linkedFinanceId, now) }
     }
 

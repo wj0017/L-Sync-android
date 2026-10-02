@@ -11,7 +11,7 @@ import com.lsync.app.data.remote.FirestoreDataSource
 import com.lsync.app.data.sync.SyncLogger
 import com.lsync.app.data.sync.SyncTarget
 import com.lsync.app.notification.AlarmScheduler
-import java.time.LocalDate
+import kotlinx.coroutines.CancellationException
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -51,6 +51,7 @@ class SyncRepository @Inject constructor(
             val local = eventDao.getByIdIncludingDeleted(event.id)
             if (local == null || event.updatedAt > local.updatedAt) {
                 eventDao.upsert(event)
+                alarmScheduler.scheduleForEventAndAwait(event.id)
             }
         }
     }
@@ -60,6 +61,7 @@ class SyncRepository @Inject constructor(
             val local = todoDao.getByIdIncludingDeleted(todo.id)
             if (local == null || todo.updatedAt > local.updatedAt) {
                 todoDao.upsert(todo)
+                alarmScheduler.scheduleForTodoAndAwait(todo.id)
             }
         }
     }
@@ -170,12 +172,9 @@ class SyncRepository @Inject constructor(
     // reading_plan/memos는 로컬 전용(미동기화·복원 불가)이라 절대 비우지 않는다.
     suspend fun clearLocalUserData() {
         // 삭제보다 먼저 예약된 알람을 취소한다 — 삭제 후엔 ID를 조회할 수 없어 알람이 영구 누수된다.
-        // 한 항목 실패가 전체 정리를 막지 않도록 runCatching으로 감싼다.
-        runCatching {
-            val today = LocalDate.now().toString()
-            eventDao.getFutureAlarmedEvents(today).forEach { alarmScheduler.cancelEvent(it.id) }
-            todoDao.getFutureAlarmedTodos(today).forEach { alarmScheduler.cancelTodo(it.id) }
-        }
+        // 취소가 끝나기 전에 Room을 비우면 큐의 최신 엔티티 조회가 계정을 잃는다.
+        eventDao.getAllIds().forEach { alarmScheduler.cancelForSignOutAndAwait("event", it) }
+        todoDao.getAllIds().forEach { alarmScheduler.cancelForSignOutAndAwait("todo", it) }
         // 동기화로 복원 가능한 테이블만 비운다.
         eventDao.clearAll()
         todoDao.clearAll()
@@ -195,6 +194,7 @@ class SyncRepository @Inject constructor(
             block()
             syncLogger.recordSuccess(target, userId, entityId)
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             FirebaseCrashlytics.getInstance().apply {
                 setCustomKey("sync_target", "pull")
                 recordException(e)

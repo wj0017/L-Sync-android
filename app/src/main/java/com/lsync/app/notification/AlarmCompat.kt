@@ -9,10 +9,12 @@ import android.os.Build
 // AlarmScheduler(일정·할 일)와 ReminderScheduler(정기 리마인더)가 공유한다.
 // 폴백 규칙의 사본이 갈라지지 않도록 이 한 곳에만 둔다.
 @SuppressLint("ScheduleExactAlarm")
-internal fun AlarmManager.setAlarmCompat(triggerAtMillis: Long, pendingIntent: PendingIntent) {
+internal fun AlarmManager.setAlarmCompat(triggerAtMillis: Long, pendingIntent: PendingIntent): Boolean {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || canScheduleExactAlarms()) {
         setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
+        return true
     } else {
         setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
+        return false
     }
 }

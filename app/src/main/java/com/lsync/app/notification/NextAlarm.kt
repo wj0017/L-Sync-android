@@ -13,7 +13,7 @@ data class NextEventAlarm(val title: String, val triggerAtMillis: Long)
 // 발생일은 시스템의 floating date, 시간 지정 일정은 저장된 offset을 따른다.
 fun nextAlarmForEvent(event: EventEntity, now: Instant, zone: ZoneId): NextEventAlarm? {
     if (event.deletedAt != null) return null
-    val today = LocalDate.ofInstant(now, zone)
+    val today = now.atZone(zone).toLocalDate()
     // 시간 지정 일정은 저장된 offset과 기기 시간대가 달라 어제 발생분이 아직 미래일 수 있다.
     val occurrence = nextOccurrence(event, today.minusDays(2).toString()) { candidate ->
         candidate.hasAlarm && occurrenceMillis(candidate, zone) > now.toEpochMilli()

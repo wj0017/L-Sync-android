@@ -10,22 +10,64 @@ import android.net.Uri
 import androidx.core.app.NotificationCompat
 import com.lsync.app.MainActivity
 import com.lsync.app.R
+import com.lsync.app.data.local.dao.AlarmLogDao
+import com.lsync.app.data.alarm.AlarmRegistrar
+import com.lsync.app.di.ApplicationScope
 import com.lsync.app.notification.AlarmScheduler.Companion.CHANNEL_ID
 import com.lsync.app.notification.AlarmScheduler.Companion.EXTRA_ID
 import com.lsync.app.notification.AlarmScheduler.Companion.EXTRA_TITLE
 import com.lsync.app.notification.AlarmScheduler.Companion.EXTRA_TYPE
 import com.lsync.app.notification.AlarmScheduler.Companion.TYPE_TODO
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
+import javax.inject.Inject
 
+@AndroidEntryPoint
 class AlarmReceiver : BroadcastReceiver() {
+    @Inject lateinit var alarmLogDao: AlarmLogDao
+    @Inject lateinit var alarmScheduler: AlarmScheduler
+    @Inject @ApplicationScope lateinit var scope: CoroutineScope
+
     override fun onReceive(context: Context, intent: Intent) {
         val id = intent.getStringExtra(EXTRA_ID) ?: return
         val title = intent.getStringExtra(EXTRA_TITLE) ?: return
         val type = intent.getStringExtra(EXTRA_TYPE) ?: return
+        if (type != AlarmScheduler.TYPE_EVENT && type != TYPE_TODO) return
 
+        val pending = goAsync()
+        scope.launch {
+            try {
+                val token = AlarmRegistrar.tokenFrom(intent)
+                // Older installations used no token. Keep their user-visible alarm, but do not
+                // attribute it to the new reliability ledger.
+                val delivery = token?.let { alarmLogDao.getToken(it) }
+                if (token != null && (delivery == null ||
+                        delivery.alarmKey != "$type:$id" ||
+                        !alarmLogDao.recordDelivery(token, System.currentTimeMillis()))) return@launch
+
+                val reason = runCatching { postNotification(context, id, title, type) }
+                    .getOrElse { "NOTIFY_FAILED" }
+                if (delivery != null) {
+                    alarmLogDao.recordPostResult(delivery.alarmKey, delivery.expectedAt,
+                        reason == null, reason)
+                }
+                if (type == AlarmScheduler.TYPE_EVENT) alarmScheduler.scheduleForEventAndAwait(id)
+            } finally {
+                pending.finish()
+            }
+        }
+    }
+
+    /** Null means the notify call was accepted; OS visual presentation is not observable here. */
+    private fun postNotification(context: Context, id: String, title: String, type: String): String? {
         val notificationText = if (type == TYPE_TODO) "마감일이 다가왔습니다" else "일정 시작"
 
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         ensureChannel(manager)
+        if (!manager.areNotificationsEnabled()) return "NOTIFICATIONS_OFF"
+        if (manager.getNotificationChannel(CHANNEL_ID)?.importance == NotificationManager.IMPORTANCE_NONE)
+            return "CHANNEL_BLOCKED"
 
         // 탭 시 MainActivity를 일정 탭으로 띄운다(Step 0 딥링크 메커니즘 재사용).
         // data Uri를 항목별로 고유화 — filterEquals가 extra를 무시하므로 고유 data 없이는
@@ -69,6 +111,7 @@ class AlarmReceiver : BroadcastReceiver() {
         }
 
         manager.notify(id.hashCode(), builder.build())
+        return null
     }
 
     private fun ensureChannel(manager: NotificationManager) {

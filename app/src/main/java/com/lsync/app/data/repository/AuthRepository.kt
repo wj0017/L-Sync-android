@@ -5,6 +5,9 @@ import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.GoogleAuthProvider
 import com.lsync.app.di.ApplicationScope
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -23,6 +26,17 @@ class AuthRepository @Inject constructor(
     @ApplicationScope private val scope: CoroutineScope,
 ) {
     val currentUserId: String? get() = firebaseAuth.currentUser?.uid
+    private val pullJobs = mutableSetOf<Job>()
+
+    private fun startPull(uid: String, migrate: Boolean) {
+        val job = scope.launch(start = CoroutineStart.LAZY) {
+            if (migrate) migrationHelper.migrate(uid)
+            if (currentUserId == uid) syncRepository.pullAll(uid)
+        }
+        synchronized(pullJobs) { pullJobs.add(job) }
+        job.invokeOnCompletion { synchronized(pullJobs) { pullJobs.remove(job) } }
+        job.start()
+    }
 
     val authState: StateFlow<FirebaseUser?> = callbackFlow {
         val listener = FirebaseAuth.AuthStateListener { trySend(it.currentUser) }
@@ -33,11 +47,7 @@ class AuthRepository @Inject constructor(
     init {
         // 앱 재실행 시 자동 로그인: 이미 currentUser가 있으면 마이그레이션 시도 (멱등성으로 안전)
         firebaseAuth.currentUser?.uid?.let { uid ->
-            scope.launch {
-                migrationHelper.migrate(uid)
-                // 마이그레이션 직후 원격 복원 pull (UI는 Room Flow로 자동 반영)
-                syncRepository.pullAll(uid)
-            }
+            startPull(uid, migrate = true)
         }
     }
 
@@ -48,13 +58,14 @@ class AuthRepository @Inject constructor(
         // 신규 로그인: 마이그레이션 동기 완료 후 반환 → NavGraph 전환 시 데이터 준비됨
         migrationHelper.migrate(user.uid)
         // 마이그레이션 직후 원격 복원 pull은 백그라운드로 (로그인 흐름 차단 방지, UI는 Room Flow로 반영)
-        scope.launch { syncRepository.pullAll(user.uid) }
+        startPull(user.uid, migrate = false)
         return user
     }
 
     suspend fun signOut() {
         // 로컬 정리를 firebaseAuth.signOut() 전에 — 동기화 대상 데이터를 비워 계정 전환 시
         // 이전 사용자 데이터 노출을 차단한다. 재로그인 시 pullAll로 복원되므로 손실 없음.
+        synchronized(pullJobs) { pullJobs.toList() }.forEach { it.cancelAndJoin() }
         syncRepository.clearLocalUserData()
         firebaseAuth.signOut()
     }

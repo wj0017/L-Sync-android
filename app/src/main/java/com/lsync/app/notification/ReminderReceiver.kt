@@ -14,6 +14,8 @@ import com.lsync.app.data.local.BibleBookNames
 import com.lsync.app.data.local.dao.BudgetDao
 import com.lsync.app.data.local.dao.FinanceDao
 import com.lsync.app.data.local.dao.ReadingPlanDao
+import com.lsync.app.data.local.dao.AlarmLogDao
+import com.lsync.app.data.alarm.AlarmRegistrar
 import com.lsync.app.data.local.entity.BudgetEntity
 import com.lsync.app.data.local.entity.FinanceEntity
 import com.lsync.app.data.report.financeTotals
@@ -40,6 +42,7 @@ class ReminderReceiver : BroadcastReceiver() {
     @Inject lateinit var budgetDao: BudgetDao
     @Inject lateinit var authRepository: AuthRepository
     @Inject lateinit var reminderScheduler: ReminderScheduler
+    @Inject lateinit var alarmLogDao: AlarmLogDao
 
     @Inject
     @ApplicationScope
@@ -52,20 +55,31 @@ class ReminderReceiver : BroadcastReceiver() {
         val type = ReminderType.fromKey(intent.getStringExtra(ReminderScheduler.EXTRA_REMINDER_TYPE))
             ?: return
 
-        // 알림을 보내지 않는 경우에도 다음 회차는 반드시 등록한다(리마인더 체인이 끊기지 않게).
-        reminderScheduler.scheduleNext(type)
-
         // Room 조회(suspend) 동안 프로세스가 죽지 않도록 유지. finally에서 finish().
         val pending = goAsync()
         scope.launch {
             try {
-                val content = when (type) {
-                    ReminderType.BIBLE -> buildBibleContent()
-                    ReminderType.SPENDING_DAILY -> buildDailySpendingContent()
-                    ReminderType.SPENDING_WEEKLY -> buildWeeklySpendingContent()
-                } ?: return@launch
-
-                notify(context, type, content)
+                val preview = intent.getBooleanExtra(ReminderScheduler.EXTRA_PREVIEW, false)
+                val token = if (preview) null else AlarmRegistrar.tokenFrom(intent)
+                val delivery = token?.let { alarmLogDao.getToken(it) }
+                if (token != null && (delivery == null ||
+                        delivery.alarmKey != "reminder:${type.key}" ||
+                        !alarmLogDao.recordDelivery(token, System.currentTimeMillis()))) return@launch
+                try {
+                    val reason = runCatching {
+                        val content = when (type) {
+                            ReminderType.BIBLE -> buildBibleContent()
+                            ReminderType.SPENDING_DAILY -> buildDailySpendingContent()
+                            ReminderType.SPENDING_WEEKLY -> buildWeeklySpendingContent()
+                        }
+                        if (content == null) "NO_CONTENT" else notify(context, type, content)
+                    }.getOrElse { "NOTIFY_FAILED" }
+                    if (delivery != null) alarmLogDao.recordPostResult(
+                        delivery.alarmKey, delivery.expectedAt, reason == null, reason)
+                } finally {
+                    // A failed content query or post must not prevent the next one-shot alarm.
+                    if (!preview) reminderScheduler.scheduleNextAndAwait(type)
+                }
             } finally {
                 pending.finish()
             }
@@ -170,7 +184,7 @@ class ReminderReceiver : BroadcastReceiver() {
 
     // ── 알림 게시 ─────────────────────────────────────────────────────────────
 
-    private fun notify(context: Context, type: ReminderType, content: Content) {
+    private fun notify(context: Context, type: ReminderType, content: Content): String? {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
         val channelId = when (type) {
@@ -178,6 +192,9 @@ class ReminderReceiver : BroadcastReceiver() {
             else -> ReminderScheduler.CHANNEL_SPENDING
         }
         ensureChannel(manager, channelId)
+        if (!manager.areNotificationsEnabled()) return "NOTIFICATIONS_OFF"
+        if (manager.getNotificationChannel(channelId)?.importance == NotificationManager.IMPORTANCE_NONE)
+            return "CHANNEL_BLOCKED"
 
         val navTarget = if (type == ReminderType.BIBLE) "bible" else "finance"
         val notifyId = when (type) {
@@ -214,6 +231,7 @@ class ReminderReceiver : BroadcastReceiver() {
             .build()
 
         manager.notify(notifyId, notification)
+        return null
     }
 
     // 통독은 행동 유도라 소리, 소비 요약은 정보성이라 무음. 채널이 분리돼야 따로 끌 수 있다.

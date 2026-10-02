@@ -38,6 +38,9 @@ interface TodoDao {
     """)
     suspend fun getFutureAlarmedTodos(fromDate: String): List<TodoEntity>
 
+    @Query("SELECT id FROM todos")
+    suspend fun getAllIds(): List<String>
+
     @Query("""
         SELECT * FROM todos
         WHERE dueDate = :date

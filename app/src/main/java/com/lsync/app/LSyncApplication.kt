@@ -7,6 +7,7 @@ import com.lsync.app.notification.ReminderScheduler
 import com.lsync.app.data.sync.SyncLogger
 import com.lsync.app.di.ApplicationScope
 import com.lsync.app.worker.EventAlarmRefreshWorker
+import com.lsync.app.worker.AlarmRestoreWorker
 import com.lsync.app.worker.TodoMaterializerWorker
 import com.lsync.app.worker.WidgetRefreshWorker
 import com.lsync.app.worker.SyncRetryTrigger
@@ -33,6 +34,7 @@ class LSyncApplication : Application(), Configuration.Provider {
         super.onCreate()
         TodoMaterializerWorker.enqueuePeriodicWork(this)
         EventAlarmRefreshWorker.enqueuePeriodicWork(this)
+        AlarmRestoreWorker.enqueueOnAppStart(this)
         WidgetRefreshWorker.enqueuePeriodicWork(this)
         // 강제 종료·앱 업데이트로 알람이 유실돼도 앱 실행 시 복구한다(멱등).
         reminderScheduler.syncAll()

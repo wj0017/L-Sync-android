@@ -6,6 +6,9 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import com.lsync.app.data.repository.NotificationSettingsRepository
+import com.lsync.app.data.alarm.AlarmCommandQueue
+import com.lsync.app.data.alarm.AlarmRegistrar
+import com.lsync.app.data.alarm.AlarmReliabilityPolicy
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -31,6 +34,8 @@ enum class ReminderType(val key: String) {
 class ReminderScheduler @Inject constructor(
     @ApplicationContext private val context: Context,
     private val settingsRepository: NotificationSettingsRepository,
+    private val commandQueue: AlarmCommandQueue,
+    private val registrar: AlarmRegistrar,
 ) {
     private val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
@@ -42,7 +47,12 @@ class ReminderScheduler @Inject constructor(
     // 해당 리마인더의 "다음 1회"를 등록한다. off면 취소한다.
     // AlarmManager는 one-shot이므로 발화할 때마다 리시버가 이 메서드로 재무장한다.
     fun scheduleNext(type: ReminderType) {
-        runCatching {
+        commandQueue.submit { applyNext(type) }
+    }
+
+    suspend fun scheduleNextAndAwait(type: ReminderType) = commandQueue.submitAndAwait { applyNext(type) }
+
+    private suspend fun applyNext(type: ReminderType) {
             val s = settingsRepository.current()
             val now = LocalDateTime.now()
 
@@ -63,22 +73,34 @@ class ReminderScheduler @Inject constructor(
             }
 
             if (next == null) {
-                cancel(type)
+                applyCancel(type)
                 return
             }
 
             val triggerAtMillis = next.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-            val pendingIntent = PendingIntent.getBroadcast(
-                context,
-                requestCode(type),
-                buildIntent(type),
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-            )
-            alarmManager.setAlarmCompat(triggerAtMillis, pendingIntent)
-        }
+            val expected = generateSequence(next) { previous ->
+                if (type == ReminderType.SPENDING_WEEKLY) previous.plusWeeks(1) else previous.plusDays(1)
+            }.takeWhile { candidate ->
+                candidate.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli() <
+                    System.currentTimeMillis() + AlarmReliabilityPolicy.EXPECTATION_HORIZON_MS
+            }.map { it.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli() }.toList()
+            registrar.replace("reminder:${type.key}", triggerAtMillis, null, ReminderReceiver::class.java,
+                requestCode(type), mapOf(EXTRA_REMINDER_TYPE to type.key), expected)
+            cancelLegacy(type)
     }
 
     fun cancel(type: ReminderType) {
+        commandQueue.submit { applyCancel(type) }
+    }
+
+    suspend fun cancelAndAwait(type: ReminderType) = commandQueue.submitAndAwait { applyCancel(type) }
+
+    private suspend fun applyCancel(type: ReminderType) {
+        registrar.cancel("reminder:${type.key}", ReminderReceiver::class.java, requestCode(type))
+        cancelLegacy(type)
+    }
+
+    private fun cancelLegacy(type: ReminderType) {
         runCatching {
             val pendingIntent = PendingIntent.getBroadcast(
                 context,
@@ -104,6 +126,7 @@ class ReminderScheduler @Inject constructor(
 
     companion object {
         const val EXTRA_REMINDER_TYPE = "reminder_type"
+        const val EXTRA_PREVIEW = "reminder_preview"
 
         const val CHANNEL_BIBLE = "lsync_bible_reminder"
         const val CHANNEL_SPENDING = "lsync_spending_digest"

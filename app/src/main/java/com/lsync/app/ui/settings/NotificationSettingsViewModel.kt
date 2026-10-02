@@ -56,6 +56,7 @@ class NotificationSettingsViewModel @Inject constructor(
             context.sendBroadcast(
                 Intent(context, ReminderReceiver::class.java).apply {
                     putExtra(ReminderScheduler.EXTRA_REMINDER_TYPE, type.key)
+                    putExtra(ReminderScheduler.EXTRA_PREVIEW, true)
                 },
             )
         }

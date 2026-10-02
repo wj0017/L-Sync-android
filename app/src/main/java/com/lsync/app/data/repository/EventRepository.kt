@@ -39,7 +39,7 @@ class EventRepository @Inject constructor(
 
     suspend fun save(event: EventEntity) {
         dao.upsert(event)
-        alarmScheduler.scheduleForEvent(event)
+        alarmScheduler.scheduleForEventAndAwait(event.id)
         syncSafe(SyncTarget.EVENTS, event.userId, event.id) { remote.upsertEvent(event) }
     }
 
@@ -103,7 +103,7 @@ class EventRepository @Inject constructor(
         val now = System.currentTimeMillis()
         val deleted = existing.copy(deletedAt = now, updatedAt = now)
         dao.upsert(deleted)
-        alarmScheduler.cancelEvent(id)
+        alarmScheduler.scheduleForEventAndAwait(deleted.id)
         syncSafe(SyncTarget.EVENTS, deleted.userId, deleted.id) { remote.upsertEvent(deleted) }
     }
 

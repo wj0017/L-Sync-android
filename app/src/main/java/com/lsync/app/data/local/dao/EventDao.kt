@@ -73,11 +73,14 @@ interface EventDao {
     // 미래 알람 조회 — 과거 시작 반복 마스터(rrule)도 포함. 누락 시 재부팅 후 반복 알람이 사라진다.
     @Query("""
         SELECT * FROM events
-        WHERE hasAlarm = 1
-          AND deletedAt IS NULL
+        WHERE deletedAt IS NULL
+          AND (hasAlarm = 1 OR rrule IS NOT NULL)
           AND (rrule IS NOT NULL OR startDate >= :fromDate)
     """)
     suspend fun getFutureAlarmedEvents(fromDate: String): List<EventEntity>
+
+    @Query("SELECT id FROM events")
+    suspend fun getAllIds(): List<String>
 
     // 로그아웃 시 동기화 대상 테이블 전체 비움 (계정 전환 데이터 격리)
     @Query("DELETE FROM events")
