@@ -114,6 +114,15 @@
       "dir": "23-sync-reliability",
       "status": "completed",
       "completed_at": "2026-09-24T10:48:35+0900"
+    },
+    {
+      "dir": "24-alarm-fixes",
+      "status": "completed",
+      "completed_at": "2026-10-03T01:25:16+0900"
+    },
+    {
+      "dir": "25-alarm-reliability",
+      "status": "in_progress"
     }
   ]
 }

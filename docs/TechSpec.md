@@ -216,10 +216,12 @@ service cloud.firestore {
 ## 5. 안드로이드 알림 & 권한
 
 ### 5.1 일정/할 일 알람
-- **등록 시점:** 생성/수정 시 Repository가 `AlarmScheduler.scheduleForEvent`/`scheduleForTodo`로 즉시 AlarmManager 등록. 삭제·완료 시 `cancel`. (재부팅 전에도 발화)
-- **트리거 시각(단일 계산):** 시간 지정 일정 = 시작 시각 / 종일 일정·마감일 Todo = 그 날 **09:00**(`REMINDER_HOUR=9`, `ZoneId.systemDefault()`). `trigger ≤ now`면 등록 스킵.
+- **등록 시점:** 생성/수정 시 Repository가 `AlarmScheduler.scheduleForEvent`/`scheduleForTodo`로 즉시 AlarmManager 등록. 삭제·완료·과거 시각은 같은 스케줄러 경로에서 기존 알람을 취소한다. 로그아웃은 원격 엔티티를 삭제하지 않고 별도 취소한다.
+- **트리거 시각(단일 계산):** 시간 지정 일정 = 시작 시각 / 종일 일정·마감일 Todo = 그 날 **09:00**(`REMINDER_HOUR=9`, `ZoneId.systemDefault()`). 단발 일정·Todo의 `trigger ≤ now`면 기존 예약을 취소하고, 반복 일정은 다음 유효 발생을 찾는다.
 - **게이팅:** Event = `hasAlarm` 플래그. Todo = 마감일 있는 모든 미완료 Todo 자동 리마인더(별도 플래그 없음).
 - **재부팅 복원:** `RECEIVE_BOOT_COMPLETED` → `BootReceiver` → `AlarmRestoreWorker` → `getFutureAlarmedEvents`/`getFutureAlarmedTodos` 조회 → 동일한 `scheduleForEvent`/`scheduleForTodo` 재사용(라이브와 시각 로직 일치).
+- **반복 일정:** 오늘 발생 시각이 아직 미래이면 오늘 알람을 유지한다. exdate와 발생별 제목·시각·`hasAlarm` override를 반영하고, 발화 뒤 `AlarmReceiver`가 Room 최신 마스터로 다음 1회를 즉시 재등록한다. 마스터 알람 off라도 개별 발생 on을 허용한다.
+- **원격 복원:** Firestore pull로 Room에 반영한 일정·Todo는 곧바로 등록/취소한다. 앱 시작 때도 `AlarmRestoreWorker`를 예약해 기존 항목의 알람을 다시 맞춘다.
 - **정확 알람 권한:** Android 12+(API 31)에서 `canScheduleExactAlarms()` false면 `setExactAndAllowWhileIdle` 대신 `setAndAllowWhileIdle`(inexact) 폴백. 권한 요청은 `PermissionHelper`.
 - Android 13+: 첫 실행 시 `POST_NOTIFICATIONS` 요청.
 - **딥링크·완료 액션:** `AlarmReceiver` contentIntent는 고유 data `lsync://nav/schedule/$id`(rc=`id.hashCode`) → `MainActivity`(singleTop + `onNewIntent`, `EXTRA_NAV_TARGET`) → `NavGraph`가 해당 탭으로 이동(콜드스타트 보존). `TYPE_TODO` 알림은 완료 액션(rc=+1, `lsync://complete/$id`) → `TodoActionReceiver`(@AndroidEntryPoint, `goAsync`)가 완료 처리(금액 미정 연동 Todo는 앱 유도로 ₩0 가드, 중복 완료 가드, 알림 cancel). 위젯 4카드도 `actionStartActivity`로 동일 딥링크 진입.
@@ -241,7 +243,7 @@ service cloud.firestore {
 - **재무장 3중화:** ① `ReminderReceiver`가 발화 시 `scheduleNext`(알림 미게시여도 항상) ② `LSyncApplication.onCreate()` `syncAll()` ③ `AlarmRestoreWorker`(`BOOT_COMPLETED` / `LOCKED_BOOT_COMPLETED` / **`MY_PACKAGE_REPLACED`**).
 - **통독 내용 규칙:** 시작 안 함 → 스킵 / `ensureReadingPlanForDate(today)` 선행 → 항목 없음이면 스킵 / **전부 읽음이면 스킵**. 문구 = `"오늘 통독 N장 남았어요"` + 챕터 목록, streak ≥ 2면 `getStreakAsOf(어제)` 사용(오늘 기준으로 세면 리마인더 시점엔 항상 0).
 - **소비 내용 규칙:** `currentUserId == null`이면 스킵(재무장은 수행). 매일 = 오늘 순지출 + 이번 달 순지출 + 전체 예산(`"${userId}___TOTAL__"`) 사용률. 주간 = **최근 7일 vs 직전 7일** 증감 + 최다 카테고리(EXPENSE 원금) + 이번 달 누적. 집계는 **`data/report/MonthlyAggregate.kt` 단일 출처**(`financeTotals(...).expense` = 순지출, `topExpenseCategories(rows, limit = 1)` = 최다 카테고리)만 호출한다 — 리시버가 정산 공식을 복제하지 않는다.
-- **Hilt 리시버:** `@AndroidEntryPoint` + `onReceive` 첫 줄 `super.onReceive(context, intent)`(주입 시점) + `goAsync()`(Room 조회 동안 프로세스 유지).
+- **Hilt 리시버:** `@AndroidEntryPoint` + `goAsync()`(Room 조회 동안 프로세스 유지). 생성된 부모의 `onReceive`는 abstract이므로 `super.onReceive`는 호출하지 않는다.
 - **설정 UI:** `ui/settings/NotificationSettingsScreen.kt` — 토글 + 시각(`ui.window.Dialog` + material3 `TimePicker`; material3 1.2.x에 `TimePickerDialog` 컴포저블이 없어 직접 구성) + 요일 ghost chip + "지금 미리보기"(켜진 리마인더를 명시적 브로드캐스트로 즉시 1회 발송). `NavGraph` `composable("notifications")` + `HomeScreen` 헤더 메뉴 진입.
 
 ### 5.3 결제 알림 자동 가계부

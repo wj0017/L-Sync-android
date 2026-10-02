@@ -87,6 +87,7 @@ fun HomeScreen(
     onNavigateToReport: () -> Unit,
     onNavigateToNotificationSettings: () -> Unit,
     onNavigateToSyncStatus: () -> Unit,
+    onNavigateToAlarmStatus: () -> Unit,
     viewModel: HomeViewModel = hiltViewModel(),
     authViewModel: AuthViewModel = hiltViewModel(),
 ) {
@@ -244,6 +245,17 @@ fun HomeScreen(
                                 },
                                 onClick = {
                                     onNavigateToSyncStatus()
+                                    menuExpanded = false
+                                },
+                            )
+
+                            DropdownMenuItem(
+                                text = {
+                                    Text("알람 신뢰성", fontFamily = Pretendard,
+                                        fontSize = 14.sp, color = FgPrimary)
+                                },
+                                onClick = {
+                                    onNavigateToAlarmStatus()
                                     menuExpanded = false
                                 },
                             )

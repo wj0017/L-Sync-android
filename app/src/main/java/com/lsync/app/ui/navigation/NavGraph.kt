@@ -27,6 +27,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.lsync.app.ui.auth.AuthViewModel
+import com.lsync.app.ui.alarm.AlarmStatusScreen
 import com.lsync.app.ui.auth.LoginScreen
 import com.lsync.app.ui.bible.BibleScreen
 import com.lsync.app.ui.finance.FinanceScreen
@@ -151,6 +152,7 @@ fun NavGraph(
                     onNavigateToReport = { navController.navigate("report") },
                     onNavigateToNotificationSettings = { navController.navigate("notifications") },
                     onNavigateToSyncStatus = { navController.navigate("sync") },
+                    onNavigateToAlarmStatus = { navController.navigate("alarm-status") },
                     authViewModel = authViewModel,
                 )
             }
@@ -165,6 +167,9 @@ fun NavGraph(
             }
             composable("sync") {
                 SyncStatusScreen(onBack = { navController.popBackStack() })
+            }
+            composable("alarm-status") {
+                AlarmStatusScreen(onBack = { navController.popBackStack() })
             }
             composable("search") {
                 SearchScreen(
