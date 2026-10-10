@@ -22,11 +22,11 @@ app/src/main/java/com/lsync/app/
 ├── MainActivity.kt                 # singleTop + onNewIntent, EXTRA_NAV_TARGET 파싱 → NavGraph로 딥링크 탭 이동(콜드스타트 보존)
 ├── di/
 │   └── AppModule.kt                # Hilt SingletonComponent
-│                                   # AppDatabase(v7), BibleDatabase, EsvDatabase,
+│                                   # AppDatabase(v8), BibleDatabase, EsvDatabase,
 │                                   # 모든 DAO, Repository, Firestore 포함
 ├── data/
 │   ├── local/
-│   │   ├── AppDatabase.kt          # v7 — Event, Todo, Finance, TodoTemplate, ReadingPlan, Memo, Budget, SyncLog
+│   │   ├── AppDatabase.kt          # v8 — 기존 엔티티 + 알람 기대·토큰·관측 공백/범위
 │   │   ├── BibleDatabase.kt        # 읽기 전용, assets/bible.db 번들
 │   │   ├── EsvDatabase.kt          # 읽기 전용, assets/esv.db 번들
 │   │   ├── FinanceCategory.kt
@@ -40,6 +40,7 @@ app/src/main/java/com/lsync/app/
 │   │   │   ├── MemoEntity.kt          # memos 테이블 (book, chapter, verse, text, date)
 │   │   │   ├── BudgetEntity.kt        # budgets 테이블 (id="userId_category" 결정론적, limitAmount, deletedAt). TOTAL_CATEGORY="__TOTAL__"
 │   │   │   ├── SyncLogEntity.kt       # sync_log 테이블 (userId, target, entityId?, success, errorType?, errorMessage?, createdAt, resolvedAt?). 로컬 전용·Firestore 미동기화
+│   │   │   ├── AlarmLogEntity.kt      # alarm_log, alarm_delivery_token, alarm_coverage_gap, alarm_coverage_state 엔티티
 │   │   │   ├── BibleVerseEntity.kt
 │   │   │   └── EsvVerseEntity.kt
 │   │   └── dao/
@@ -51,6 +52,7 @@ app/src/main/java/com/lsync/app/
 │   │       ├── MemoDao.kt             # observeForChapter, insert, deleteById
 │   │       ├── BudgetDao.kt           # observeBudgets(userId), upsert, getById (soft delete = deletedAt)
 │   │       ├── SyncLogDao.kt          # observeRecent/observeUnresolvedCount/observeAttemptsSince/observeFailuresSince(전부 userId 필터), getUnresolvedFailures, insert, markResolved, pruneOlderThan
+│   │       ├── AlarmLogDao.kt         # 기대 발생·등록 토큰·수신·게시 결과·관측 범위 기록/조회
 │   │       ├── BibleDao.kt
 │   │       └── EsvDao.kt
 │   ├── export/
@@ -59,6 +61,11 @@ app/src/main/java/com/lsync/app/
 │   │   └── EventRecurrence.kt        # 순수 Kotlin RRULE 전개 엔진. expandEvent/expandEvents/nextOccurrence + exdates/overrides JSON 헬퍼
 │   ├── sync/
 │   │   └── SyncLogger.kt             # @Singleton. SyncTarget enum + recordSuccess/recordFailure → sync_log. 기록 실패 삼킴, 실패 시 SyncRetryTrigger.schedule, 50회마다 30일 초과 prune. AuthRepository 미주입(DI 순환)
+│   ├── alarm/
+│   │   ├── AlarmCommandQueue.kt      # application-scoped 단일 IO 소비자, 최신 Room 상태로 등록·취소 명령 실행
+│   │   ├── AlarmRegistrar.kt         # 기대 발생·고유 PendingIntent 토큰과 OS 등록 결과 기록
+│   │   ├── AlarmCoverageManager.kt   # 복원 전 누락/공백 판정, 복원 후 48시간 관측 범위 갱신·30일 정리
+│   │   └── AlarmReliabilityPolicy.kt # 15분/2시간 유예와 5% 참고 판정
 │   ├── remote/
 │   │   └── FirestoreDataSource.kt    # push(upsert/batch) + fetchEvents/fetchTodos/fetchFinance/fetchBudgets(복원 pull), budgets 컬렉션
 │   └── repository/
@@ -89,7 +96,10 @@ app/src/main/java/com/lsync/app/
 │   │   └── NotificationSettingsViewModel.kt # @HiltViewModel, 변경 시 save→ReminderScheduler.syncAll
 │   ├── sync/
 │   │   ├── SyncStatusScreen.kt     # 7일/30일 ghost chip + 게이트 카드(에러율·5% 판정) + 미해결 실패·지금 재시도 + 최근 기록 50건
-│   │   └── SyncStatusViewModel.kt  # @HiltViewModel, SyncLogDao 4 Flow combine, windowJob 재구독, errorRate 0나눗셈 가드, retryNow isRetrying 가드
+│   │   └── SyncStatusViewModel.kt  # @HiltViewModel, SyncLogDao push/pull·미해결·최근 기록 Flow 결합, windowJob 재구독, retryNow 중복 가드
+│   ├── alarm/
+│   │   ├── AlarmStatusScreen.kt    # 7일/30일 알람 신뢰성 기록·참고 판정 화면
+│   │   └── AlarmStatusViewModel.kt # AlarmLogDao 기반 관측 범위·발화·미발화 집계
 │   ├── search/
 │   │   ├── SearchScreen.kt         # 상단 검색바(자동 포커스) + 섹션별 LazyColumn(일정·할일·가계부) + 빈/결과없음 상태, 결과 탭→해당 탭 이동
 │   │   └── SearchViewModel.kt      # @HiltViewModel, debounce(200)+flatMapLatest, onQueryChange/clearQuery
@@ -130,7 +140,7 @@ app/src/main/java/com/lsync/app/
 │   ├── PaymentNotificationParser.kt  # title 정규식 단독 게이트 (바디 폴백 제거)
 │   └── PaymentNotificationService.kt
 ├── worker/
-│   ├── AlarmRestoreWorker.kt         # 재부팅·앱 업데이트 복원 — 일정·할일 알람 + ReminderScheduler.syncAll()
+│   ├── AlarmRestoreWorker.kt         # 재부팅·앱 업데이트·12시간 주기 복원, 완료 후 48시간 관측 범위 대사
 │   ├── TodoMaterializerWorker.kt     # 반복 인스턴스 생성 → TodoRepository.upsertMaterialized(동기화·알람 포함)
 │   ├── MaterializationTrigger.kt     # 템플릿 생성 직후 1회 즉시 materialization (OneTimeWork)
 │   ├── EventAlarmRefreshWorker.kt    # 반복 일정 알람 일1회 재계산(다음 발생 등록)
