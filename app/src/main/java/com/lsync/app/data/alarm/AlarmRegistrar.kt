@@ -9,6 +9,7 @@ import android.net.Uri
 import com.lsync.app.data.local.dao.AlarmLogDao
 import com.lsync.app.data.local.entity.AlarmDeliveryTokenEntity
 import com.lsync.app.data.local.entity.AlarmLogEntity
+import com.lsync.app.notification.canUseExactAlarms
 import com.lsync.app.notification.setAlarmCompat
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.UUID
@@ -38,6 +39,26 @@ class AlarmRegistrar @Inject constructor(
             dao.reopenExpected(key, at)
         }
         val previous = dao.getActiveTokens(key)
+        // Already armed for the same time and mode: keep the token instead of re-arming on every app start.
+        // Only refresh extras (the title may have changed); delivery identity is the token URI, not extras.
+        val reusable = reusableToken(previous, expectedAt, System.currentTimeMillis(),
+            exactNow = manager.canUseExactAlarms(), registeredExact = dao.getExpected(key, expectedAt)?.exact)
+        if (reusable != null) {
+            val intent = Intent(context, receiver).apply {
+                data = tokenUri(reusable.token)
+                extras.forEach { (name, value) -> putExtra(name, value) }
+            }
+            val alive = PendingIntent.getBroadcast(
+                context, requestCode, intent, PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE,
+            ) != null
+            if (alive) {
+                PendingIntent.getBroadcast(
+                    context, requestCode, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                )
+                closeSuperseded(key, desired, System.currentTimeMillis())
+                return
+            }
+        }
         val token = UUID.randomUUID().toString()
         dao.prepareToken(AlarmDeliveryTokenEntity(token, key, expectedAt, createdAt = System.currentTimeMillis()))
         val intent = Intent(context, receiver).apply {
@@ -60,6 +81,10 @@ class AlarmRegistrar @Inject constructor(
             if (old.expectedAt !in desired && old.expectedAt > now)
                 dao.closePending(old.alarmKey, old.expectedAt, "SUPERSEDED")
         }
+        closeSuperseded(key, desired, now)
+    }
+
+    private suspend fun closeSuperseded(key: String, desired: Set<Long>, now: Long) {
         dao.getPendingForKey(key).filter { it.expectedAt !in desired }.forEach {
             if (it.expectedAt > now) dao.closePending(key, it.expectedAt, "SUPERSEDED")
         }
@@ -89,6 +114,25 @@ class AlarmRegistrar @Inject constructor(
     }
 
     companion object {
+        /**
+         * The existing token that can stay armed: the only active token, ARMED for the same future time,
+         * not yet delivered, and registered in the current exact/inexact mode. A mode change (permission
+         * granted or revoked) must re-arm so the alarm is upgraded or downgraded.
+         */
+        internal fun reusableToken(
+            active: List<AlarmDeliveryTokenEntity>,
+            expectedAt: Long,
+            now: Long,
+            exactNow: Boolean,
+            registeredExact: Boolean?,
+        ): AlarmDeliveryTokenEntity? {
+            val only = active.singleOrNull() ?: return null
+            return only.takeIf {
+                it.state == "ARMED" && it.expectedAt == expectedAt && it.deliveredAt == null &&
+                    expectedAt > now && registeredExact == exactNow
+            }
+        }
+
         fun tokenUri(token: String): Uri = Uri.parse("lsync://alarm-delivery/$token")
         fun tokenFrom(intent: Intent): String? =
             intent.data?.takeIf { it.scheme == "lsync" && it.host == "alarm-delivery" }?.lastPathSegment
