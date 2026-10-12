@@ -43,9 +43,13 @@ import com.kizitonwose.calendar.core.firstDayOfWeekFromLocale
 import com.lsync.app.data.local.entity.EventEntity
 import com.lsync.app.data.local.entity.TodoEntity
 import com.lsync.app.data.local.entity.TodoTemplateEntity
+import com.lsync.app.ui.components.TimePickerDialog
 import com.lsync.app.ui.theme.*
 import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.OffsetDateTime
+import java.time.ZoneId
+import java.time.ZoneOffset
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -662,10 +666,20 @@ private fun CreateEventDialog(
         weekdays = if (frequency == Frequency.WEEKLY) weekdays else emptySet(),
     )
 
-    // 편집 시 기존 시간 부분 보존(생성은 09:00 기본)
-    val timePart = initial?.startDate
-        ?.let { if (it.contains("T")) it.substringAfter("T") else null }
-        ?: "09:00:00+09:00"
+    // 편집 시 기존 시각·오프셋 보존(생성은 09:00 + 기기 오프셋 기본)
+    val initialTime = remember(initial) {
+        initial?.startDate?.takeIf { it.contains("T") }
+            ?.let { runCatching { OffsetDateTime.parse(it) }.getOrNull() }
+    }
+    var hour   by remember { mutableStateOf(initialTime?.hour ?: 9) }
+    var minute by remember { mutableStateOf(initialTime?.minute ?: 0) }
+    var showTimePicker by remember { mutableStateOf(false) }
+    val timePart = run {
+        // 편집이면 원래 오프셋 유지, 아니면 선택 날짜 기준 기기 오프셋(서머타임 반영)
+        val offset = initialTime?.offset
+            ?: selectedDate.atTime(hour, minute).atZone(ZoneId.systemDefault()).offset
+        "%02d:%02d:00%s".format(hour, minute, if (offset == ZoneOffset.UTC) "+00:00" else offset.id)
+    }
 
     LSyncInputDialog(
         title = if (initial != null) "일정 수정" else "새 일정",
@@ -687,7 +701,29 @@ private fun CreateEventDialog(
             LSyncCheckbox(label = "알림", checked = hasAlarm, onCheckedChange = { hasAlarm = it })
         }
         Spacer(Modifier.height(10.dp))
-        Text(selectedDate.format(DateTimeFormatter.ofPattern("yyyy년 M월 d일")), fontSize = 12.sp, color = FgSecondary, fontFamily = Pretendard)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(selectedDate.format(DateTimeFormatter.ofPattern("yyyy년 M월 d일")), fontSize = 12.sp, color = FgSecondary, fontFamily = Pretendard)
+            // 종일이 아니면 시작 시각 — 탭해서 변경
+            if (!isAllDay) {
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    "%02d:%02d".format(hour, minute),
+                    fontFamily = Pretendard, fontWeight = FontWeight.Medium, fontSize = 14.sp, color = FgPrimary,
+                    modifier = Modifier.clip(RoundedCornerShape(6.dp))
+                        .border(1.dp, Divider, RoundedCornerShape(6.dp))
+                        .clickable { showTimePicker = true }
+                        .padding(horizontal = 10.dp, vertical = 5.dp),
+                )
+            }
+        }
+        if (showTimePicker) {
+            TimePickerDialog(
+                initialHour = hour,
+                initialMinute = minute,
+                onDismiss = { showTimePicker = false },
+                onConfirm = { h, m -> hour = h; minute = m; showTimePicker = false },
+            )
+        }
 
         // 반복 설정 — 켜면 CreateRepeatTodoDialog와 동일한 빈도/간격/요일 피커 노출
         Spacer(Modifier.height(12.dp))

@@ -92,7 +92,7 @@ app/src/main/java/com/lsync/app/
 │   │   └── NavGraph.kt             # 4-tab: Home / Schedule / Finance / Bible + composable("search")·composable("report")·composable("notifications")·composable("sync")(하단탭 아님)
 │   │                               # 미로그인 시 LoginScreen early return. navTarget/onTargetConsumed로 딥링크 탭 이동(LaunchedEffect)
 │   ├── settings/
-│   │   ├── NotificationSettingsScreen.kt # 통독·소비 요약 토글 + 시각(Dialog+TimePicker) + 요일 ghost chip + 미리보기
+│   │   ├── NotificationSettingsScreen.kt # 통독·소비 요약 토글 + 시각(공용 TimePickerDialog) + 요일 ghost chip + 미리보기
 │   │   └── NotificationSettingsViewModel.kt # @HiltViewModel, 변경 시 save→ReminderScheduler.syncAll
 │   ├── sync/
 │   │   ├── SyncStatusScreen.kt     # 7일/30일 ghost chip + 게이트 카드(에러율·5% 판정) + 미해결 실패·지금 재시도 + 최근 기록 50건

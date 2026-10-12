@@ -244,7 +244,7 @@ service cloud.firestore {
 - **통독 내용 규칙:** 시작 안 함 → 스킵 / `ensureReadingPlanForDate(today)` 선행 → 항목 없음이면 스킵 / **전부 읽음이면 스킵**. 문구 = `"오늘 통독 N장 남았어요"` + 챕터 목록, streak ≥ 2면 `getStreakAsOf(어제)` 사용(오늘 기준으로 세면 리마인더 시점엔 항상 0).
 - **소비 내용 규칙:** `currentUserId == null`이면 스킵(재무장은 수행). 매일 = 오늘 순지출 + 이번 달 순지출 + 전체 예산(`"${userId}___TOTAL__"`) 사용률. 주간 = **최근 7일 vs 직전 7일** 증감 + 최다 카테고리(EXPENSE 원금) + 이번 달 누적. 집계는 **`data/report/MonthlyAggregate.kt` 단일 출처**(`financeTotals(...).expense` = 순지출, `topExpenseCategories(rows, limit = 1)` = 최다 카테고리)만 호출한다 — 리시버가 정산 공식을 복제하지 않는다.
 - **Hilt 리시버:** `@AndroidEntryPoint` + `goAsync()`(Room 조회 동안 프로세스 유지). 생성된 부모의 `onReceive`는 abstract이므로 `super.onReceive`는 호출하지 않는다.
-- **설정 UI:** `ui/settings/NotificationSettingsScreen.kt` — 토글 + 시각(`ui.window.Dialog` + material3 `TimePicker`; material3 1.2.x에 `TimePickerDialog` 컴포저블이 없어 직접 구성) + 요일 ghost chip + "지금 미리보기"(켜진 리마인더를 명시적 브로드캐스트로 즉시 1회 발송). `NavGraph` `composable("notifications")` + `HomeScreen` 헤더 메뉴 진입.
+- **설정 UI:** `ui/settings/NotificationSettingsScreen.kt` — 토글 + 시각(`ui.window.Dialog` + material3 `TimePicker`; material3 1.2.x에 `TimePickerDialog` 컴포저블이 없어 직접 구성) + 요일 ghost chip + "지금 미리보기"(켜진 리마인더를 명시적 브로드캐스트로 즉시 1회 발송). 시각 다이얼로그는 `ui/components/TimePickerDialog.kt` 공용 컴포저블로, 일정 생성·수정 다이얼로그의 시작 시각 선택에도 쓴다(비종일 일정 기본 09:00, 신규는 선택 날짜 기준 기기 오프셋, 편집은 기존 오프셋 보존). `NavGraph` `composable("notifications")` + `HomeScreen` 헤더 메뉴 진입.
 
 ### 5.3 결제 알림 자동 가계부
 - **서비스:** `PaymentNotificationService` (NotificationListenerService)

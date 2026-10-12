@@ -9,15 +9,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TimePicker
-import androidx.compose.material3.TimePickerDefaults
-import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -33,9 +28,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.lsync.app.ui.PermissionHelper
+import com.lsync.app.ui.components.TimePickerDialog
 import com.lsync.app.ui.theme.*
 
 // 요일 라벨 — index 0 = 월요일(java.time.DayOfWeek.value 1)
@@ -401,77 +396,6 @@ private fun PermissionNotice(text: String, actionLabel: String, onClick: () -> U
             fontSize = 13.sp, color = AccentBlue,
             modifier = Modifier.padding(top = 6.dp),
         )
-    }
-}
-
-// ── 시각 선택 다이얼로그 ────────────────────────────────────────────────────
-//
-// material3 1.2.x에는 TimePickerDialog 컴포저블이 없어 직접 구성한다.
-// AlertDialog는 최대 폭 제약으로 다이얼(약 360dp)이 잘리므로 Dialog + Surface를 쓴다.
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun TimePickerDialog(
-    initialHour: Int,
-    initialMinute: Int,
-    onDismiss: () -> Unit,
-    onConfirm: (Int, Int) -> Unit,
-) {
-    val timeState = rememberTimePickerState(
-        initialHour = initialHour,
-        initialMinute = initialMinute,
-        is24Hour = true,
-    )
-
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            shape = RoundedCornerShape(20.dp),
-            color = BgCard,
-        ) {
-            Column(
-                modifier = Modifier.padding(20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                TimePicker(
-                    state = timeState,
-                    colors = TimePickerDefaults.colors(
-                        clockDialColor = BgElevated,
-                        clockDialSelectedContentColor = BgPrimary,
-                        clockDialUnselectedContentColor = FgPrimary,
-                        selectorColor = AccentBlue,
-                        containerColor = BgCard,
-                        timeSelectorSelectedContainerColor = AccentBlue,
-                        timeSelectorSelectedContentColor = FgPrimary,
-                        timeSelectorUnselectedContainerColor = BgElevated,
-                        timeSelectorUnselectedContentColor = FgPrimary,
-                    ),
-                )
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp),
-                    horizontalArrangement = Arrangement.End,
-                ) {
-                    Text(
-                        "취소",
-                        fontFamily = Pretendard, fontWeight = FontWeight.Medium,
-                        fontSize = 14.sp, color = FgSecondary,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable(onClick = onDismiss)
-                            .padding(horizontal = 14.dp, vertical = 8.dp),
-                    )
-                    Text(
-                        "확인",
-                        fontFamily = Pretendard, fontWeight = FontWeight.Medium,
-                        fontSize = 14.sp, color = AccentBlue,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable { onConfirm(timeState.hour, timeState.minute) }
-                            .padding(horizontal = 14.dp, vertical = 8.dp),
-                    )
-                }
-            }
-        }
     }
 }
 
