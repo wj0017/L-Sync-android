@@ -46,7 +46,8 @@ interface AlarmLogDao {
     @Query("UPDATE alarm_log SET status = :status WHERE alarmKey = :key AND expectedAt = :expectedAt AND status = 'PENDING'")
     suspend fun closePending(key: String, expectedAt: Long, status: String): Int
 
-    @Query("UPDATE alarm_log SET registered = 1, exact = :exact WHERE alarmKey = :key AND expectedAt = :expectedAt")
+    // A fired row keeps the mode it was delivered under; a later re-arm (e.g. clock moved back) must not rewrite it.
+    @Query("UPDATE alarm_log SET registered = 1, exact = :exact WHERE alarmKey = :key AND expectedAt = :expectedAt AND status != 'FIRED'")
     suspend fun markRegistered(key: String, expectedAt: Long, exact: Boolean): Int
 
     @Query("UPDATE alarm_log SET posted = :posted, skipReason = :skipReason WHERE alarmKey = :key AND expectedAt = :expectedAt AND status = 'FIRED'")

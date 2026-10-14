@@ -74,4 +74,25 @@ class AlarmLogDaoTest {
             db.close()
         }
     }
+
+    @Test fun reArmAfterDeliveryKeepsTheFiredMode() = runBlocking {
+        val db = Room.inMemoryDatabaseBuilder(
+            InstrumentationRegistry.getInstrumentation().targetContext,
+            AlarmLogTestDatabase::class.java,
+        ).build()
+        try {
+            val dao = db.alarmLogDao()
+            dao.insertExpected(AlarmLogEntity(alarmKey = "event:e", expectedAt = 100, userId = "u"))
+            dao.markRegistered("event:e", 100, exact = false)
+            dao.prepareToken(AlarmDeliveryTokenEntity("t1", "event:e", 100, createdAt = 1))
+            dao.markTokenArmed("t1", 2)
+            assertTrue(dao.recordDelivery("t1", 101))
+            // The clock moves back and the same occurrence is armed again in exact mode.
+            assertEquals(0, dao.markRegistered("event:e", 100, exact = true))
+            assertEquals(false, dao.getExpected("event:e", 100)?.exact)
+            assertEquals("FIRED", dao.getExpected("event:e", 100)?.status)
+        } finally {
+            db.close()
+        }
+    }
 }
