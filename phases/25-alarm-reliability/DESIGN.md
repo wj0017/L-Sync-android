@@ -34,7 +34,7 @@ Phase 24 핸드오프 §17의 `alarmKey → expectedAt` 단일 슬롯 원장은 
 
 `AlarmLogEntity`, `AlarmDeliveryTokenEntity`, `AlarmCoverageGapEntity`, `AlarmCoverageStateEntity`, `AlarmLogDao`, `AlarmReliabilityPolicy`는 독립 기반으로 추가했다. `alarm_log`는 `(alarmKey, expectedAt)` 유일 기대 발생이다. `registered`는 성공 이력이며 발화 증거가 아니다. `markFired`는 `MISSED`를 늦은 `FIRED`로 바로잡는다. `recordDelivery`는 토큰 조회·중복 claim·발화 기록을 Room 트랜잭션 하나에서 처리한다. 기대 행이 없으면 수신을 집계하지 않는다.
 
-48시간 기대 창은 저장 비용과 관측 범위의 선택이다. 마지막 커버리지 끝 시각이 집계 끝보다 이르거나 집계 구간에 `alarm_coverage_gap`이 있으면 전체 5% 판정은 `UNDETERMINED`다. 관측된 일정·Todo의 `MISSED`와 게시 차단 `FIRED`만 분자에 넣고, `FIRED + MISSED`를 분모로 둔다. 통독·소비 리마인더는 분리한다. 기기에서 정확/비정확 알람의 15분/2시간 유예와 48시간 창을 실측하기 전까지는 `REFERENCE_*`만 출력한다. 알림 표시 자체는 OS가 확인해 주지 않는다.
+48시간 기대 창은 저장 비용과 관측 범위의 선택이다. 단, OS에 실제로 거는 다음 트리거 1건은 48시간 밖이어도 기대 행을 만든다. `recordDelivery`는 기대 행이 없는 토큰을 집계하지 않으므로, 이 행이 없으면 그 알람이 울려도 기록되지 않는다. 이 행은 누락 판정에서 관측 범위(`coveredThroughAt`) 안에 들어올 때만 대상이 된다. 12시간 주기 복원이 범위를 앞으로 밀어 기대 시각 전에 포함되고, 복원이 멈추면 공백으로 `UNOBSERVED` 처리된다. 이미 `FIRED`인 행은 재등록돼도 `registered`·`exact`를 다시 쓰지 않는다(시계를 뒤로 돌린 경우). 마지막 커버리지 끝 시각이 집계 끝보다 이르거나 집계 구간에 `alarm_coverage_gap`이 있으면 전체 5% 판정은 `UNDETERMINED`다. 관측된 일정·Todo의 `MISSED`와 게시 차단 `FIRED`만 분자에 넣고, `FIRED + MISSED`를 분모로 둔다. 통독·소비 리마인더는 분리한다. 기기에서 정확/비정확 알람의 15분/2시간 유예와 48시간 창을 실측하기 전까지는 `REFERENCE_*`만 출력한다. 알림 표시 자체는 OS가 확인해 주지 않는다.
 
 ## 통합 차단점
 
