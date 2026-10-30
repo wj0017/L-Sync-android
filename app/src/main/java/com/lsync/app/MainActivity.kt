@@ -1,5 +1,7 @@
 package com.lsync.app
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -11,7 +13,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,7 +42,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             LSyncTheme {
                 val authViewModel: AuthViewModel = hiltViewModel()
-                val authState by authViewModel.uiState.collectAsState()
+                val authState by authViewModel.uiState.collectAsStateWithLifecycle()
 
                 var showExactAlarmDialog by remember { mutableStateOf(false) }
                 var showNotificationListenerDialog by remember { mutableStateOf(false) }

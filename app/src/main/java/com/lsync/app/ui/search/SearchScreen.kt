@@ -1,5 +1,7 @@
 package com.lsync.app.ui.search
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -35,7 +37,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
-import androidx.compose.runtime.collectAsState
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.lsync.app.data.local.entity.EventEntity
 import com.lsync.app.data.local.entity.FinanceEntity
@@ -49,7 +50,7 @@ fun SearchScreen(
     onNavigateToFinance: () -> Unit,    // 가계부 결과 탭 시
     viewModel: SearchViewModel = hiltViewModel(),
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val results = uiState.results
 
     val focusRequester = remember { FocusRequester() }

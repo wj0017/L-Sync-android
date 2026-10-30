@@ -1,5 +1,7 @@
 package com.lsync.app.ui.schedule
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -56,7 +58,7 @@ import java.util.Locale
 
 @Composable
 fun ScheduleScreen(viewModel: ScheduleViewModel = hiltViewModel()) {
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     var showEventDialog  by remember { mutableStateOf(false) }
     var showTodoDialog   by remember { mutableStateOf(false) }

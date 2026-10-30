@@ -1,5 +1,7 @@
 package com.lsync.app.ui.bible
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -67,7 +69,7 @@ private val BOOK_NAMES_EN = mapOf(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun BibleScreen(viewModel: BibleViewModel = hiltViewModel()) {
-    val state by viewModel.state.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
 
     var anchored  by remember { mutableStateOf<Int?>(null) }
     var memoText  by remember { mutableStateOf("") }
