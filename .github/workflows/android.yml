@@ -17,11 +17,10 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v6
+      - name: Check Unix Gradle wrapper
+        run: test -s gradlew && test -x gradlew && ./gradlew --version
       - name: Create build-only Firebase configuration
-        run: |
-          cat > app/google-services.json <<'EOF'
-          {"project_info":{"project_number":"1234567890","project_id":"lsync-ci","storage_bucket":"lsync-ci.appspot.com"},"client":[{"client_info":{"mobilesdk_app_id":"1:1234567890:android:0123456789abcdef012345","android_client_info":{"package_name":"com.lsync.app"}},"api_key":[{"current_key":"ci-placeholder-api-key"}]}],"configuration_version":"1"}
-          EOF
+        run: python3 scripts/create_ci_firebase_config.py
       - name: Build, lint, and unit tests
         run: ./gradlew assembleDebug lintDebug testDebugUnitTest --no-configuration-cache
       - name: Enable KVM

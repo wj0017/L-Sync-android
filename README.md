@@ -2,7 +2,7 @@
 
 **일정 · 할 일 · 재정 · 신앙을 하나의 흐름으로 동기화하는 개인 맞춤형 안드로이드 생산성 허브**
 
-개발 기간 2026.05 ~ 2026.09 · 1인 개발 · 개인 저장소에서 개발한 뒤 공개용으로 옮겼다(커밋 이력 유지).
+개발 기간 2026.05 ~ 현재 · 1인 개발 · 개인 저장소에서 개발한 뒤 공개용으로 옮겼다(커밋 이력 유지).
 
 ---
 
@@ -102,6 +102,26 @@ Firebase 설정 파일은 저장소에 포함하지 않는다(`.gitignore`).
 3. 내려받은 `google-services.json`을 `app/`에 넣는다.
 
 ## 개발 명령어
+
+### 운영 설정 없이 빌드·테스트하기
+
+JDK 17과 Android SDK 34를 준비한 뒤 아래 명령을 실행한다. Gradle은
+저장소의 wrapper에 고정된 버전을 사용한다.
+
+```bash
+python scripts/create_ci_firebase_config.py
+./gradlew assembleDebug lintDebug testDebugUnitTest --no-configuration-cache
+```
+
+Windows에서는 `./gradlew` 대신 `gradlew.bat`를 사용한다. 설정 생성기는
+가짜 식별자만 쓰며 기존 `app/google-services.json`이 있으면 덮어쓰지 않는다.
+이 설정은 컴파일·로컬 규칙·DB 마이그레이션 시험용이다. 실제 로그인과
+클라우드 동기화에는 개발자가 준비한 별도 Firebase 프로젝트 설정이 필요하다.
+운영 설정과 키는 Git에 추가하지 않는다.
+
+API 29 이상의 별도 시험 에뮬레이터에서 `connectedDebugAndroidTest`로
+DB 업그레이드 시험을 실행할 수 있다. CI도 같은 가짜 설정을 사용한다.
+
 
 ```bash
 # 디버그 빌드
