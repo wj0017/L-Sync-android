@@ -1,5 +1,7 @@
 package com.lsync.app.ui.finance
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -12,7 +14,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,7 +39,7 @@ fun FinanceDashboard(
     modifier: Modifier = Modifier,
     viewModel: FinanceDashboardViewModel = hiltViewModel(),
 ) {
-    val state by viewModel.uiState.collectAsState()
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
 
     // 예산 편집 다이얼로그 상태 — null이면 닫힘, 값이면 해당 카테고리로 진입.
     var editorCategory by remember { mutableStateOf<String?>(null) }

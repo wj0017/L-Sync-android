@@ -360,7 +360,7 @@ EntryPointAccessors.fromApplication(context.applicationContext, WidgetEntryPoint
 - **정산 정책 일관성:** 가계부 집계는 `FinanceDashboardViewModel.aggregate`와 동일 공식(PRD 2.4). 어긋나면 홈·가계부 탭·위젯과 수치가 불일치한다.
 - **월 범위:** Floating Date 문자열 `"%04d-%02d-01"` ~ `"%04d-%02d-{lengthOfMonth}"`. 타임존 변환 없음.
 - **월 이동:** `previousMonth`/`nextMonth`(`YearMonth.now()` 초과 시 무시). 변경 시 `monthJob.cancel()` → 상태 초기화 → 새 범위 재구독.
-- **UI:** `ui/report/ReportScreen.kt` — `collectAsState()`만 사용, `Canvas` 직접 드로잉(차트 라이브러리 미사용), 지출에 `AccentRed` 미사용. 진입은 `composable("report")` + `HomeScreen` 헤더 아이콘(하단 4-tab 불변).
+- **UI:** `ui/report/ReportScreen.kt` — `collectAsStateWithLifecycle()`만 사용, `Canvas` 직접 드로잉(차트 라이브러리 미사용), 지출에 `AccentRed` 미사용. 진입은 `composable("report")` + `HomeScreen` 헤더 아이콘(하단 4-tab 불변).
 
 ### 9.1 리포트 내보내기 (Phase 21)
 

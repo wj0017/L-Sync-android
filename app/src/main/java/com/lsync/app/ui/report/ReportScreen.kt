@@ -1,5 +1,7 @@
 package com.lsync.app.ui.report
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+
 import android.content.Intent
 import android.graphics.Bitmap
 import androidx.compose.foundation.Canvas
@@ -29,7 +31,6 @@ import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -69,7 +70,7 @@ fun ReportScreen(
     onBack: () -> Unit,
     viewModel: ReportViewModel = hiltViewModel(),
 ) {
-    val state by viewModel.uiState.collectAsState()
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
     // 미래 월 가드는 ViewModel이 하지만, 버튼을 흐리게 해 눌러도 소용없음을 미리 알린다.
     val canGoNext = state.yearMonth.isBefore(YearMonth.now())
 

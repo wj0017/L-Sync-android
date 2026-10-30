@@ -1,5 +1,7 @@
 package com.lsync.app.ui.auth
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+
 import android.app.Activity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -18,7 +20,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -39,7 +40,7 @@ import com.lsync.app.ui.theme.Pretendard
 
 @Composable
 fun LoginScreen(viewModel: AuthViewModel) {
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
     val launcher = rememberLauncherForActivityResult(

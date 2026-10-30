@@ -1,5 +1,7 @@
 package com.lsync.app.ui.finance
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+
 import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -37,10 +39,10 @@ import java.util.Locale
 
 @Composable
 fun FinanceScreen(viewModel: FinanceViewModel = hiltViewModel()) {
-    val uiState by viewModel.uiState.collectAsState()
-    val formState by viewModel.formState.collectAsState()
-    val reimbursementForm by viewModel.reimbursementForm.collectAsState()
-    val linkSettlement by viewModel.linkSettlement.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val formState by viewModel.formState.collectAsStateWithLifecycle()
+    val reimbursementForm by viewModel.reimbursementForm.collectAsStateWithLifecycle()
+    val linkSettlement by viewModel.linkSettlement.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current

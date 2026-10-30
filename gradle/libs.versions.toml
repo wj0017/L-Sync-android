@@ -8,7 +8,7 @@ firebase-bom = "33.1.0"
 workmanager = "2.9.0"
 navigation = "2.7.7"
 coroutines = "1.8.0"
-lifecycle = "2.8.0"
+lifecycle = "2.8.7"
 ksp = "1.9.24-1.0.20"
 lib-recur = "0.15.0"
 glance = "1.1.0"
@@ -24,6 +24,8 @@ androidx-splashscreen = { group = "androidx.core", name = "core-splashscreen", v
 compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "compose-bom" }
 compose-ui = { group = "androidx.compose.ui", name = "ui" }
 compose-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
+compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
+compose-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
 compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
 compose-material3 = { group = "androidx.compose.material3", name = "material3" }
 compose-material-icons = { group = "androidx.compose.material", name = "material-icons-extended" }

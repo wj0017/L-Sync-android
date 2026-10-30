@@ -1,5 +1,7 @@
 package com.lsync.app.ui.navigation
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -11,7 +13,6 @@ import androidx.compose.material.icons.outlined.MenuBook
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -54,7 +55,7 @@ fun NavGraph(
     navTarget: String? = null,
     onTargetConsumed: () -> Unit = {},
 ) {
-    val authState by authViewModel.uiState.collectAsState()
+    val authState by authViewModel.uiState.collectAsStateWithLifecycle()
 
     if (!authState.isSignedIn) {
         LoginScreen(viewModel = authViewModel)

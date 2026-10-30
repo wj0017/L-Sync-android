@@ -14,7 +14,7 @@
 - CRITICAL: Todo 삭제 시 연결된 Finance 데이터를 삭제하지 않는다. `sourceTodoId`만 null로 해제한다.
 - CRITICAL: Todo 미완료(Uncheck) 시 Finance를 삭제하지 않는다. `isExcluded = true`로 Soft Delete한다.
 - CRITICAL: 종일 일정과 Todo의 날짜는 Floating Time(`YYYY-MM-DD` 문자열). 타임존 변환 금지.
-- CRITICAL: `collectAsStateWithLifecycle` 사용 금지. `collectAsState()`만 사용한다.
+- Android Activity·화면·탐색의 Flow는 `collectAsStateWithLifecycle()`로 구독한다. 일반 Compose State·Glance에는 기계적으로 적용하지 않는다. 과거 LocalLifecycleOwner 우회 규칙의 근거·회귀 검증은 `docs/UI-STATE-LIFECYCLE.md`를 따른다.
 - CRITICAL: userId는 `AuthRepository.currentUserId`를 사용한다. Firebase Auth Google 로그인 연동 완료. `"local_user"` 하드코딩 금지.
 - CRITICAL: ViewModel은 반드시 `@HiltViewModel` + `@Inject constructor(...)` 패턴으로 작성한다. 이 없으면 Hilt 주입 실패로 런타임 크래시.
 - CRITICAL: 새 DAO나 Repository를 추가할 때는 반드시 `di/AppModule.kt`에 `@Provides` 함수를 추가한다. 누락 시 Hilt가 의존성을 찾지 못해 런타임 크래시.

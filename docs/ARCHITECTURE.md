@@ -4,7 +4,7 @@
 
 ```
 UI Layer (Compose)
-    ↓ collectAsState()
+    ↓ collectAsStateWithLifecycle()
 ViewModel (Hilt)
     ↓
 Repository (Room Flow + Firestore 동기화)
